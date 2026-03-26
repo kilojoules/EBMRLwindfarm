@@ -7,6 +7,8 @@ build/
 
 # Data files
 *.nc
+*.hdf5
+*.h5
 
 # Training artifacts
 /wandb
@@ -14,14 +16,6 @@ build/
 */events.*
 runs/
 logs/
-
-# Pretrained weights
-pretrained_pt/
-
-# Pretraining data
-/pretrain_data
-/pretrain_data_greedy
-/pretrain_data_pywake
 
 # Generated figures
 /figs

@@ -1,66 +1,72 @@
-# Transformer-Based SAC for Wind Farm Yaw Control
+# EBM + RL + Transformers for Wind Farm Control
 
-A transformer-based Soft Actor-Critic (SAC) agent that learns generalizable yaw control policies for wind farms. Trained on diverse farm layouts, it can deploy zero-shot to unseen configurations.
+Exploring **Energy-Based Models (EBMs)** combined with **Reinforcement Learning** and **Transformer architectures** for wind farm yaw control. Built on top of a proven Transformer-SAC codebase that achieves zero-shot generalization across farm layouts.
 
-## Key Features
+## Background
 
-- **Zero-shot generalization** — Train on small farms (3-6 turbines), deploy on larger ones (20-25 turbines) without retraining
-- **Layout transfer** — Learn from grid layouts, transfer to irregular and circular arrangements
-- **Interpretable attention** — Attention weights reveal which turbines influence each control decision
-- **Wind-relative encoding** — Positions are transformed to a canonical wind frame, making the policy invariant to absolute wind direction
-- **Modular architecture** — Pluggable positional encodings (MLP, sinusoidal, polar, ALiBi, relative bias) and profile encoders (Fourier, CNN, dilated, attention-based)
-
-
-## Quick Start
-
-**Training:**
-```bash
-python transformer_sac_windfarm.py \
-    --train_layouts T1 T2 T3 T4 T5 T6 \
-    --eval_layouts E1 E2 E3 \
-    --total_timesteps 500000 \
-    --pos_encoding_type absolute_mlp \
-    --use_profiles \
-    --seed 1
-```
-
-**Evaluation:**
-```bash
-python evaluate.py \
-    --checkpoint runs/<run_name>/checkpoints/step_500000.pt \
-    --eval_layouts E1 E2 E3 E4 E5
-```
+This repository originated as a Transformer-based SAC agent for wind farm yaw control (see `CONTEXT.md` for research context). The core insight: treating turbines as tokens in a transformer sequence enables a single policy to generalize across farm sizes and layouts. We're now extending this with Energy-Based Models to explore learned energy landscapes over joint turbine configurations.
 
 ## Project Structure
 
-| Path | Description |
-|------|-------------|
-| `transformer_sac_windfarm.py` | Main training script (SAC + transformer architecture) |
-| `agent.py` | `WindFarmAgent` — wraps the actor for inference |
-| `evaluate.py` | Evaluation pipeline |
-| `eval_utils.py` | Evaluation helper functions |
-| `helper_funcs.py` | Checkpoint I/O, coordinate transforms, env utilities |
-| `MultiLayoutEnv.py` | Multi-layout environment for training across farm configurations |
-| `positional_encodings/` | Positional encoding modules (absolute, bias, GAT, neighborhood) |
-| `profile_encodings/` | Wake profile encoders (Fourier, CNN, dilated, attention) |
-| `receptivity_profiles.py` | Compute turbine receptivity/influence profiles via PyWake |
-| `geometric_profiles.py` | Geometry-based profile approximations |
-| `pretrain.py` | Behavioral cloning pretraining |
-| `extract_attention.py` | Extract attention weights for analysis |
-| `Notebooks/` | Plotting and analysis notebooks (WES paper figures) |
-| `archive/` | Historical development code (old iterations, experiments) |
+```
+├── transformer_sac_windfarm.py   # Main SAC training loop
+├── networks.py                   # Transformer actor/critic architectures
+├── config.py                     # CLI config (tyro dataclass)
+├── evaluate.py                   # Evaluation pipeline
+├── replay_buffer.py              # Experience replay buffer
+├── helpers/
+│   ├── agent.py                  # WindFarmAgent inference wrapper
+│   ├── env_configs.py            # Environment configuration presets
+│   ├── eval_utils.py             # Evaluation helpers
+│   ├── helper_funcs.py           # Checkpoint I/O, coordinate transforms
+│   ├── layouts.py                # Farm layout definitions
+│   ├── multi_layout_env.py       # Multi-layout training environment
+│   ├── geometric_profiles.py     # Geometry-based wake profiles
+│   ├── receptivity_profiles.py   # PyWake-based turbine profiles
+│   ├── training_utils.py         # Training utilities
+│   └── data_loader.py            # Data loading utilities
+├── positional_encodings/         # Positional encoding variants
+│   ├── _absolute.py              # Absolute MLP, sinusoidal 2D
+│   ├── _bias.py                  # Relative attention bias (MLP, shared)
+│   ├── _gat.py                   # Graph attention-style encodings
+│   ├── _rope.py                  # Rotary position embeddings
+│   └── _spatial.py               # Spatial/neighborhood encodings
+├── profile_encodings/            # Wake profile encoders
+│   ├── _fourier.py               # Fourier-based encoding
+│   ├── _cnn.py                   # CNN-based encoding
+│   └── _blocks.py                # Shared building blocks
+├── CONTEXT.md                    # Research context and goals
+├── TODO.md                       # Research task tracker
+└── requirements.txt              # Python dependencies
+```
 
-## Approach
+## Key Architecture
 
-Each turbine is treated as a **token** in a transformer sequence:
+Each turbine is a **token** in a transformer sequence:
 
 1. **Per-turbine tokenization** — Local observations (wind speed, direction, yaw) become token features
-2. **Wind-relative positional encoding** — Turbine positions are rotated so wind always comes from a canonical direction, then encoded via MLP (or other schemes)
-3. **Wake profile conditioning** — Optional Fourier-encoded receptivity/influence profiles provide layout-aware context
+2. **Wind-relative positional encoding** — Turbine positions rotated to canonical wind frame, then encoded (MLP, sinusoidal, RoPE, ALiBi, relative bias, etc.)
+3. **Wake profile conditioning** — Optional Fourier/CNN-encoded receptivity/influence profiles for layout-aware context
 4. **Permutation-equivariant output** — Shared actor/critic heads produce actions for all turbines simultaneously
 
-The transformer naturally handles variable-length sequences, enabling a single policy to control farms of different sizes.
+The transformer handles variable-length sequences, so a single policy controls farms of any size.
+
+## Quick Start
+
+```bash
+# Training
+python transformer_sac_windfarm.py \
+    --layouts square_1 \
+    --total_timesteps 100000 \
+    --pos_encoding_type absolute_mlp \
+    --seed 1
+
+# Evaluation
+python evaluate.py \
+    --checkpoint runs/<run_name>/checkpoints/step_100000.pt \
+    --eval_layouts square_1
+```
 
 ## License
 
-This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
+MIT License. See [LICENSE](LICENSE) for details.
