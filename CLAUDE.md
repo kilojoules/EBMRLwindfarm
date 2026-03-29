@@ -1,5 +1,8 @@
 # CLAUDE.md — Project Guide for Claude Code
 
+## General notes
+- Always work in a new branch when implementing new features
+
 ## Project Overview
 
 **EBM + RL + Transformers for Wind Farm Control.** This repo combines Energy-Based Models with reinforcement learning, using a transformer backbone that treats each wind turbine as a token. Originally a Transformer-SAC agent for yaw control (generalizes zero-shot across farm layouts), now being extended with EBM research.
@@ -55,3 +58,4 @@ python transformer_sac_windfarm.py --help
 
 Core: `torch>=2.0`, `numpy`, `gymnasium`, `tyro`, `wandb`, `matplotlib`, `scipy`
 Environment: `py_wake`, `WindGym`
+
