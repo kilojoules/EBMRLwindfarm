@@ -13,7 +13,7 @@ def _base_config() -> Dict[str, Any]:
         "wind": {
             "ws_min": 10, "ws_max": 10,
             "TI_min": 0.07, "TI_max": 0.07,
-            "wd_min": 260, "wd_max": 280,
+            "wd_min": 270, "wd_max": 270,
         },
         "act_pen": {"action_penalty": 0.0, "action_penalty_type": "Change"},
         "power_def": {"Power_reward": "Baseline", "Power_avg": 1, "Power_scaling": 1.0},

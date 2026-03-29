@@ -316,6 +316,7 @@ def main():
         "dt_sim": args.dt_sim,
         "dt_env": args.dt_env,
         "yaw_step_sim": args.yaw_step,
+        "backend": "pywake",
     }
     
     def env_factory(x_pos: np.ndarray, y_pos: np.ndarray) -> gym.Env:

@@ -61,7 +61,7 @@ class Args:
     layouts: str = "test_layout"  # e.g., "square_1,square_2,circular_1"
 
     # === Observation Settings ===
-    history_length: int = 15            # Number of timesteps of history per feature
+    history_length: int = 2            # Number of timesteps of history per feature
     use_wd_deviation: bool = False      # If True, convert WD to deviation from mean
     use_wind_relative_pos: bool = True  # Transform positions to wind-relative frame
     wd_scale_range: float = 90.0        # Only used if use_wd_deviation=True. Wind direction deviation range for scaling (±degrees → [-1,1])
