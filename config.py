@@ -61,7 +61,7 @@ class Args:
     layouts: str = "test_layout"  # e.g., "square_1,square_2,circular_1"
 
     # === Observation Settings ===
-    history_length: int = 15            # Number of timesteps of history per feature
+    history_length: int = 2            # Number of timesteps of history per feature
     use_wd_deviation: bool = False      # If True, convert WD to deviation from mean
     use_wind_relative_pos: bool = True  # Transform positions to wind-relative frame
     wd_scale_range: float = 90.0        # Only used if use_wd_deviation=True. Wind direction deviation range for scaling (±degrees → [-1,1])
@@ -112,6 +112,18 @@ class Args:
     target_network_frequency: int = 1
     alpha: float = 0.2            # Initial entropy coefficient
     autotune: bool = True         # Auto-tune entropy coefficient
+
+    # === Diffusion Actor Settings ===
+    actor_type: str = "gaussian"          # "gaussian" or "diffusion"
+    num_diffusion_steps: int = 20         # DDPM steps for training
+    num_inference_steps: int = 5          # DDIM steps at inference
+    beta_start: float = 0.0001           # Linear beta schedule start
+    beta_end: float = 0.02               # Linear beta schedule end
+    timestep_embed_dim: int = 64         # Sinusoidal timestep embedding dim
+    denoiser_hidden_dim: int = 256       # Hidden dim of denoiser MLP
+    denoiser_num_layers: int = 3         # Number of layers in denoiser MLP
+    diffusion_bc_weight: float = 0.0     # Weight of diffusion BC loss (0 = pure Q-guidance)
+    guidance_scale: float = 0.0          # Classifier guidance lambda at inference (0 = off)
 
     # === Gradient Clipping ===
     grad_clip: bool = True

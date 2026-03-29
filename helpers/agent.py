@@ -24,7 +24,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import gymnasium as gym
-from typing import Optional, Tuple, List
+from typing import Any, Optional, Tuple, List
 from dataclasses import dataclass
 
 from .helper_funcs import transform_to_wind_relative, rotate_profiles_tensor
@@ -206,20 +206,24 @@ class WindFarmAgent:
         envs: gym.vector.VectorEnv,
         obs: np.ndarray,
         deterministic: bool = False,
+        guidance_fn: Any = None,
+        guidance_scale: float = 0.0,
     ) -> np.ndarray:
         """
         Select actions given current environment state.
-        
+
         Args:
             envs: Vectorized environment
             obs: Current observations, shape (num_envs, n_turbines, obs_dim)
             deterministic: If True, use mean action. If False, sample stochastically.
-        
+            guidance_fn: Optional callable(action, mask) -> energy for classifier guidance.
+            guidance_scale: Lambda for guidance gradient (0 = no guidance).
+
         Returns:
             actions: Action array, shape (num_envs, n_turbines)
         """
         batch = self.batch_preparer.from_envs(envs, obs)
-        
+
         with torch.no_grad():
             action_tensor, _, _, _ = self.actor.get_action(
                 batch.obs,
@@ -228,8 +232,10 @@ class WindFarmAgent:
                 deterministic=deterministic,
                 recep_profile=batch.receptivity,
                 influence_profile=batch.influence,
+                guidance_fn=guidance_fn,
+                guidance_scale=guidance_scale,
             )
-        
+
         # Remove action_dim dimension and convert to numpy
         return action_tensor.squeeze(-1).cpu().numpy()
     

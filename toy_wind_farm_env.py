@@ -54,6 +54,10 @@ class ToyWindFarmEnv(gymnasium.Env):
         self.yaw_step = yaw_step
         self.max_steps = max_steps
 
+        # WindFarmAgent compatibility attributes
+        self.wd = 270.0               # Wind direction (degrees), fixed
+        self.rotor_diameter = 178.3   # DTU10MW rotor diameter (meters)
+
         # Wake model parameters
         self.base_deficit = 0.3  # 30% velocity deficit in full wake at 500m
         self.deficit_decay_far = 0.5  # T1→T3 deficit is 50% of T1→T2 (double distance)
@@ -147,6 +151,16 @@ class ToyWindFarmEnv(gymnasium.Env):
             u_eff / self.wind_speed,                # normalized wind speed in [0, 1]
         ], axis=-1).astype(np.float32)
         return obs
+
+    @property
+    def turbine_positions(self):
+        """Alias for positions, matching WindGym interface."""
+        return self.positions
+
+    @property
+    def attention_mask(self):
+        """No padding — all turbines are real."""
+        return np.zeros(self.n_turbines, dtype=bool)
 
     def _get_info(self):
         total_power, per_turbine_power, u_eff = self._compute_power()
