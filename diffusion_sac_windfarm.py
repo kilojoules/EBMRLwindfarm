@@ -816,8 +816,10 @@ def main():
 
                 lam_str = f"{lam:.1f}".replace(".", "_")
                 prefix = f"guidance_{lam_str}"
-                writer.add_scalar(f"{prefix}/mean_reward", ep_reward, global_step)
-                writer.add_scalar(f"{prefix}/mean_load", ep_load, global_step)
+                mean_reward = ep_reward / max(guided_eval_steps, 1)
+                mean_load = ep_load / max(guided_eval_steps, 1)
+                writer.add_scalar(f"{prefix}/mean_reward", mean_reward, global_step)
+                writer.add_scalar(f"{prefix}/mean_load", mean_load, global_step)
                 if ep_yaw_abs:
                     writer.add_scalar(f"{prefix}/mean_abs_yaw_deg", np.mean(ep_yaw_abs), global_step)
                 if ep_power:
@@ -832,7 +834,7 @@ def main():
 
                 yaw_str = f", AbsYaw={np.mean(ep_yaw_abs):.1f}deg" if ep_yaw_abs else ""
                 turb_str = f" [{', '.join(turb_yaw_strs)}]" if turb_yaw_strs else ""
-                print(f"  [lambda={lam}] Reward={ep_reward:.2f}, Load={ep_load:.2f}{yaw_str}{turb_str}")
+                print(f"  [lambda={lam}] Reward={mean_reward:.2f}, Load={mean_load:.2f}{yaw_str}{turb_str}")
 
             # --- Visualization figures (every Nth eval) ---
             if args.viz_every_n_evals > 0 and global_step % (args.eval_interval * args.viz_every_n_evals) < args.eval_interval:
@@ -894,13 +896,16 @@ def main():
                 mask_t = torch.tensor(
                     get_env_attention_masks(eval_env), device=device, dtype=torch.bool)
                 ep_load += gfn(act_t, mask_t).mean().item()
+        final_steps = min(50, args.num_eval_steps)
+        mean_reward = ep_reward / max(final_steps, 1)
+        mean_load = ep_load / max(final_steps, 1)
         yaw_str = f", AbsYaw={np.mean(ep_yaw_abs):.1f}deg" if ep_yaw_abs else ""
         turb_strs = []
         for t in range(n_turbines_max):
             if ep_yaw_per_turb[t]:
                 turb_strs.append(f"T{t}={np.mean(ep_yaw_per_turb[t]):.1f}")
         turb_str = f" [{', '.join(turb_strs)}]" if turb_strs else ""
-        print(f"  lambda={lam}: Reward={ep_reward:.2f}, Load={ep_load:.2f}{yaw_str}{turb_str}")
+        print(f"  lambda={lam}: Reward={mean_reward:.2f}, Load={mean_load:.2f}{yaw_str}{turb_str}")
 
     writer.close()
     envs.close()

@@ -130,7 +130,7 @@ def main():
     parser = argparse.ArgumentParser(description="Visualize energy landscape and constraint composition")
     parser.add_argument("--checkpoint", required=True, help="Path to .pt checkpoint")
     parser.add_argument("--surrogate", default="t1_positive_only", help="Surrogate type")
-    parser.add_argument("--lambda-val", type=float, default=10.0, help="Lambda for energy landscape panels")
+    parser.add_argument("--lambda-val", type=float, default=1.0, help="Lambda for energy landscape panels")
     parser.add_argument("--grid-res", type=int, default=80, help="Grid resolution for heatmaps")
     parser.add_argument("--eval-steps", type=int, default=50, help="Eval steps per lambda")
     parser.add_argument("--opt-steps", type=int, default=20, help="Optimization steps for trajectory plot")
