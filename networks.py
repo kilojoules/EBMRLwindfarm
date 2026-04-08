@@ -451,9 +451,14 @@ class TransformerEncoderLayer(nn.Module):
         else:
             attn_mask = None
 
+        # Ensure matching dtypes to avoid PyTorch deprecation warning
+        kpm = key_padding_mask
+        if attn_mask is not None and kpm is not None and kpm.dtype != attn_mask.dtype:
+            kpm = kpm.to(dtype=attn_mask.dtype)
+
         attn_out, attn_weights = self.attn(
             x_norm, x_norm, x_norm,
-            key_padding_mask=key_padding_mask,
+            key_padding_mask=kpm,
             attn_mask=attn_mask,
             average_attn_weights=False,  # Return per-head weights
             need_weights=need_weights,  # Only compute if needed!
