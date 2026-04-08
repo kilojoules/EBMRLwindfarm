@@ -71,6 +71,13 @@ def _deep_update(base: dict, overrides: dict) -> dict:
 # Registry: name -> overrides from base
 ENV_CONFIGS: Dict[str, Dict[str, Any]] = {
     "default": {},
+    "multi_modal": {
+        "wind": {
+            "ws_min": 9, "ws_max": 9,
+            "wd_min": 268, "wd_max": 268,
+            "TI_min": 0.07, "TI_max": 0.07,
+        },
+    },
     "big": {
         "BaseController": "PyWake",
         "wind": {
