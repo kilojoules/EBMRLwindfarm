@@ -1,70 +1,210 @@
-# Experiment Plan: AC Budget Surrogate for ICML
+# Experiment Plan: Post-Hoc Cumulative Budget Constraints via Optimal Execution Theory
 
-## Goal
+## Paper Structure: Three Domains
 
-Validate that the Almgren-Chriss-inspired NegativeYawBudgetSurrogate works
-as a post-hoc constraint on a **trained** EBT-SAC agent in WindGym. This is
-the critical experiment needed before submission.
+The ICML paper demonstrates generality across three application areas:
 
-## Experiments (Priority Order)
+1. **Engineering domain:** Wind farm yaw control (primary, WindGym)
+2. **Standard ML benchmark:** Safety-Gymnasium locomotion velocity tasks
+3. **OR/Economics domain:** Ad auction budget pacing
 
-### Experiment 1: Post-Hoc Constraint on Trained EBT Agent (MUST-HAVE)
+Each domain shares the same structure:
+- An RL agent optimizing reward with continuous actions
+- A "risky action" that boosts short-term reward but incurs cumulative cost
+- A lifetime budget on that cumulative cost
+- Time-varying conditions where the risky action's value changes
 
-**Hypothesis:** A pre-trained unconstrained EBT-SAC agent, when evaluated
-with NegativeYawBudgetSurrogate composed at inference, respects the negative-yaw
-budget while retaining >90% of unconstrained power.
+The same `NegativeYawBudgetSurrogate` (generalized as `CumulativeBudgetSurrogate`)
+applies to all three, with only the cost indicator function swapped.
+
+---
+
+## Domain 1: Wind Farm Yaw Control (WindGym)
+
+**Risky action:** Negative yaw (steers rotor against conventional direction)
+**Budget:** Total timesteps at negative yaw per turbine per year
+**Temporal variation:** Wind speed and direction follow a real 10-year time
+series from Energy Island (Denmark). Negative yaw is most valuable during
+wake-aligned wind events at moderate speeds.
+
+### Experiment 1.1: Post-Hoc Constraint on Trained EBT Agent
+
+**Status:** Running on LUMI (job 17432996) with Energy Island wind time series.
 
 **Protocol:**
-1. Train EBT-SAC on `3turb` layout, 100k steps, no budget constraint
-2. Evaluate the trained checkpoint with budget surrogate at inference:
-   - Risk aversion: [0.0, 0.5, 1.0, 2.0, 5.0]
-   - Guidance scale: [0.5, 1.0, 2.0, 5.0, 10.0]
-   - Budget: 15 steps (out of 200-step episode)
-3. Compare to unconstrained evaluation (guidance_scale=0)
+1. Train EBT-SAC on `3turb` layout, 100k steps, unconstrained, with
+   Energy Island CSV driving wind conditions
+2. Evaluate with budget surrogate post-hoc:
+   - Steepness: [2, 3, 5] (calibrated to not overwhelm learned energy head)
+   - Guidance scale: [0.05, 0.1, 0.5, 1.0]
+   - Risk aversion: [0, 1, 2, 5]
+   - Budget levels: [15, 30, 50, 100] steps out of 200
+   - 5 episodes per config
+3. Baselines: unconstrained, hard-clip (no neg yaw ever), constant penalty (RA=0)
 
 **Measurements:**
-- Farm power (mean episode return)
-- Negative yaw count per turbine per episode
-- Power retention: constrained_power / unconstrained_power
+- Power ratio: constrained_power / unconstrained_power
+- Budget utilization: neg_yaw_steps / budget
 - Budget violation rate
 
-**LUMI job:** `lumi/train_ebt_3turb.sbatch`
+### Experiment 1.2: Post-Hoc vs. Retrained CMDP
 
-### Experiment 2: Post-Hoc vs. Retrained CMDP (MUST-HAVE)
+Train a separate agent with neg-yaw penalty in reward. Compare:
+- Performance at budget=15, then change to budget=30 (no retraining for post-hoc)
+- Training compute (wall-clock time)
 
-**Hypothesis:** Post-hoc composition matches retrained CMDP in power but
-wins on flexibility (zero retraining for new budget levels).
+### Experiment 1.3: Multiple Farm Layouts
+
+Test on 3turb, square_1, and a larger layout to demonstrate zero-shot generalization
+of the budget constraint (the turbines-as-tokens architecture handles variable farm sizes).
+
+---
+
+## Domain 2: Safety-Gymnasium Locomotion (Standard ML Benchmark)
+
+**Environment:** `SafetyHalfCheetahVelocity-v1` from Safety-Gymnasium (NeurIPS 2023)
+
+**Risky action:** Running fast (velocity above threshold)
+**Budget:** Total timesteps allowed above velocity threshold per episode
+**Cost indicator:** c(s,a) = 1[velocity > v_threshold]
+
+**Temporal variation (added via wrapper):** A sinusoidal reward multiplier
+simulates varying terrain difficulty or task urgency:
+```
+reward_multiplier(t) = 1 + A * sin(2*pi*t / T_period)
+```
+During high-multiplier phases, sprinting is worth more. The AC schedule
+should concentrate speeding budget into these phases.
+
+### Experiment 2.1: AC Budget vs. Constant Lagrangian
 
 **Protocol:**
-1. Use checkpoint from Exp 1 + budget surrogate (post-hoc)
-2. Train a NEW agent with negative-yaw penalty baked into reward
-3. Compare both at budget=15 and then at budget=30 (no retraining for post-hoc)
+1. Train unconstrained SAC on HalfCheetah (standard, ~30 min)
+2. Add time-varying reward wrapper
+3. Evaluate with budget surrogate post-hoc:
+   - Cost indicator: velocity > threshold
+   - Budget: [10%, 25%, 50%] of episode length
+   - RA: [0 (constant Lagrangian), 1, 2, 5]
+   - Guidance scale sweep
+4. Baselines: constant Lagrangian (RA=0), hard velocity cap, PPO-Lagrangian (retrained)
 
-### Experiment 3: Guidance Scale Sensitivity (MUST-HAVE)
+**Key hypothesis:** AC(RA>0) concentrates speeding into high-multiplier phases,
+achieving higher cumulative reward than AC(RA=0) for the same budget.
 
-**Hypothesis:** A robust guidance_scale range exists where budget is
-satisfied across wind conditions.
+### Experiment 2.2: Comparison to OmniSafe Baselines
+
+OmniSafe provides PPO-Lagrangian, CPPO-PID, and other constrained RL
+baselines. Compare post-hoc AC to retrained constrained agents.
+
+### Implementation Plan
+
+```
+scripts/safety_gym_budget.py:
+  - TimeVaryingRewardWrapper: multiplies reward by sin(t) schedule
+  - VelocityBudgetSurrogate: adapts NegativeYawBudgetSurrogate
+    with cost = 1[velocity > threshold]
+  - Training: standard SAC (stable-baselines3 or clean-rl)
+  - Evaluation: same sweep structure as wind domain
+```
+
+**Dependencies:** safety-gymnasium, mujoco (runs on LUMI with ROCm)
+
+---
+
+## Domain 3: Ad Auction Budget Pacing (OR/Economics)
+
+**Environment:** Lightweight custom Gymnasium env (~150 lines)
+
+**Setup:** An advertiser participates in sequential ad auctions over a "day"
+(episode). At each timestep, an ad impression arrives with features
+(user demographics, time of day). The agent bids a continuous amount.
+Winning costs money from the daily budget.
+
+**Risky action:** Bidding high (wins auctions, depletes budget)
+**Budget:** Total daily ad spend in dollars
+**Cost indicator:** c(s,a) = payment_if_won (continuous, or simplified to binary: won/lost)
+
+**Temporal variation (natural):** Impression values follow a time-of-day
+pattern — morning commute has high-value users, late night has low-value.
+The agent should bid aggressively during high-value periods and conserve
+budget during low-value periods. This IS the Almgren-Chriss problem.
+
+### Experiment 3.1: AC Pacing vs. Uniform Pacing
 
 **Protocol:**
-- Log sweep: guidance_scale in [0.01, 0.1, 0.5, 1, 2, 5, 10, 50, 100]
-- Fixed budget=15, RA=2.0
-- Multiple evaluation episodes
+1. Train unconstrained bidding agent (no budget constraint)
+2. Evaluate with budget surrogate post-hoc:
+   - Budget: [50%, 30%, 10%] of "unlimited" daily spend
+   - RA: [0, 1, 2, 5]
+3. Baselines: uniform pacing (bid same amount every step), greedy (bid high until broke),
+   throttled (random 50% of auctions)
 
-### Experiment 4: Budget Adaptation Mid-Episode (NICE-TO-HAVE)
+**Key hypothesis:** AC pacing concentrates spend into high-value impression
+periods, achieving higher total conversions than uniform pacing.
 
-**Hypothesis:** AC schedule adapts within one step when budget changes.
+### Implementation Plan
 
-### Experiment 5: PID Lagrangian Comparison (NICE-TO-HAVE)
+```
+scripts/ad_bidding_budget.py:
+  - AdAuctionEnv(gym.Env): simple second-price auction MDP
+    - State: (remaining_budget, time_remaining, impression_features)
+    - Action: bid amount (continuous, [0, max_bid])
+    - Reward: value of won impression (0 if lost)
+    - Time-varying: impression value ~ sin(time_of_day) pattern
+  - BiddingBudgetSurrogate: adapts the AC schedule for spend budgets
+```
 
-### Experiment 6: PyWake/FLORIS Validation (NICE-TO-HAVE)
+**Dependencies:** None beyond numpy, torch, gymnasium
+
+---
+
+## Implementation Priority
+
+| Priority | Task | Domain | Time Est |
+|---|---|---|---|
+| 1 | Complete wind farm experiments on LUMI | Wind | Running |
+| 2 | Build Safety-Gym velocity budget experiment | Locomotion | 2-3 days |
+| 3 | Build ad auction budget pacing experiment | Economics | 3-5 days |
+| 4 | Retrained CMDP baselines for all domains | All | 1 week |
+| 5 | Multi-layout wind farm experiments | Wind | 2-3 days |
+| 6 | Paper writing | - | 2-3 weeks |
+
+## Generalized Surrogate Interface
+
+For the paper, rename `NegativeYawBudgetSurrogate` to show it's domain-agnostic:
+
+```python
+class CumulativeBudgetSurrogate(nn.Module):
+    """
+    AC-inspired time-varying penalty for cumulative action budgets.
+
+    Args:
+        budget_steps: Total allowed "risky" timesteps
+        horizon_steps: Planning horizon
+        risk_aversion: AC concentration parameter (0=TWAP)
+        cost_fn: Callable(action) -> per-element cost indicator
+    """
+```
+
+The domain-specific part is only the `cost_fn`:
+- Wind: `cost_fn = lambda a: (a < -threshold).float()`
+- Locomotion: `cost_fn = lambda v: (v > v_threshold).float()`
+- Bidding: `cost_fn = lambda bid: (bid > reserve_price).float()`
+
+---
 
 ## Current Status
 
 - [x] NegativeYawBudgetSurrogate implemented and tested
-- [x] Factory + config integration
-- [x] Threshold-policy demo with 10 years of wind data
-- [x] Closed-loop gradient-based demo
-- [x] Theoretical properties verified
-- [ ] **Experiment 1: trained EBT agent** ← NEXT
-- [ ] Experiment 2: retrained CMDP baseline
-- [ ] Experiment 3: guidance scale sweep
+- [x] Threshold-policy demo with 10 years of wind data (85% of oracle)
+- [x] Closed-loop gradient-based demo (99% power retention)
+- [x] Theoretical properties verified (TWAP recovery, monotonicity, ~O(√T) regret)
+- [x] LUMI environment set up (torch ROCm + WindGym)
+- [x] Experiment 1.1 v1 complete (budget respected, penalty calibration needs fix)
+- [x] Experiment 1.1 v2 submitted with calibrated steepness + time series wind
+- [x] WindGym modified with TimeSeriesWindManager for CSV-driven wind
+- [ ] Experiment 1.1 v2 results pending (LUMI job 17432996)
+- [ ] Safety-Gymnasium velocity budget experiment
+- [ ] Ad auction budget pacing experiment
+- [ ] Retrained CMDP baselines
+- [ ] Paper writing
