@@ -1,0 +1,30 @@
+[workspace]
+name = "ebmrl-windfarm"
+version = "0.1.0"
+description = "EBM + RL + Transformers for Wind Farm Control"
+channels = ["conda-forge"]
+platforms = ["linux-64"]
+
+[dependencies]
+python = "3.11.*"
+numpy = "*"
+scipy = "*"
+matplotlib = "*"
+pandas = "*"
+h5py = "*"
+xarray = "*"
+pip = "*"
+
+[pypi-dependencies]
+gymnasium = "*"
+tyro = "*"
+wandb = "*"
+py_wake = "*"
+
+[tasks]
+install-torch-rocm = "pip install torch --index-url https://download.pytorch.org/whl/rocm6.2.4"
+install-windgym = "pip install /scratch/project_465002609/julian/windgym"
+train-3turb = "python ebt_sac_windfarm.py --layouts 3turb --total_timesteps 100000 --load_surrogate_type neg_yaw_budget --neg_yaw_budget_hours 0.041667 --neg_yaw_horizon_hours 0.555556 --neg_yaw_risk_aversion 2.0 --track False"
+demo-budget = "python scripts/demo_neg_yaw_budget.py --analysis all --output figures/"
+demo-closed-loop = "python scripts/demo_closed_loop_sac.py --output figures/closed_loop.png"
+theory-check = "python ac_theory.py"

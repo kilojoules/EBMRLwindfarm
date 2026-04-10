@@ -562,7 +562,7 @@ class NegativeYawBudgetSurrogate(nn.Module):
         neg_excess = F.relu(-action - self.neg_yaw_threshold)
         base_penalty = torch.exp(self.steepness * neg_excess) - 1.0
 
-        ac_lambda = self._compute_lambda()
+        ac_lambda = self._compute_lambda().to(action.device)
         if ac_lambda.dim() >= 2 and action.dim() == 3:
             ac_lambda = ac_lambda.unsqueeze(0)  # (1, n_turbines, 1)
         penalty = ac_lambda * base_penalty

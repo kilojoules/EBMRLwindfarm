@@ -24,39 +24,44 @@ echo "Job $SLURM_JOB_ID started at $(date)"
 echo "Node: $(hostname)"
 
 # --- Environment setup ---
+PROJECT_DIR=/scratch/project_465002609/julian/ac_budget_experiment
+
 module purge
 module load LUMI/24.03
 module load partition/G
 module load rocm/6.0.3
 
-# Activate conda environment (adjust path as needed)
-source /scratch/project_465002609/julian/miniconda3/bin/activate
-conda activate windfarm
-
-# --- Working directory ---
-cd /scratch/project_465002609/julian/ac_budget_experiment
+cd "$PROJECT_DIR"
 mkdir -p logs
 
+# Ensure torch ROCm + WindGym are installed (idempotent, runs on compute node)
+pixi run pip install torch==2.5.1 --index-url https://download.pytorch.org/whl/rocm6.2 2>/dev/null || true
+pixi run pip install /scratch/project_465002609/julian/windgym 2>/dev/null || true
+
+# Verify environment
+pixi run python -c "import torch; print(f'torch={torch.__version__}, hip={torch.version.hip}, gpu={torch.cuda.is_available()}')"
+
 # --- Training: EBT-SAC on 3-turbine farm ---
-# Train unconstrained (the budget surrogate only activates at eval time)
 # The neg_yaw_budget surrogate type triggers the budget eval sweep at the end
-python ebt_sac_windfarm.py \
+pixi run python ebt_sac_windfarm.py \
     --layouts 3turb \
     --total_timesteps 100000 \
     --seed 1 \
+    --dt_sim 1 \
+    --dt_env 1 \
     --save_interval 10000 \
     --eval_interval 25000 \
     --num_eval_steps 200 \
     --load_surrogate_type neg_yaw_budget \
-    --neg_yaw_budget_hours 0.041667 \
-    --neg_yaw_horizon_hours 0.555556 \
+    --neg_yaw_budget_hours 0.004167 \
+    --neg_yaw_horizon_hours 0.055556 \
     --neg_yaw_risk_aversion 2.0 \
     --neg_yaw_threshold_deg 0.0 \
-    --track False
+    --no-track
 
-# Budget hours conversion (with dt_env=10s):
+# Budget hours conversion (with dt_env=1s):
 #   budget_steps = neg_yaw_budget_hours * 3600 / dt_env
-#   15 budget steps: 0.041667 * 3600 / 10 = 15
-#   200 horizon steps: 0.555556 * 3600 / 10 = 200
+#   15 budget steps: 0.004167 * 3600 / 1 = 15
+#   200 horizon steps: 0.055556 * 3600 / 1 = 200
 
 echo "Job $SLURM_JOB_ID finished at $(date)"
