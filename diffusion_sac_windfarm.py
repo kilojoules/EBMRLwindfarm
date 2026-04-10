@@ -50,7 +50,7 @@ from config import Args
 from replay_buffer import TransformerReplayBuffer
 from networks import TransformerCritic, create_profile_encoding
 from diffusion import TransformerDiffusionActor
-from load_surrogates import create_load_surrogate, YawTravelBudgetSurrogate
+from load_surrogates import create_load_surrogate, YawTravelBudgetSurrogate, NegativeYawBudgetSurrogate
 from helpers.agent import WindFarmAgent
 from helpers.constraint_viz import plot_yaw_trajectory, plot_yaw_vs_lambda, plot_power_vs_lambda
 import matplotlib.pyplot as plt
@@ -411,6 +411,10 @@ def main():
         args.load_surrogate_type,
         steepness=args.load_steepness,
         per_turbine_thresholds=args.per_turbine_thresholds,
+        neg_yaw_budget_steps=int(args.neg_yaw_budget_hours * 3600 / args.dt_env),
+        neg_yaw_horizon_steps=int(args.neg_yaw_horizon_hours * 3600 / args.dt_env),
+        neg_yaw_risk_aversion=args.neg_yaw_risk_aversion,
+        neg_yaw_threshold_deg=args.neg_yaw_threshold_deg,
     )
     print(f"Load surrogate: {args.load_surrogate_type} → {type(load_surrogate).__name__}")
 

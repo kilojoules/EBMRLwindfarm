@@ -32,6 +32,7 @@ from load_surrogates import (
     ExponentialYawSurrogate,
     PerTurbineYawSurrogate,
     YawTravelBudgetSurrogate,
+    NegativeYawBudgetSurrogate,
 )
 from helpers.agent import WindFarmAgent
 from helpers.helper_funcs import get_env_attention_masks
@@ -113,18 +114,24 @@ def load_checkpoint_and_setup(path: str, device: torch.device):
 
 
 def run_episode(envs, agent, guidance_fn, guidance_scale, num_steps, device,
-                travel_surrogate=None):
-    """Run one evaluation episode and return metrics."""
+                stateful_surrogate=None):
+    """Run one evaluation episode and return metrics.
+
+    Args:
+        stateful_surrogate: Any surrogate with reset()/update() methods
+            (e.g. YawTravelBudgetSurrogate, NegativeYawBudgetSurrogate).
+            When provided, it is used as the guidance_fn and updated each step.
+    """
     obs, _ = envs.reset()
-    if travel_surrogate is not None:
-        travel_surrogate.reset()
+    if stateful_surrogate is not None:
+        stateful_surrogate.reset()
 
     total_reward = 0.0
     yaw_trajectory = []
     powers = []
 
     for step in range(num_steps):
-        gfn = travel_surrogate if travel_surrogate is not None else guidance_fn
+        gfn = stateful_surrogate if stateful_surrogate is not None else guidance_fn
 
         with torch.no_grad():
             act = agent.act(envs, obs, guidance_fn=gfn, guidance_scale=guidance_scale)
@@ -136,10 +143,10 @@ def run_episode(envs, agent, guidance_fn, guidance_scale, num_steps, device,
             yaw = np.array(info["yaw angles agent"])
             yaw_trajectory.append(yaw[0] if yaw.ndim > 1 else yaw)
 
-            if travel_surrogate is not None:
+            if stateful_surrogate is not None:
                 yaw_t = torch.tensor(yaw[0] if yaw.ndim > 1 else yaw,
                                      device=device, dtype=torch.float32)
-                travel_surrogate.update(yaw_t)
+                stateful_surrogate.update(yaw_t)
 
         if "Power agent" in info:
             powers.append(float(np.mean(info["Power agent"])))
@@ -170,6 +177,9 @@ def main():
     lam = cli_args.guidance_scale
     num_steps = cli_args.steps
 
+    # Budget of 25% of episode steps at negative yaw, over the full episode
+    budget_steps = max(num_steps // 4, 1)
+
     scenarios = [
         ("No constraint", None, None),
         ("Uniform +/-15 deg", ExponentialYawSurrogate(15.0, 30.0, 10.0), None),
@@ -182,6 +192,12 @@ def main():
          YawTravelBudgetSurrogate(50.0, 100, 30.0, 5.0)),
         ("Travel 20 deg/100 steps", None,
          YawTravelBudgetSurrogate(20.0, 100, 30.0, 5.0)),
+        (f"NegYaw budget (risk=0)", None,
+         NegativeYawBudgetSurrogate(budget_steps, num_steps, 0.0, 10.0)),
+        (f"NegYaw budget (risk=1)", None,
+         NegativeYawBudgetSurrogate(budget_steps, num_steps, 1.0, 10.0)),
+        (f"NegYaw budget (risk=5)", None,
+         NegativeYawBudgetSurrogate(budget_steps, num_steps, 5.0, 10.0)),
     ]
 
     print(f"\n{'='*75}")
@@ -189,10 +205,10 @@ def main():
     print(f"{'='*75}\n")
 
     results = []
-    for name, gfn, travel_surr in scenarios:
+    for name, gfn, stateful_surr in scenarios:
         try:
             result = run_episode(envs, agent, gfn, lam, num_steps, device,
-                                 travel_surrogate=travel_surr)
+                                 stateful_surrogate=stateful_surr)
         except Exception as e:
             print(f"  {name:30s} | FAILED: {e}")
             # Recreate env after crash
