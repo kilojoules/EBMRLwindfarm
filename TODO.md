@@ -1,75 +1,89 @@
-# TODO — EBM + RL + Transformers
+# TODO — Composable Energy Policies for Constrained Multi-Agent Control
 
-## BASIC STUFF
-- [ ] Make it work with NO load surrogate
+> Organized by priority for NeurIPS 2026 submission. See `planning/paper_plan.md` for full research plan.
 
-## Literature (reference, not blocking)
-- [ ] Read Soft Q-Learning paper (Haarnoja 2017) — the SAC→EBM connection
-- [ ] Read Diffusion-QL paper (Wang et al. 2022) — diffusion actor in actor-critic framework
-- [ ] Read Consistency Policy paper (Chen et al. 2024) — single-step diffusion inference
-- [ ] Read Compositional EBM paper (Du et al. 2020) — energy compositionality theory
+## Priority 1: Hero Experiment — Kill Test (by Apr 17)
 
-## Phase 0: Baseline & Infrastructure
-- [x] Build tiny synthetic env (3 turbines, simple wake model) for rapid diffusion actor iteration
-- [ ] Train existing SAC baseline on 2-3 layouts, save checkpoints + power metrics
-- [ ] Evaluate SAC baseline on held-out OOD layouts, record generalization curves
-- [ ] Wrap load surrogate as differentiable PyTorch module (input: state+action, output: scalar load estimate)
+- [ ] Train EBT-SAC on `multi_modal` 3-turbine layout to convergence
+- [ ] Evaluate unconstrained → expect yaws near [-16°, -17.3°, 0°]
+- [ ] Evaluate with `t1_positive_only` at λ ∈ {0.1, 0.5, 1.0, 2.0, 5.0}
+- [ ] **Kill criterion:** T1 must flip positive AND T2 must measurably change
+- [ ] If fail → diagnose energy landscape shape, consider ICLR 2027
 
-## Phase 1: Diffusion Actor
-- [x] Implement diffusion denoising network (MLP conditioned on transformer embeddings + timestep)
-- [x] Implement forward diffusion process (noise schedule, DDPM/DDIM)
-- [x] Implement Diffusion-QL training objective (diffusion loss + Q-value guidance)
-- [x] Integrate with existing transformer encoder + critic (actor replacement only)
-- [x] Integrate with WindGym for real wind farm training
-- [x] Wire cosine noise schedule (was implemented but never connected)
-- [x] Add BC weight annealing, action regularization, LR warmup
-- [x] Run training improvement sweep (cosine schedule, action reg, BC annealing)
-- [ ] Train on real layouts and compare power performance vs SAC Gaussian actor
+## Priority 2: Energy Landscape Visualization
 
-## Phase 1b: EBT Actor (alternative to diffusion)
-- [x] Implement TransformerEBTActor with explicit energy head
-- [x] Implement gradient-descent action generation with self-verification
-- [x] Training script (ebt_sac_windfarm.py) with WindGym integration
-- [ ] Tune hyperparameters (ebt_opt_lr most important per paper)
-- [ ] Compare EBT vs diffusion on same layouts
+- [ ] Visualize 2D energy landscape (T1 yaw vs T2 yaw, T3 fixed at 0°)
+- [ ] Side-by-side: E_actor alone vs. E_actor + λ·E_constraint
+- [ ] Confirm two distinct basins in composed landscape
+- [ ] Polish as hero figure for the paper
 
-## Phase 2: Safety Composition (headline result)
-- [x] Implement classifier guidance: add load surrogate gradient to denoising steps
-- [x] Implement per-turbine heterogeneous constraints (PerTurbineYawSurrogate)
-- [x] Implement stateful yaw travel budget (YawTravelBudgetSurrogate)
-- [x] Demo script for constraint scenarios (scripts/demo_per_turbine_constraints.py)
-- [ ] Evaluate power-vs-load tradeoff curves at varying lambda
-- [ ] Baseline comparisons:
-  - [ ] No constraint (diffusion/EBT actor, power only)
-  - [ ] Composed constraint (ours — load surrogate as guidance, no retraining)
-  - [ ] Retrained constrained SAC (Lagrangian, retrained per constraint level)
-  - [ ] Post-hoc action clipping (naive baseline)
-- [ ] **Multi-modal validation (current focus):**
-  - [ ] Train diffusion-SAC on multi_modal layout
-  - [ ] Train EBT-SAC on multi_modal layout
-  - [ ] Evaluate unconstrained → expect yaws near [-16°, -17.3°, 0°]
-  - [ ] Evaluate with t1_positive_only constraint → expect yaws near [22.7°, -9.3°, 0°]
-  - [ ] Confirm both actors find the qualitatively different constrained optimum
-- [ ] Test travel budget: show agent converges then holds steady
-- [ ] Visualize: energy landscape with and without load guidance
+## Priority 3: Pareto Front
 
-## Phase 3: OOD Generalization
-- [ ] Define OOD layout test suite (varying turbine count, spacing, topology)
-- [ ] Evaluate diffusion/EBT policy vs. SAC on OOD layouts
-- [ ] Test safety composition on OOD layouts — does guidance still work?
-- [ ] Ablation: is improved OOD from diffusion actor, transformer, or both?
+- [ ] Sweep λ from 0 to large for each constraint type
+- [ ] Plot (power output, constraint satisfaction) Pareto curve
+- [ ] Baseline: naive post-hoc action clipping
+- [ ] Baseline: Lagrangian SAC retrained per constraint level (if time permits)
+- [ ] Compute cooperative adaptation metric (how much unconstrained turbines change)
 
-## Phase 4: Extensions
-- [ ] Consistency distillation for single-step inference (if inference speed is a bottleneck)
-- [ ] Multiple composed constraints (load + noise + per-turbine limits)
-- [ ] Visualize energy landscapes for interpretability
+## Priority 4: Scale to Larger Farms
 
-## Infrastructure
-- [x] Spring cleaning: remove old notebooks, archive, edge scripts
-- [x] Update README for new direction
-- [x] Create CLAUDE.md, CONTEXT.md, TODO.md
-- [x] Update .gitignore
-- [x] Create papers/PAPERS.md — curated literature review
-- [x] Decide primary research direction
-- [x] Wandb scraping script (scripts/fetch_wandb_results.py)
-- [x] Sweep runner script (scripts/run_sweep.py)
+- [ ] Train on small layouts (3-turbine)
+- [ ] Evaluate on 9-turbine layouts WITH constraints (zero-shot)
+- [ ] Evaluate on 16+ turbine layouts WITH constraints (zero-shot)
+- [ ] Show "locality of cooperation" — nearby turbines adapt, distant ones don't
+
+## Priority 5: Multi-Constraint Composition
+
+- [ ] Compose 2-3 constraints simultaneously
+  - [ ] E_total = E_actor + λ₁·E_yaw_limit + λ₂·E_travel_budget + λ₃·E_t1_positive
+- [ ] Show each constraint independently controllable via its λ
+- [ ] Show removing one (λ=0) recovers unconstrained solution for that dimension
+- [ ] Show joint solution differs from satisfying constraints sequentially
+
+## Priority 6: Attention Visualization
+
+- [ ] Extract attention weights from transformer during evaluation
+- [ ] Visualize how attention shifts when constraints are applied
+- [ ] Test hypothesis: constrained turbines receive more attention from others
+
+## Writing
+
+- [ ] Method section (architecture + composition mechanism + Lagrangian connection)
+- [ ] Experiments section
+- [ ] Introduction
+- [ ] Related work
+- [ ] Conclusion
+- [ ] Figures and tables
+- [ ] Abstract (final version)
+
+## Backlog (post-submission or for ICLR 2027)
+
+- [ ] Automatic λ-tuning via dual ascent
+- [ ] Learned constraint surrogates (from data, not hand-crafted)
+- [ ] Second domain beyond wind farms (cooperative navigation or similar)
+- [ ] Consistency distillation for single-step inference
+- [ ] Formal convergence analysis of composed energy optimization
+
+---
+
+## Completed
+
+### Infrastructure
+- [x] EBT actor implementation (`ebt.py`)
+- [x] EBT-SAC training pipeline (`ebt_sac_windfarm.py`)
+- [x] Diffusion actor implementation (`diffusion.py`)
+- [x] Diffusion-SAC training pipeline (`diffusion_sac_windfarm.py`)
+- [x] 6 load surrogates (`load_surrogates.py`)
+- [x] Per-turbine energy composition in EBT actor
+- [x] Classifier guidance in diffusion actor
+- [x] Demo script for constraint scenarios
+- [x] Multi-layout training environment
+- [x] 14+ positional encoding variants
+- [x] Evaluation pipeline
+- [x] Wandb integration and sweep scripts
+- [x] PyWake brute-force validation of multi-modal optima
+- [x] Research plan and paper framing (`planning/paper_plan.md`)
+
+### Literature
+- [x] Curated reading list (`papers/PAPERS.md`)
+- [x] Competitive landscape analysis (see `planning/paper_plan.md`)
