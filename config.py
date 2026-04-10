@@ -47,6 +47,8 @@ class Args:
     yaw_step: float = 5.0     # Max yaw change per sim step (degrees)
     max_eps: int = 20         # Number of flow passthroughs per episode
     num_envs: int = 1         # Number of parallel environments
+    wind_timeseries_csv: Optional[str] = None   # Path to wind time series CSV (overrides random wind sampling)
+    wind_timeseries_random_start: bool = False  # Random start position in time series each episode
 
     # === Evaluation Settings ===
     eval_interval: int = 50000        # How often to evaluate (in env steps)

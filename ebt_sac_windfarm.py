@@ -142,6 +142,9 @@ def setup_env(args: Args) -> Dict[str, Any]:
         "yaw_step_sim": args.yaw_step,
         "backend": "pywake",
     }
+    if args.wind_timeseries_csv is not None:
+        base_env_kwargs["wind_timeseries_csv"] = args.wind_timeseries_csv
+        base_env_kwargs["wind_timeseries_random_start"] = args.wind_timeseries_random_start
 
     def env_factory(x_pos: np.ndarray, y_pos: np.ndarray) -> gym.Env:
         env = WindFarmEnv(x_pos=x_pos, y_pos=y_pos, reset_init=False, **base_env_kwargs)
@@ -893,84 +896,145 @@ def main():
 
     # === Budget Surrogate Evaluation Sweep ===
     # Test the NegativeYawBudgetSurrogate post-hoc on the trained actor.
-    # This is the key experiment: does the AC schedule work when composed
-    # with a trained policy (not just a hand-crafted objective)?
+    # Sweep over steepness, guidance_scale, risk_aversion, and budget levels.
+    # Multiple episodes per config for statistical robustness.
     if args.load_surrogate_type == "neg_yaw_budget":
         print("\n=== Negative Yaw Budget Surrogate Sweep ===")
-        budget_steps = int(args.neg_yaw_budget_hours * 3600 / args.dt_env)
         horizon_steps = args.num_eval_steps
-        print(f"Budget: {budget_steps} steps, Horizon: {horizon_steps} steps")
-
+        n_eval_episodes = 5
         budget_eval_env = evaluator.eval_envs
-        for ra in [0.0, 0.5, 1.0, 2.0, 5.0]:
-            for gs in [0.5, 1.0, 2.0, 5.0, 10.0]:
-                budget_surr = NegativeYawBudgetSurrogate(
-                    budget_steps=budget_steps,
-                    horizon_steps=horizon_steps,
-                    risk_aversion=ra,
-                    steepness=args.load_steepness,
-                    yaw_max_deg=30.0,
-                    neg_yaw_threshold_deg=args.neg_yaw_threshold_deg,
-                )
-                budget_surr.reset()
 
-                test_obs, _ = budget_eval_env.reset()
-                ep_reward = 0.0
-                neg_yaw_counts = np.zeros(n_turbines_max)
-                ep_powers = []
+        # --- Helper: run one episode and collect metrics ---
+        def _run_budget_episode(surr, gs_val):
+            surr.reset()
+            obs, _ = budget_eval_env.reset()
+            ep_rew, ep_powers, neg_counts = 0.0, [], np.zeros(n_turbines_max)
+            for _ in range(horizon_steps):
+                with torch.no_grad():
+                    act = agent.act(budget_eval_env, obs,
+                                    guidance_fn=surr if gs_val > 0 else None,
+                                    guidance_scale=gs_val)
+                obs, rew, _, _, info = budget_eval_env.step(act)
+                ep_rew += float(rew.mean())
+                if "yaw angles agent" in info:
+                    yaw = np.array(info["yaw angles agent"])
+                    yaw_flat = yaw[0] if yaw.ndim > 1 else yaw
+                    for ti in range(min(len(yaw_flat), n_turbines_max)):
+                        if yaw_flat[ti] < 0:
+                            neg_counts[ti] += 1
+                    if surr is not None:
+                        surr.update(torch.tensor(yaw_flat, device=device, dtype=torch.float32))
+                if "Power agent" in info:
+                    ep_powers.append(float(np.mean(info["Power agent"])))
+            return ep_rew, np.mean(ep_powers) if ep_powers else 0.0, neg_counts
 
-                for step_i in range(horizon_steps):
-                    with torch.no_grad():
-                        act = agent.act(
-                            budget_eval_env, test_obs,
-                            guidance_fn=budget_surr, guidance_scale=gs,
+        # --- Unconstrained baseline (multiple episodes) ---
+        print(f"Running unconstrained baseline ({n_eval_episodes} episodes)...")
+        uncon_rewards, uncon_powers, uncon_negs = [], [], []
+        for _ in range(n_eval_episodes):
+            r, p, n = _run_budget_episode(None, 0.0)
+            uncon_rewards.append(r)
+            uncon_powers.append(p)
+            uncon_negs.append(n)
+        uncon_mean_power = np.mean(uncon_powers)
+        uncon_mean_reward = np.mean(uncon_rewards)
+        uncon_mean_neg = np.mean(uncon_negs, axis=0)
+        print(f"  Unconstrained: Reward={uncon_mean_reward:.2f} +/- {np.std(uncon_rewards):.2f}, "
+              f"Power={uncon_mean_power:.0f}, "
+              f"NegYaw={uncon_mean_neg.astype(int).tolist()}")
+
+        # --- Hard-clip baseline: positive-only yaw (no neg yaw ever) ---
+        print(f"\nRunning hard-clip baseline (positive-only yaw)...")
+        from load_surrogates import PositiveYawT1Surrogate, ExponentialYawSurrogate
+        # Use exponential surrogate with threshold=0 to ban all negative yaw
+        hard_clip_surr = ExponentialYawSurrogate(threshold_deg=0.0, yaw_max_deg=30.0, steepness=10.0)
+        clip_rewards, clip_powers = [], []
+        for _ in range(n_eval_episodes):
+            r, p, n = _run_budget_episode(hard_clip_surr, 5.0)
+            clip_rewards.append(r)
+            clip_powers.append(p)
+        clip_mean_power = np.mean(clip_powers)
+        print(f"  Hard-clip (no neg yaw): Reward={np.mean(clip_rewards):.2f}, "
+              f"Power={clip_mean_power:.0f}, "
+              f"PowerRatio={clip_mean_power/uncon_mean_power:.4f}")
+
+        # --- Budget sweep: steepness x gs x RA x budget_level ---
+        budget_levels = [15, 30, 50, 100]
+        steepness_values = [2.0, 3.0, 5.0]
+        gs_values = [0.05, 0.1, 0.5, 1.0]
+        ra_values = [0.0, 1.0, 2.0, 5.0]
+
+        print(f"\nBudget sweep: {len(budget_levels)} budgets x {len(steepness_values)} steepness "
+              f"x {len(gs_values)} gs x {len(ra_values)} RA x {n_eval_episodes} episodes")
+        print(f"Horizon: {horizon_steps} steps")
+        print(f"{'Budget':>6s} {'k':>4s} {'gs':>5s} {'RA':>4s} | "
+              f"{'Reward':>8s} {'Power':>10s} {'PwrRatio':>8s} {'NegYaw':>20s}")
+        print("-" * 80)
+
+        for budget_steps in budget_levels:
+            for k_val in steepness_values:
+                for gs_val in gs_values:
+                    for ra_val in ra_values:
+                        ep_rewards, ep_powers, ep_negs = [], [], []
+                        for _ in range(n_eval_episodes):
+                            surr = NegativeYawBudgetSurrogate(
+                                budget_steps=budget_steps,
+                                horizon_steps=horizon_steps,
+                                risk_aversion=ra_val,
+                                steepness=k_val,
+                                yaw_max_deg=30.0,
+                                neg_yaw_threshold_deg=args.neg_yaw_threshold_deg,
+                            )
+                            r, p, n = _run_budget_episode(surr, gs_val)
+                            ep_rewards.append(r)
+                            ep_powers.append(p)
+                            ep_negs.append(n)
+
+                        mean_pwr = np.mean(ep_powers)
+                        pwr_ratio = mean_pwr / uncon_mean_power if uncon_mean_power > 0 else 0
+                        mean_neg = np.mean(ep_negs, axis=0).astype(int).tolist()
+                        print(f"{budget_steps:6d} {k_val:4.1f} {gs_val:5.2f} {ra_val:4.1f} | "
+                              f"{np.mean(ep_rewards):8.2f} {mean_pwr:10.0f} {pwr_ratio:8.4f} "
+                              f"{str(mean_neg):>20s}")
+
+                        if args.track:
+                            tag = f"budget_eval/B{budget_steps}_k{k_val}_gs{gs_val}_ra{ra_val}"
+                            wandb.log({
+                                f"{tag}/reward": np.mean(ep_rewards),
+                                f"{tag}/power": mean_pwr,
+                                f"{tag}/power_ratio": pwr_ratio,
+                                **{f"{tag}/neg_yaw_T{ti}": int(np.mean([n[ti] for n in ep_negs]))
+                                   for ti in range(n_turbines_max)},
+                            })
+
+        # --- Constant penalty ablation (no AC adaptation) ---
+        print(f"\nConstant penalty ablation (lambda=const, no time-varying adaptation):")
+        print(f"{'Budget':>6s} {'k':>4s} {'gs':>5s} {'lam':>5s} | "
+              f"{'Reward':>8s} {'Power':>10s} {'PwrRatio':>8s} {'NegYaw':>20s}")
+        print("-" * 80)
+        for budget_steps in [15, 50]:
+            for k_val in [2.0, 3.0]:
+                for gs_val in [0.1, 0.5]:
+                    # RA=0 means lambda=1 always (constant penalty, no AC)
+                    ep_rewards, ep_powers, ep_negs = [], [], []
+                    for _ in range(n_eval_episodes):
+                        surr = NegativeYawBudgetSurrogate(
+                            budget_steps=budget_steps,
+                            horizon_steps=horizon_steps,
+                            risk_aversion=0.0,  # constant lambda
+                            steepness=k_val,
+                            yaw_max_deg=30.0,
                         )
-                    test_obs, rew, _, _, step_info = budget_eval_env.step(act)
-                    ep_reward += float(rew.mean())
-
-                    if "yaw angles agent" in step_info:
-                        yaw_arr = np.array(step_info["yaw angles agent"])
-                        yaw_flat = yaw_arr[0] if yaw_arr.ndim > 1 else yaw_arr
-                        for t in range(min(len(yaw_flat), n_turbines_max)):
-                            if yaw_flat[t] < 0:
-                                neg_yaw_counts[t] += 1
-                        budget_surr.update(
-                            torch.tensor(yaw_flat, device=device, dtype=torch.float32)
-                        )
-
-                    if "Power agent" in step_info:
-                        ep_powers.append(float(np.mean(step_info["Power agent"])))
-
-                neg_str = ", ".join(f"T{t}={int(neg_yaw_counts[t])}" for t in range(n_turbines_max))
-                mean_power = np.mean(ep_powers) if ep_powers else 0.0
-                print(f"  RA={ra:.1f}, gs={gs:.1f}: Reward={ep_reward:.2f}, "
-                      f"Power={mean_power:.0f}, NegYaw=[{neg_str}]")
-
-                if args.track:
-                    wandb.log({
-                        f"budget_eval/ra{ra}_gs{gs}/reward": ep_reward,
-                        f"budget_eval/ra{ra}_gs{gs}/mean_power": mean_power,
-                        **{f"budget_eval/ra{ra}_gs{gs}/neg_yaw_T{t}": int(neg_yaw_counts[t])
-                           for t in range(n_turbines_max)},
-                    })
-
-        # Also run unconstrained baseline for comparison
-        test_obs, _ = budget_eval_env.reset()
-        ep_reward_uncon = 0.0
-        neg_yaw_uncon = np.zeros(n_turbines_max)
-        for _ in range(horizon_steps):
-            with torch.no_grad():
-                act = agent.act(budget_eval_env, test_obs, guidance_fn=None, guidance_scale=0.0)
-            test_obs, rew, _, _, step_info = budget_eval_env.step(act)
-            ep_reward_uncon += float(rew.mean())
-            if "yaw angles agent" in step_info:
-                yaw_arr = np.array(step_info["yaw angles agent"])
-                yaw_flat = yaw_arr[0] if yaw_arr.ndim > 1 else yaw_arr
-                for t in range(min(len(yaw_flat), n_turbines_max)):
-                    if yaw_flat[t] < 0:
-                        neg_yaw_uncon[t] += 1
-        neg_str = ", ".join(f"T{t}={int(neg_yaw_uncon[t])}" for t in range(n_turbines_max))
-        print(f"  Unconstrained: Reward={ep_reward_uncon:.2f}, NegYaw=[{neg_str}]")
+                        r, p, n = _run_budget_episode(surr, gs_val)
+                        ep_rewards.append(r)
+                        ep_powers.append(p)
+                        ep_negs.append(n)
+                    mean_pwr = np.mean(ep_powers)
+                    pwr_ratio = mean_pwr / uncon_mean_power if uncon_mean_power > 0 else 0
+                    mean_neg = np.mean(ep_negs, axis=0).astype(int).tolist()
+                    print(f"{budget_steps:6d} {k_val:4.1f} {gs_val:5.2f} {'1.0':>5s} | "
+                          f"{np.mean(ep_rewards):8.2f} {mean_pwr:10.0f} {pwr_ratio:8.4f} "
+                          f"{str(mean_neg):>20s}")
 
     writer.close()
     envs.close()
