@@ -429,6 +429,7 @@ class NegativeYawBudgetSurrogate(nn.Module):
         yaw_max_deg: float = 30.0,
         neg_yaw_threshold_deg: float = 0.0,
         per_turbine_budgets: Optional[List[int]] = None,
+        schedule_type: str = "exp",
     ):
         super().__init__()
         self.budget_steps = budget_steps
@@ -438,6 +439,7 @@ class NegativeYawBudgetSurrogate(nn.Module):
         self.yaw_max_deg = yaw_max_deg
         self.neg_yaw_threshold = neg_yaw_threshold_deg / yaw_max_deg  # normalized
         self.per_turbine_budgets = per_turbine_budgets  # None = uniform
+        self.schedule_type = schedule_type  # "exp" or "inverse" (1/u)
 
         # State (managed by reset/update, not nn parameters)
         self.current_step: int = 0
@@ -507,12 +509,15 @@ class NegativeYawBudgetSurrogate(nn.Module):
         # Urgency: >1 = surplus (spent less than expected), <1 = deficit
         urgency = budget_fraction / max(time_fraction, eps)
 
-        # AC weight: exp(risk_aversion * (1/urgency - 1))
-        #   urgency=1 → 1.0 (on TWAP track)
-        #   urgency>1 → <1.0 (relax, spend freely)
-        #   urgency<1 → >1.0 (conserve)
         safe_urgency = urgency.clamp(min=eps)
-        ac_weight = torch.exp(self.risk_aversion * (1.0 / safe_urgency - 1.0))
+        if self.schedule_type == "inverse":
+            # Theoretically optimal under Boltzmann response: w*(u) = u^{-eta}
+            # At eta=1 this is exactly 1/u. At eta=0 this is 1 (TWAP).
+            ac_weight = safe_urgency.pow(-self.risk_aversion)
+        else:
+            # Practical approximation: exp(eta * (1/u - 1))
+            # Matches 1/u to first order at u=1, better numerics near u=0
+            ac_weight = torch.exp(self.risk_aversion * (1.0 / safe_urgency - 1.0))
 
         # Hard wall backstop when budget < 5% remaining
         depletion = F.relu(1.0 - budget_fraction / 0.05)

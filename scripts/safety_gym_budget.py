@@ -218,8 +218,6 @@ class ReplayBuffer:
 def train_sac(env_name, total_timesteps=100000, save_path="checkpoints/sac_cheetah.pt",
               reward_amplitude=0.5, reward_period=200):
     """Train a standard SAC agent (unconstrained) on the velocity task."""
-    import safety_gymnasium  # noqa: F401
-
     env = gym.make(env_name)
     env = TimeVaryingRewardWrapper(env, amplitude=reward_amplitude, period=reward_period)
 
@@ -332,8 +330,6 @@ def eval_with_budget(
     v_threshold=None,
 ):
     """Evaluate a trained agent with velocity budget constraint."""
-    import safety_gymnasium  # noqa: F401
-
     ckpt = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
     actor = GaussianActor(ckpt["obs_dim"], ckpt["act_dim"])
     actor.load_state_dict(ckpt["actor"])
@@ -438,7 +434,7 @@ def eval_with_budget(
 
 def main():
     parser = argparse.ArgumentParser(description="Safety-Gym velocity budget experiment")
-    parser.add_argument("--env", default="SafetyHalfCheetahVelocity-v1")
+    parser.add_argument("--env", default="HalfCheetah-v5")
     parser.add_argument("--train", action="store_true", help="Train unconstrained SAC")
     parser.add_argument("--eval", action="store_true", help="Evaluate with budget")
     parser.add_argument("--checkpoint", default="checkpoints/sac_cheetah.pt")

@@ -32,14 +32,14 @@ module load rocm/6.0.3
 cd "$PROJECT_DIR"
 mkdir -p logs checkpoints
 
-# Install safety-gymnasium + mujoco if needed
-pixi run pip install safety-gymnasium mujoco 2>/dev/null || true
+# Install mujoco (HalfCheetah-v5 is built into gymnasium[mujoco])
+pixi run pip install mujoco 2>/dev/null || true
 
 # Train + evaluate in one shot
 pixi run python scripts/safety_gym_budget.py \
     --train \
     --eval \
-    --env SafetyHalfCheetahVelocity-v1 \
+    --env HalfCheetah-v5 \
     --total-timesteps 100000 \
     --checkpoint checkpoints/sac_cheetah.pt \
     --budget-frac 0.25 \
