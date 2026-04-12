@@ -68,8 +68,8 @@ grid batteries with cycle-life limits,
 and advertisers with daily spending caps~\citep{balseiro2023budget}.
 Unlike instantaneous constraints (avoid obstacles, stay upright), these are \emph{lifetime budgets}: the agent must decide \emph{when} to spend its limited capacity for risky actions, allocating strategically across time.
 
-This budget allocation problem is structurally analogous to optimal trade execution in quantitative finance~\citep{almgren2001optimal}: a trader must liquidate a position over a time horizon, deciding when to trade aggressively (capturing favorable prices) versus passively (conserving capacity).
-The key insight from that literature---that the optimal execution rate depends on remaining inventory relative to remaining time---transfers directly to RL budget management.
+This budget allocation problem shares a conceptual structure with optimal trade execution in quantitative finance~\citep{almgren2001optimal}: a trader must liquidate a position over a time horizon, deciding when to trade aggressively versus passively.
+While the full financial model involves market impact dynamics with no analog in our setting, a key insight transfers: the rate of resource consumption should depend on \emph{remaining inventory relative to remaining time}---the urgency ratio.
 
 Existing approaches to constrained RL fall into two categories, neither of which solves this problem:
 (1)~\textbf{Constrained MDP methods}~\citep{altman1999constrained, stooke2020responsive, sootla2022saute, chen2025predictive} learn a Lagrangian dual variable during training, requiring full retraining for each new constraint specification.
@@ -129,7 +129,8 @@ We extend this to \emph{cumulative budget constraints} via a time-varying energy
 \label{sec:theory}
 %----------------------------------------------------------------------
 
-We derive the penalty weight from a sequential budget allocation problem.
+We motivate the penalty weight schedule from a sequential budget allocation problem.
+The derivation identifies the urgency ratio as the natural state variable and constrains the design space; the specific functional form is a principled choice justified by its analytical properties rather than exact optimality for any particular policy class.
 
 \textbf{Setup.}
 An agent must allocate $B$ ``risky'' actions over $T$ time steps.
@@ -148,9 +149,9 @@ Define the \emph{urgency ratio}:
 where $\beta_t^i$ is the remaining budget fraction and $\tau_t$ is the remaining time fraction.
 When $u > 1$, the agent has spent less than the uniform (TWAP) rate; when $u < 1$, it has overspent.
 
-\begin{proposition}[Optimal penalty weight under Boltzmann response]
+\begin{proposition}[Motivating analysis under idealized Boltzmann response]
 \label{prop:optimal}
-Assume the policy responds to penalty weight $\lambda$ via a Boltzmann model:
+Consider an idealized policy that responds to penalty weight $\lambda$ via a Boltzmann model:
 $P(\text{risky} \mid \lambda) = P_0 \exp(-\alpha \lambda)$.
 Budget balance over the remaining horizon requires $\tau \cdot P_0 \exp(-\alpha\lambda) = b$,
 where $b$ is the remaining budget.
@@ -189,6 +190,27 @@ A steep exponential barrier activates when budget drops below 5\%:
     \lambda_{\mathrm{wall}}^i(t) = \exp\!\left(k \cdot \mathrm{ReLU}\!\left(1 - \frac{\beta_t^i}{0.05}\right)\right)
 \end{equation}
 The combined weight is $\lambda^i(t) = \min(w(u_t^i) \cdot \lambda_{\mathrm{wall}}^i(t),\; \lambda_{\max})$, clamped at $\lambda_{\max} = 10^6$.
+
+\textbf{Approximation quality and defense in depth.}
+The practical schedule $\exp(\eta(1/u-1))$ matches $u^{-\eta}$ within 5\% for $u \in [0.7, 1.3]$ but diverges for $u < 0.3$ (Figure~\ref{fig:approx}).
+This is by design: the method operates in three regimes.
+In the \emph{normal} regime ($u \in [0.5, 1.5]$), the smooth schedule paces spending.
+In the \emph{depletion} regime ($u < 0.05$), the hard wall backstop provides a steep barrier.
+Between them, both the smooth schedule and the wall contribute.
+The hard guard ($C^i < B^i$) provides an absolute guarantee.
+Ablation results (Table~\ref{tab:hard_guard}) show that the smooth schedule alone is sufficient in practice---the hard guard does not change results.
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=\linewidth]{figures/fig_approx_quality.pdf}
+    \caption{(a)~Schedule comparison: $\exp(\eta(1/u-1))$ (solid) vs.\ $u^{-\eta}$ (dashed) across the full urgency range. Red region: hard wall backstop active ($u < 0.05$). (b)~Relative approximation error. The schedules agree within 10\% for $u > 0.5$ (the regime where smooth pacing operates).}
+    \label{fig:approx}
+\end{figure}
+
+\textbf{Note on the Boltzmann assumption.}
+Proposition~\ref{prop:optimal} assumes a Boltzmann response, which is approximate for EBT actors optimized by gradient descent and does not hold for standard MLP policies.
+The derivation serves to identify the urgency ratio $u$ as the natural state variable and to constrain the schedule to be monotone decreasing in $u$ with TWAP recovery at $\eta=0$.
+The specific functional form $\exp(\eta(1/u-1))$ is a parametric choice satisfying these properties; it is not claimed to be optimal for any particular policy architecture.
 
 %----------------------------------------------------------------------
 \section{Method: Composable Budget Constraints}
@@ -284,8 +306,10 @@ Exceeding a velocity threshold (set at the 50th percentile of unconstrained velo
 $B$ = total timesteps above the velocity threshold.
 
 \textbf{Agent.}
-SAC with Gaussian actor, trained unconstrained for 100k steps.
-The budget mechanism modulates action magnitudes via a penalty scaling factor at inference.
+SAC with Gaussian actor (standard MLP), trained unconstrained for 100k steps.
+Since MLP actors do not support energy composition, the budget penalty is applied as an action scaling factor: $a \leftarrow a / (1 + 0.1 \cdot \lambda(t) \cdot p(a))$, where $p(a)$ is the base penalty.
+The \emph{schedule} $\lambda(t)$ is identical to the EBT case; only the \emph{application mechanism} differs.
+This demonstrates that the budget schedule is architecture-agnostic, even though energy composition (Section~\ref{sec:composition}) is specific to EBT actors.
 
 \subsection{Baselines}
 
@@ -474,9 +498,10 @@ Bandits with knapsacks~\citep{agrawal2014bandits} provide regret bounds for comb
 Our work transfers this structure to RL deployment via energy composition.
 
 \textbf{Optimal execution.}
-Almgren and Chriss~\citep{almgren2001optimal} derive optimal liquidation trajectories from mean-variance objectives.
+Almgren and Chriss~\citep{almgren2001optimal} derive optimal liquidation trajectories from mean-variance objectives with endogenous market impact.
 Recent work combines RL with execution~\citep{ning2024execution}.
-We draw on the urgency-based scheduling intuition but derive our formula from Boltzmann budget balance rather than market impact models.
+Our work is inspired by the \emph{pacing logic} of optimal execution---the urgency ratio and TWAP baseline---but the analogy has clear limits: market impact (your trading affects future prices) has no analog in our setting, and the specific sinh trajectory does not transfer.
+We adopt the conceptual framework (remaining inventory vs.\ remaining time) without claiming structural equivalence.
 
 %----------------------------------------------------------------------
 \section{Conclusion}
