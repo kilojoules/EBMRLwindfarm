@@ -39,10 +39,35 @@ RA_COLORS = {0.0: "#c6dbef", 0.5: "#6baed6", 1.0: "#2171b5",
              2.0: "#084594", 5.0: "#042451"}
 
 
-def fig3_pareto(wind_data, cheetah_data, output_dir):
+def parse_wind_farm_sweep(log_path):
+    """Parse wind farm sweep results from LUMI log file."""
+    import re
+    rows = []
+    with open(log_path) as f:
+        for line in f:
+            line = line.strip()
+            # Match: "15  2.0  0.05  0.0 |    -0.13   26901418   1.0673         [53, 53, 50]"
+            m = re.match(
+                r'(\d+)\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+\|\s+([-\d.]+)\s+(\d+)\s+([\d.]+)\s+\[([\d,\s]+)\]',
+                line
+            )
+            if m:
+                budget = int(m.group(1))
+                k = float(m.group(2))
+                gs = float(m.group(3))
+                ra = float(m.group(4))
+                reward = float(m.group(5))
+                power = int(m.group(6))
+                pwr_ratio = float(m.group(7))
+                neg_yaw = [int(x.strip()) for x in m.group(8).split(",")]
+                rows.append((budget, k, gs, ra, reward, power, pwr_ratio, neg_yaw))
+    return rows
+
+
+def fig3_pareto(wind_log_path, cheetah_data, output_dir):
     """
     Figure 3: AC vs Alternatives — Pareto scatter.
-    X: budget utilization (%), Y: reward retention (%).
+    X: budget utilization (%), Y: power/reward retention (%).
     """
     fig, axes = plt.subplots(1, 2, figsize=(10, 4.5))
 
@@ -50,13 +75,17 @@ def fig3_pareto(wind_data, cheetah_data, output_dir):
     ax = axes[0]
     ax.set_title("Wind Farm (3 turbines)", fontsize=10)
 
-    # Parse wind farm sweep data
-    # Format: Budget, k, gs, RA, Reward, Power, PwrRatio, NegYaw[3]
-    for row in wind_data:
-        budget, k, gs, ra, reward, power, pwr_ratio, neg_yaw = row
-        total_neg = sum(neg_yaw)
-        utilization = 100 * total_neg / (3 * budget)  # per-turbine avg
-        retention = 100 * pwr_ratio
+    wind_data = parse_wind_farm_sweep(wind_log_path) if wind_log_path else []
+
+    # Unconstrained power from the log (absolute watts, averaged across episodes)
+    uncon_power = 25205448
+
+    for budget, k, gs, ra, reward, power, pwr_ratio, neg_yaw in wind_data:
+        # Per-turbine average neg yaw as fraction of budget
+        avg_neg = np.mean(neg_yaw)
+        utilization = min(100 * avg_neg / budget, 150)  # cap for display
+        # Normalize to unconstrained power (not baseline controller)
+        retention = 100 * power / uncon_power
 
         if ra == 0:
             ax.scatter(utilization, retention, c=C_CONST, marker='s',
@@ -66,17 +95,19 @@ def fig3_pareto(wind_data, cheetah_data, output_dir):
                        marker='o', s=25, alpha=0.6, zorder=3)
 
     ax.axhline(100, color=C_UNCON, linestyle='--', alpha=0.3, label='Unconstrained')
+    ax.axvline(100, color='red', linestyle=':', alpha=0.3, label='Budget limit')
     ax.set_xlabel("Budget Utilization (%)")
-    ax.set_ylabel("Power Retention (%)")
+    ax.set_ylabel("Power (% of Unconstrained)")
     ax.grid(True, alpha=0.15)
+    ax.set_xlim(-5, 155)
+    ax.set_ylim(70, 125)
 
-    # Legend
     from matplotlib.lines import Line2D
     legend_items = [
         Line2D([0], [0], marker='s', color=C_CONST, linestyle='None',
-               markersize=6, label='Constant (RA=0)'),
+               markersize=6, label='Constant ($\\eta$=0)'),
         Line2D([0], [0], marker='o', color=C_AC, linestyle='None',
-               markersize=6, label='AC (RA>0)'),
+               markersize=6, label='AC ($\\eta$>0)'),
     ]
     ax.legend(handles=legend_items, fontsize=8, loc='lower right')
 
@@ -237,6 +268,8 @@ def fig5_ablations(output_dir):
 def main():
     parser = argparse.ArgumentParser(description="Generate paper figures")
     parser.add_argument("--output", default="latex_paper/figures/")
+    parser.add_argument("--wind-log", default="/tmp/wind_farm_sweep.txt",
+                        help="Path to wind farm sweep log (parsed from LUMI output)")
     parser.add_argument("--figures", nargs="+", default=["3", "4", "5"],
                         choices=["1", "2", "3", "4", "5", "all"])
     cli = parser.parse_args()
@@ -264,8 +297,8 @@ def main():
     }
 
     if "3" in figs:
-        # Wind farm Pareto needs parsed sweep data — use cheetah for now
-        fig3_pareto([], cheetah_data, cli.output)
+        wind_log = cli.wind_log if os.path.exists(cli.wind_log) else None
+        fig3_pareto(wind_log, cheetah_data, cli.output)
 
     if "4" in figs:
         fig4_budget_flexibility(cheetah_data, cli.output)
