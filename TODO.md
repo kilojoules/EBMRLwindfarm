@@ -4,10 +4,16 @@
 
 ## Priority 1: Hero Experiment — Kill Test (by Apr 17)
 
+- [ ] Maybe implement entropy like propper SAC style. 
+      Westimate log Z via self-verification candidates                                                                                                                          
+        - EBT already generates M=16 candidates and picks the best
+        - Compute log π(a*|s) ≈ -E(a*) + logsumexp(-E(candidates)) (the proper normalized log-prob)                                                                                                 
+        - This is mathematically correct but requires modifying optimize_actions to return all candidate energies
+        - More complex but principled
 - [ ] Train EBT-SAC on `multi_modal` 3-turbine layout to convergence
 - [ ] Evaluate unconstrained → expect yaws near [-16°, -17.3°, 0°]
 - [ ] Evaluate with `t1_positive_only` at λ ∈ {0.1, 0.5, 1.0, 2.0, 5.0}
-- [ ] **Kill criterion:** T1 must flip positive AND T2 must measurably change
+- [ ] **Kill criterion:** T1 must flip positive AND T2 must measurably change. Should go to approximately [22.7°, -9.3°, 0°]
 - [ ] If fail → diagnose energy landscape shape, consider ICLR 2027
 
 ## Priority 2: Energy Landscape Visualization
