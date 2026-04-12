@@ -22,14 +22,7 @@ mkdir -p logs results
 pixi run pip install torch==2.5.1 --index-url https://download.pytorch.org/whl/rocm6.2 2>/dev/null || true
 pixi run pip install /scratch/project_465002609/julian/windgym 2>/dev/null || true
 
-# Log wind farm trajectories
-pixi run python scripts/log_trajectories.py \
-    --domain windfarm \
-    --checkpoint runs/ebt_sac_windfarm/checkpoints/step_100000.pt \
-    --output results/trajectories_windfarm.npz \
-    --n-episodes 10
-
-# Log HalfCheetah trajectories
+# Log HalfCheetah trajectories (wind farm needs checkpoint loading fix)
 pixi run python scripts/log_trajectories.py \
     --domain cheetah \
     --checkpoint checkpoints/sac_cheetah.pt \

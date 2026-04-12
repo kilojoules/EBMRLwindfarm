@@ -120,87 +120,14 @@ def log_windfarm_trajectories(checkpoint, n_episodes=10, horizon=200,
                                budget=15, output_path="results/traj_windfarm.npz"):
     """Log per-step trajectories for wind farm."""
     from config import Args
-    import tyro
-    from WindGym import WindFarmEnv
-    from WindGym.wrappers import RecordEpisodeVals, PerTurbineObservationWrapper
     from load_surrogates import NegativeYawBudgetSurrogate
-    from helpers.agent import WindFarmAgent
-    from helpers.helper_funcs import get_env_attention_masks
-
-    ckpt = torch.load(checkpoint, map_location="cpu", weights_only=False)
-    args_dict = ckpt["args"]
-    args = Args(**{k: v for k, v in args_dict.items() if hasattr(Args, k)})
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    # Reconstruct actor from checkpoint
-    from ebt import TransformerEBTActor
-    from networks import create_profile_encoding
-    from helpers.env_configs import make_env_config
-    from helpers.layouts import get_layout_positions
-
-    config = make_env_config(args.config)
-    config["ActionMethod"] = args.action_type
-
-    layout = get_layout_positions("3turb")
-    from py_wake.wind_turbines import WindTurbine
-    from py_wake.wind_turbines.power_ct_functions import PowerCtTabular
-    wind_turbine = WindTurbine.from_WAsP_wtg(
-        os.path.join(os.path.dirname(__file__), "..", "helpers", "Vestas_V80.wtg")
-    ) if os.path.exists(os.path.join(os.path.dirname(__file__), "..", "helpers", "Vestas_V80.wtg")) else None
-
-    # Try simplified approach: just load the actor and create env directly
-    # Import setup_env from training script
-    from ebt_sac_windfarm import setup_env
-    env_info = setup_env(args)
-    envs = env_info["envs"]
-
-    from ebt import TransformerEBTActor
-    from networks import create_profile_encoding
-
-    use_profiles = env_info["use_profiles"]
-    shared_recep, shared_inf = None, None
-    if use_profiles:
-        shared_recep, shared_inf = create_profile_encoding(
-            profile_type=args.profile_encoding_type,
-            embed_dim=args.embed_dim,
-            hidden_channels=args.profile_encoder_hidden,
-        )
-
-    actor = TransformerEBTActor(
-        obs_dim_per_turbine=env_info["obs_dim_per_turbine"],
-        action_dim_per_turbine=1,
-        embed_dim=args.embed_dim,
-        num_heads=args.num_heads,
-        num_layers=args.num_layers,
-        mlp_ratio=args.mlp_ratio,
-        dropout=args.dropout,
-        pos_encoding_type=args.pos_encoding_type,
-        pos_embed_dim=args.pos_embed_dim,
-        pos_embedding_mode=args.pos_embedding_mode,
-        rel_pos_hidden_dim=args.rel_pos_hidden_dim,
-        rel_pos_per_head=args.rel_pos_per_head,
-        profile_encoding=args.profile_encoding_type,
-        shared_recep_encoder=shared_recep,
-        shared_influence_encoder=shared_inf,
-        action_scale=env_info["action_scale"],
-        action_bias=env_info["action_bias"],
-        opt_steps_train=args.ebt_opt_steps_train,
-        opt_steps_eval=args.ebt_opt_steps_eval,
-        opt_lr=args.ebt_opt_lr,
-        num_candidates=args.ebt_num_candidates,
-        args=args,
-    ).to(device)
-
-    actor.load_state_dict(ckpt["actor_state_dict"])
-    actor.eval()
-
-    agent = WindFarmAgent(
-        actor=actor, device=device,
-        rotor_diameter=env_info["rotor_diameter"],
-        use_wind_relative=args.use_wind_relative_pos,
-        use_profiles=use_profiles,
-        rotate_profiles=args.rotate_profiles if hasattr(args, 'rotate_profiles') else False,
+    # Reuse the evaluate.py checkpoint loading infrastructure
+    from evaluate import load_checkpoint_for_eval
+    envs, agent, actor, n_turb_loaded, args = load_checkpoint_for_eval(
+        checkpoint, device
     )
 
     n_turb = env_info["n_turbines_max"]
