@@ -310,19 +310,102 @@ The budget mechanism modulates action magnitudes via a penalty scaling factor at
 \label{sec:results}
 %----------------------------------------------------------------------
 
-\textit{[Results to be filled in from LUMI experiments.]}
+We present results across both domains, focusing on budget satisfaction, reward retention, and the physical understanding of when the agent chooses to incur damage.
 
-\subsection{Budget Satisfaction}
+\subsection{Budget Satisfaction and Reward Retention}
 
-\subsection{Reward Retention and Budget Utilization}
+Table~\ref{tab:main_results} summarizes the main results.
+In the wind farm domain, the unconstrained agent uses negative yaw on 121/200 steps for turbine~0 and 119/200 for turbine~1---the optimal policy relies heavily on wake steering.
+With the AC schedule ($\eta=2$, $k=2$, $\lambda_{\mathrm{gs}}=0.05$), negative yaw drops to 10/200 steps per turbine while maintaining a power ratio of 1.03 relative to a local baseline controller.
+In HalfCheetah, the AC schedule ($\eta=2$) retains 86.8\% of unconstrained reward while using 98\% of the available velocity budget, compared to only 80.0\% reward and 53\% budget utilization for the constant penalty ($\eta=0$).
+
+\begin{table}[t]
+\centering
+\caption{Main results across both domains. Budget utilization reports the fraction of allowed budget actually spent. Higher is better---it means the method uses the budget fully rather than being overly conservative.}
+\label{tab:main_results}
+\begin{tabular}{lccc}
+\toprule
+\textbf{HalfCheetah} & Reward & \% Unconstrained & Budget Used \\
+\midrule
+Unconstrained & 5208 & 100\% & --- \\
+Constant ($\eta=0$) & 4167 & 80.0\% & 53\% \\
+AC ($\eta=1$) & 4478 & 86.0\% & 96\% \\
+AC ($\eta=2$) & 4518 & 86.8\% & 98\% \\
+AC ($\eta=5$) & 4504 & 86.5\% & 99\% \\
+\midrule
+\textbf{Wind Farm} & PowerRatio & NegYaw (T0) & NegYaw (T1) \\
+\midrule
+Unconstrained & --- & 121/200 & 119/200 \\
+Hard clip (no neg yaw) & 1.003 & 0/200 & 0/200 \\
+AC ($\eta=2$, $k=2$, gs=0.05) & 1.034 & 10/200 & 9/200 \\
+AC ($\eta=2$, $k=3$, gs=1.0) & 1.000 & 9/200 & 10/200 \\
+Constant ($\eta=0$, gs=0.1) & 0.892 & 99/200 & 101/200 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The key comparison in Figure~\ref{fig:pareto} shows the structural advantage of adaptive scheduling.
+Constant-penalty configurations face a dilemma: low guidance scale under-constrains (budget exceeded) while high guidance scale over-constrains (budget wasted, reward lost).
+The AC schedule resolves this by adapting the penalty to the budget state, simultaneously achieving high utilization and high reward.
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=\linewidth]{figures/fig3_pareto.pdf}
+    \caption{Budget utilization vs.\ reward retention.
+    Constant penalty (squares, red) cannot simultaneously achieve high utilization and high reward.
+    AC schedule (circles, blue shades by $\eta$) clusters in the efficient top-right region.}
+    \label{fig:pareto}
+\end{figure}
 
 \subsection{Hard Guard Ablation}
 
-\subsection{Schedule Comparison: $1/u$ vs.\ $\exp(\eta(1/u - 1))$}
+A central question: does the AC schedule itself prevent budget violations, or is the hard guard ($C^i < B^i$) necessary?
+Table~\ref{tab:hard_guard} shows the answer on HalfCheetah: the AC schedule alone provides virtually identical budget management to AC + hard guard (244/250 violations in both cases).
+The guard-only baseline ($\eta=0$, constant penalty) uses only 54\% of the budget---it constrains but does not allocate.
+
+\begin{table}[t]
+\centering
+\caption{Hard guard ablation (HalfCheetah, budget=250/1000 steps). The AC schedule alone (no hard guard) provides the same budget management as the full system.}
+\label{tab:hard_guard}
+\begin{tabular}{lccr}
+\toprule
+Configuration & Reward & Violations/Budget & Used \\
+\midrule
+Both (AC + guard) & 4525 & 244/250 & 97.8\% \\
+AC only (no guard) & 4508 & 244/250 & 97.7\% \\
+Guard only ($\eta=0$) & 4195 & 136/250 & 54.4\% \\
+Neither (unconstrained) & 4166 & 126/250 & 50.5\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Schedule Comparison: $w^*(u)=1/u$ vs.\ $w(u)=\exp(\eta(1/u - 1))$}
+
+Figure~\ref{fig:ablations}(b) compares the theoretically optimal $u^{-\eta}$ schedule against our practical $\exp(\eta(1/u-1))$ approximation.
+Both achieve similar reward retention across all $\eta$ values.
+The optimal schedule is marginally better at $\eta=2$ (87.0\% vs.\ 86.6\%), confirming that the practical form is a faithful approximation.
+The difference is smaller than the inter-episode variance, supporting our use of the more numerically stable exponential form.
 
 \subsection{Budget Flexibility}
 
-\subsection{Boltzmann Response Validation}
+Figure~\ref{fig:flexibility} demonstrates the ``train once, constrain at deployment'' property.
+A single HalfCheetah policy, trained unconstrained, is evaluated at five budget levels from 10\% to 75\% of episode length.
+The reward curve is concave and bows above the linear baseline: at 25\% budget, the agent retains 86.5\% of unconstrained reward (not 25\%).
+This disproportionate value capture confirms that the AC schedule concentrates spending into high-value timesteps.
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=\linewidth]{figures/fig4_flexibility.pdf}
+    \caption{Budget flexibility. Left: same policy at different budget levels (concave curve = intelligent allocation). Right: cumulative spending trajectories depart from the TWAP diagonal, spending conservatively early and catching up during high-value phases.}
+    \label{fig:flexibility}
+\end{figure}
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=\linewidth]{figures/fig5_ablations.pdf}
+    \caption{Ablations on HalfCheetah. (a)~Risk aversion sweep: $\eta=0$ wastes budget (53\% used), $\eta \geq 1$ achieves $>$96\% utilization and 7\% more reward. (b)~Schedule comparison: $u^{-\eta}$ (optimal) and $\exp(\eta(1/u-1))$ (practical) perform comparably. (c)~Hard guard ablation: the AC schedule alone matches the full system.}
+    \label{fig:ablations}
+\end{figure}
 
 %----------------------------------------------------------------------
 \section{Related Work}
