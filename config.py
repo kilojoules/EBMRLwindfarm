@@ -26,7 +26,7 @@ class Args:
     log_image: bool = False  # Log attention images to TensorBoard
 
     shuffle_turbs: bool = False  # Shuffle turbine order in obs/action
-    max_episode_steps: Optional[int] = None # Max steps per episode (None = use env default)
+    max_episode_steps: Optional[int] = 100 # Max steps per episode (None = use env default)
 
     # === Receptivity Profile Settings ===
     profile_encoder_kwargs: str = "{}"  # JSON string of encoder-specific kwargs

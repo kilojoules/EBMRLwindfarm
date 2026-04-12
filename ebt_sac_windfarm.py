@@ -27,7 +27,7 @@ import json
 import random
 import time
 from collections import deque, defaultdict
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 sys.stdout.reconfigure(line_buffering=True)
 
@@ -80,7 +80,7 @@ from helpers.training_utils import clear_gpu_memory
 # ENVIRONMENT SETUP (identical to diffusion_sac_windfarm.py)
 # =============================================================================
 
-def setup_env(args: Args) -> Dict[str, Any]:
+def setup_env(args: Args, config_overrides: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Set up WindGym environment, layouts, and profiles."""
     if args.turbtype == "DTU10MW":
         from py_wake.examples.data.dtu10mw import DTU10MW as WT
@@ -130,6 +130,9 @@ def setup_env(args: Args) -> Dict[str, Any]:
     for mes_type, prefix in {"ws_mes": "ws", "wd_mes": "wd", "yaw_mes": "yaw", "power_mes": "power"}.items():
         config[mes_type][f"{prefix}_history_N"] = args.history_length
         config[mes_type][f"{prefix}_history_length"] = args.history_length
+
+    if config_overrides:
+        config.update(config_overrides)
 
     base_env_kwargs = {
         "turbine": wind_turbine,
@@ -552,7 +555,7 @@ def main():
                 batch_influence = data.get("influence")
 
                 # =============================================================
-                # Critic update (identical to diffusion-SAC)
+                # Critic update (standard Bellman, no entropy)
                 # =============================================================
                 with torch.no_grad():
                     next_actions, _, _, _ = actor.get_action(
@@ -634,7 +637,7 @@ def main():
                     )
                     min_qf_pi = torch.min(qf1_pi, qf2_pi)
 
-                    # Actor loss: maximize Q (no entropy term, no BC loss)
+                    # Actor loss: maximize Q (exploration via Langevin noise in optimize_actions)
                     actor_loss = -min_qf_pi.mean()
 
                     # Energy magnitude regularization (prevents landscape collapse)

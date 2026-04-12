@@ -351,16 +351,97 @@ class PositiveYawT1Surrogate(nn.Module):
         return per_turb.sum(dim=(-2, -1), keepdim=False).unsqueeze(-1)
 
 
+class QuadraticPositiveYawT1Surrogate(nn.Module):
+    """
+    Constrains T1 (index 0) to positive yaw using a quadratic penalty.
+
+    Softer than PositiveYawT1Surrogate: the gradient is zero at the boundary
+    (a=0), so the constraint doesn't overwhelm the actor's energy near the
+    decision point. This lets the actor's learned landscape determine where
+    T1 settles in the positive region.
+
+    T1 penalty: scale * relu(-action_T1)^2
+
+    Args:
+        scale: Penalty scaling factor (higher = stronger constraint)
+    """
+
+    def __init__(self, scale: float = 10.0):
+        super().__init__()
+        self.scale = scale
+
+    def per_turbine_energy(
+        self,
+        action: torch.Tensor,
+        key_padding_mask: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:
+        penalty = torch.zeros_like(action)
+        penalty[:, 0, :] = self.scale * F.relu(-action[:, 0, :]) ** 2
+        if key_padding_mask is not None:
+            mask = (~key_padding_mask).unsqueeze(-1).float()
+            penalty = penalty * mask
+        return penalty
+
+    def forward(
+        self,
+        action: torch.Tensor,
+        key_padding_mask: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:
+        per_turb = self.per_turbine_energy(action, key_padding_mask)
+        return per_turb.sum(dim=(-2, -1), keepdim=False).unsqueeze(-1)
+
+
+class LinearPositiveYawT1Surrogate(nn.Module):
+    """
+    Constrains T1 (index 0) to positive yaw using a linear penalty.
+
+    Intermediate between exponential (gradient explodes) and quadratic
+    (gradient starts at zero). Provides a constant gradient when T1 is
+    negative, proportional to the scale parameter.
+
+    T1 penalty: scale * relu(-action_T1)
+
+    Args:
+        scale: Penalty scaling factor (higher = stronger constraint)
+    """
+
+    def __init__(self, scale: float = 10.0):
+        super().__init__()
+        self.scale = scale
+
+    def per_turbine_energy(
+        self,
+        action: torch.Tensor,
+        key_padding_mask: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:
+        penalty = torch.zeros_like(action)
+        penalty[:, 0, :] = self.scale * F.relu(-action[:, 0, :])
+        if key_padding_mask is not None:
+            mask = (~key_padding_mask).unsqueeze(-1).float()
+            penalty = penalty * mask
+        return penalty
+
+    def forward(
+        self,
+        action: torch.Tensor,
+        key_padding_mask: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:
+        per_turb = self.per_turbine_energy(action, key_padding_mask)
+        return per_turb.sum(dim=(-2, -1), keepdim=False).unsqueeze(-1)
+
+
 # =============================================================================
 # FACTORY
 # =============================================================================
 
 VALID_LOAD_SURROGATE_TYPES = [
-    "exponential",        # ExponentialYawSurrogate — uniform |yaw| threshold
-    "threshold",          # YawThresholdLoadSurrogate — quadratic penalty
-    "per_turbine",        # PerTurbineYawSurrogate — heterogeneous thresholds
-    "t1_positive_only",   # PositiveYawT1Surrogate — T1 positive yaw only
-    "relu",               # ReluLoadSurrogate — proof-of-concept
+    "exponential",           # ExponentialYawSurrogate — uniform |yaw| threshold
+    "threshold",             # YawThresholdLoadSurrogate — quadratic penalty
+    "per_turbine",           # PerTurbineYawSurrogate — heterogeneous thresholds
+    "t1_positive_only",      # PositiveYawT1Surrogate — T1 positive yaw (exponential)
+    "t1_positive_quadratic", # QuadraticPositiveYawT1Surrogate — T1 positive (quadratic)
+    "t1_positive_linear",    # LinearPositiveYawT1Surrogate — T1 positive (linear)
+    "relu",                  # ReluLoadSurrogate — proof-of-concept
 ]
 
 
@@ -375,7 +456,7 @@ def create_load_surrogate(
 
     Args:
         surrogate_type: One of VALID_LOAD_SURROGATE_TYPES.
-        steepness: Exponential wall steepness (used by exponential, per_turbine, t1_positive_only).
+        steepness: Exponential wall steepness or penalty scale factor.
         threshold_deg: Yaw threshold in degrees (used by exponential, threshold).
         yaw_max_deg: Max yaw angle for normalization (default 30°).
         per_turbine_thresholds: Comma-separated per-turbine limits in degrees (used by per_turbine).
@@ -394,6 +475,10 @@ def create_load_surrogate(
         return PerTurbineYawSurrogate(thresholds, yaw_max_deg, steepness)
     elif surrogate_type == "t1_positive_only":
         return PositiveYawT1Surrogate(steepness)
+    elif surrogate_type == "t1_positive_quadratic":
+        return QuadraticPositiveYawT1Surrogate(steepness)
+    elif surrogate_type == "t1_positive_linear":
+        return LinearPositiveYawT1Surrogate(steepness)
     elif surrogate_type == "relu":
         return ReluLoadSurrogate()
     raise ValueError(f"Unhandled surrogate_type={surrogate_type!r}")
