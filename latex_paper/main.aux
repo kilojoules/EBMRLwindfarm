@@ -1,0 +1,113 @@
+\relax 
+\providecommand\hyper@newdestlabel[2]{}
+\providecommand\HyField@AuxAddToFields[1]{}
+\providecommand\HyField@AuxAddToCoFields[2]{}
+\citation{dijk2025load}
+\citation{balseiro2023budget}
+\citation{almgren2001optimal}
+\citation{altman1999constrained,stooke2020responsive,sootla2022saute,chen2025predictive}
+\citation{urain2023composable,zhang2025constrained,xiao2023safediffuser}
+\@writefile{toc}{\contentsline {section}{\numberline {1}Introduction}{1}{section.1}\protected@file@percent }
+\newlabel{sec:intro}{{1}{1}{Introduction}{section.1}{}}
+\citation{altman1999constrained}
+\citation{stooke2020responsive}
+\citation{gladstone2025ebt}
+\citation{urain2023composable,zhang2025constrained}
+\@writefile{toc}{\contentsline {section}{\numberline {2}Background}{2}{section.2}\protected@file@percent }
+\newlabel{sec:background}{{2}{2}{Background}{section.2}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.1}Constrained MDPs and Lagrangian Relaxation}{2}{subsection.2.1}\protected@file@percent }
+\newlabel{eq:cmdp}{{1}{2}{Constrained MDPs and Lagrangian Relaxation}{equation.1}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.2}Energy-Based RL and Post-Hoc Composition}{2}{subsection.2.2}\protected@file@percent }
+\newlabel{eq:composition}{{4}{2}{Energy-Based RL and Post-Hoc Composition}{equation.4}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {3}Optimal Budget Scheduling}{3}{section.3}\protected@file@percent }
+\newlabel{sec:theory}{{3}{3}{Optimal Budget Scheduling}{section.3}{}}
+\newlabel{eq:urgency}{{5}{3}{Optimal Budget Scheduling}{equation.5}{}}
+\newlabel{prop:optimal}{{1}{3}{Optimal penalty weight under Boltzmann response}{proposition.1}{}}
+\newlabel{eq:optimal}{{6}{3}{Optimal penalty weight under Boltzmann response}{equation.6}{}}
+\newlabel{eq:practical}{{7}{3}{Optimal Budget Scheduling}{equation.7}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {4}Method: Composable Budget Constraints}{3}{section.4}\protected@file@percent }
+\newlabel{sec:method}{{4}{3}{Method: Composable Budget Constraints}{section.4}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.1}Per-Agent Constraint Energy}{3}{subsection.4.1}\protected@file@percent }
+\newlabel{sec:composition}{{4.1}{3}{Per-Agent Constraint Energy}{subsection.4.1}{}}
+\newlabel{eq:budget_energy}{{9}{3}{Per-Agent Constraint Energy}{equation.9}{}}
+\citation{windgym}
+\@writefile{loa}{\contentsline {algorithm}{\numberline {1}{\ignorespaces Post-Hoc Budget-Constrained Inference}}{4}{algorithm.1}\protected@file@percent }
+\providecommand*\caption@xref[2]{\@setref\relax\@undefined{#1}}
+\newlabel{alg:budget}{{1}{4}{Post-Hoc Budget-Constrained Inference}{algorithm.1}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.2}Composed Energy Landscape}{4}{subsection.4.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.3}Algorithm}{4}{subsection.4.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.4}Heterogeneous Per-Agent Budgets}{4}{subsection.4.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.5}Connection to CMDP Lagrangian Duality}{4}{subsection.4.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {5}Experimental Setup}{4}{section.5}\protected@file@percent }
+\newlabel{sec:setup}{{5}{4}{Experimental Setup}{section.5}{}}
+\citation{dijk2025load}
+\citation{todorov2012mujoco}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.1}Domain 1: Wind Farm Yaw Control}{5}{subsection.5.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.2}Domain 2: MuJoCo Locomotion}{5}{subsection.5.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.3}Baselines}{5}{subsection.5.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.4}Ablations}{5}{subsection.5.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {6}Results}{5}{section.6}\protected@file@percent }
+\newlabel{sec:results}{{6}{5}{Results}{section.6}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces Budget scheduling mechanism over one HalfCheetah episode. Top: time-varying reward multiplier (gold = high-value phases). Middle: penalty weight $\lambda (t)$ --- constant for $\eta =0$ (red), adaptive for $\eta >0$ (blue). $\lambda $ decreases when budget is plentiful and spikes near depletion ($\eta =5$, late episode). Bottom: velocity traces with threshold violations (dots).}}{6}{figure.caption.1}\protected@file@percent }
+\newlabel{fig:mechanism}{{1}{6}{Budget scheduling mechanism over one HalfCheetah episode. Top: time-varying reward multiplier (gold = high-value phases). Middle: penalty weight $\lambda (t)$ --- constant for $\eta =0$ (red), adaptive for $\eta >0$ (blue). $\lambda $ decreases when budget is plentiful and spikes near depletion ($\eta =5$, late episode). Bottom: velocity traces with threshold violations (dots)}{figure.caption.1}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.1}Budget Satisfaction and Reward Retention}{6}{subsection.6.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.2}Hard Guard Ablation}{6}{subsection.6.2}\protected@file@percent }
+\citation{sootla2022saute}
+\@writefile{lof}{\contentsline {figure}{\numberline {2}{\ignorespaces When does the agent speed? (a)~Spending rate by reward cycle phase: the AC schedule ($\eta \geq 2$) sustains a uniformly high spending rate ($\sim $25\%), while the constant penalty ($\eta =0$) spends only $\sim $10\%. (b)~Reward multiplier distribution at speeding timesteps. (c)~Cumulative budget consumption: $\eta =0$ uses only half the budget; AC uses 96--99\%.}}{7}{figure.caption.2}\protected@file@percent }
+\newlabel{fig:physical}{{2}{7}{When does the agent speed? (a)~Spending rate by reward cycle phase: the AC schedule ($\eta \geq 2$) sustains a uniformly high spending rate ($\sim $25\%), while the constant penalty ($\eta =0$) spends only $\sim $10\%. (b)~Reward multiplier distribution at speeding timesteps. (c)~Cumulative budget consumption: $\eta =0$ uses only half the budget; AC uses 96--99\%}{figure.caption.2}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {1}{\ignorespaces Main results across both domains (mean $\pm $ std over training seeds). Budget utilization reports the fraction of allowed budget actually spent. Higher utilization with high reward indicates intelligent allocation.}}{7}{table.caption.3}\protected@file@percent }
+\newlabel{tab:main_results}{{1}{7}{Main results across both domains (mean $\pm $ std over training seeds). Budget utilization reports the fraction of allowed budget actually spent. Higher utilization with high reward indicates intelligent allocation}{table.caption.3}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.3}Schedule Comparison: $w^*(u)=1/u$ vs.\ $w(u)=\exp (\eta (1/u - 1))$}{7}{subsection.6.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.4}Budget Flexibility}{7}{subsection.6.4}\protected@file@percent }
+\citation{altman1999constrained}
+\citation{stooke2020responsive}
+\citation{sootla2022saute}
+\citation{chen2025predictive}
+\citation{yao2024caps}
+\citation{liu2026bcr}
+\citation{urain2023composable}
+\citation{zhang2025constrained}
+\citation{xiao2023safediffuser}
+\citation{zheng2024fisor}
+\citation{durkin2025picnn}
+\@writefile{lof}{\contentsline {figure}{\numberline {3}{\ignorespaces Budget utilization vs.\ reward retention. Constant penalty (squares, red) cannot simultaneously achieve high utilization and high reward. AC schedule (circles, blue shades by $\eta $) clusters in the efficient top-right region.}}{8}{figure.caption.4}\protected@file@percent }
+\newlabel{fig:pareto}{{3}{8}{Budget utilization vs.\ reward retention. Constant penalty (squares, red) cannot simultaneously achieve high utilization and high reward. AC schedule (circles, blue shades by $\eta $) clusters in the efficient top-right region}{figure.caption.4}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {2}{\ignorespaces Hard guard ablation (HalfCheetah, budget=250/1000 steps, 5 seeds). The AC schedule alone (no hard guard) provides the same budget management as the full system.}}{8}{table.caption.5}\protected@file@percent }
+\newlabel{tab:hard_guard}{{2}{8}{Hard guard ablation (HalfCheetah, budget=250/1000 steps, 5 seeds). The AC schedule alone (no hard guard) provides the same budget management as the full system}{table.caption.5}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.5}Comparison to Saute RL (Retrained Baseline)}{8}{subsection.6.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {7}Related Work}{8}{section.7}\protected@file@percent }
+\newlabel{sec:related}{{7}{8}{Related Work}{section.7}{}}
+\citation{balseiro2023budget}
+\citation{agrawal2014bandits}
+\citation{almgren2001optimal}
+\citation{ning2024execution}
+\@writefile{lof}{\contentsline {figure}{\numberline {4}{\ignorespaces Budget flexibility. Left: same policy at different budget levels (concave curve = intelligent allocation). Right: cumulative spending trajectories depart from the TWAP diagonal, spending conservatively early and catching up during high-value phases.}}{9}{figure.caption.6}\protected@file@percent }
+\newlabel{fig:flexibility}{{4}{9}{Budget flexibility. Left: same policy at different budget levels (concave curve = intelligent allocation). Right: cumulative spending trajectories depart from the TWAP diagonal, spending conservatively early and catching up during high-value phases}{figure.caption.6}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {5}{\ignorespaces Ablations on HalfCheetah. (a)~Risk aversion sweep: $\eta =0$ wastes budget (53\% used), $\eta \geq 1$ achieves $>$96\% utilization and 7\% more reward. (b)~Schedule comparison: $u^{-\eta }$ (optimal) and $\exp (\eta (1/u-1))$ (practical) perform comparably. (c)~Hard guard ablation: the AC schedule alone matches the full system.}}{9}{figure.caption.7}\protected@file@percent }
+\newlabel{fig:ablations}{{5}{9}{Ablations on HalfCheetah. (a)~Risk aversion sweep: $\eta =0$ wastes budget (53\% used), $\eta \geq 1$ achieves $>$96\% utilization and 7\% more reward. (b)~Schedule comparison: $u^{-\eta }$ (optimal) and $\exp (\eta (1/u-1))$ (practical) perform comparably. (c)~Hard guard ablation: the AC schedule alone matches the full system}{figure.caption.7}{}}
+\bibdata{references}
+\bibcite{agrawal2014bandits}{{1}{2014}{{Agrawal and Devanur}}{{}}}
+\bibcite{almgren2001optimal}{{2}{2001}{{Almgren and Chriss}}{{}}}
+\bibcite{altman1999constrained}{{3}{1999}{{Altman}}{{}}}
+\bibcite{balseiro2023budget}{{4}{2024}{{Balseiro et~al.}}{{}}}
+\bibcite{chen2025predictive}{{5}{2025}{{Chen et~al.}}{{}}}
+\bibcite{durkin2025picnn}{{6}{2025}{{Durkin et~al.}}{{}}}
+\bibcite{gladstone2025ebt}{{7}{2025}{{Gladstone et~al.}}{{}}}
+\bibcite{liu2026bcr}{{8}{2026}{{Liu et~al.}}{{}}}
+\bibcite{windgym}{{9}{2025}{{Nilsen et~al.}}{{Nilsen, Quick, Simutis, and {\r A}strand}}}
+\bibcite{ning2024execution}{{10}{2024}{{Ning et~al.}}{{}}}
+\@writefile{lot}{\contentsline {table}{\numberline {3}{\ignorespaces Saute RL (retrained) vs.\ post-hoc AC scheduling on HalfCheetah. Saute achieves slightly higher reward but violates the budget. AC satisfies the budget and generalizes to unseen budget levels without retraining.}}{10}{table.caption.8}\protected@file@percent }
+\newlabel{tab:saute}{{3}{10}{Saute RL (retrained) vs.\ post-hoc AC scheduling on HalfCheetah. Saute achieves slightly higher reward but violates the budget. AC satisfies the budget and generalizes to unseen budget levels without retraining}{table.caption.8}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {8}Conclusion}{10}{section.8}\protected@file@percent }
+\newlabel{sec:conclusion}{{8}{10}{Conclusion}{section.8}{}}
+\bibcite{sootla2022saute}{{11}{2022}{{Sootla et~al.}}{{Sootla, Cowen-Rivers, Jafferjee, Wang, Mguni, Wang, and Ammar}}}
+\bibcite{stooke2020responsive}{{12}{2020}{{Stooke et~al.}}{{Stooke, Achiam, and Abbeel}}}
+\bibcite{todorov2012mujoco}{{13}{2012}{{Todorov et~al.}}{{Todorov, Erez, and Tassa}}}
+\bibcite{urain2023composable}{{14}{2023}{{Urain et~al.}}{{Urain, Li, Liu, D'Eramo, and Peters}}}
+\bibcite{dijk2025load}{{15}{2025}{{van Dijk et~al.}}{{}}}
+\bibcite{xiao2023safediffuser}{{16}{2025}{{Xiao et~al.}}{{Xiao, Wang, Zhan, Ramamurthy, Hasani, and Rus}}}
+\bibcite{yao2024caps}{{17}{2025}{{Yao et~al.}}{{}}}
+\bibcite{zhang2025constrained}{{18}{2025}{{Zhang et~al.}}{{}}}
+\bibcite{zheng2024fisor}{{19}{2024}{{Zheng et~al.}}{{}}}
+\bibstyle{plainnat}
+\gdef \@abspage@last{11}

@@ -1,6 +1,13 @@
 % Placeholder NeurIPS style file
 % Replace with official neurips_2026.sty when available
+\DeclareOption{final}{}
+\DeclareOption{preprint}{}
+\DeclareOption{nonatbib}{}
+\ProcessOptions\relax
 \usepackage[margin=1in]{geometry}
 \usepackage{natbib}
+\usepackage{amsthm}
 \setlength{\parindent}{0pt}
 \setlength{\parskip}{6pt}
+\newtheorem{proposition}{Proposition}
+\newtheorem{corollary}{Corollary}

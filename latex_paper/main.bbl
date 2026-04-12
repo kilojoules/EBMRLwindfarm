@@ -1,0 +1,119 @@
+\begin{thebibliography}{19}
+\providecommand{\natexlab}[1]{#1}
+\providecommand{\url}[1]{\texttt{#1}}
+\expandafter\ifx\csname urlstyle\endcsname\relax
+  \providecommand{\doi}[1]{doi: #1}\else
+  \providecommand{\doi}{doi: \begingroup \urlstyle{rm}\Url}\fi
+
+\bibitem[Agrawal and Devanur(2014)]{agrawal2014bandits}
+Shipra Agrawal and Nikhil~R Devanur.
+\newblock Bandits with concave rewards and convex knapsacks.
+\newblock In \emph{ACM Conference on Economics and Computation}, 2014.
+
+\bibitem[Almgren and Chriss(2001)]{almgren2001optimal}
+Robert Almgren and Neil Chriss.
+\newblock Optimal execution of portfolio transactions.
+\newblock \emph{Journal of Risk}, 3:\penalty0 5--39, 2001.
+
+\bibitem[Altman(1999)]{altman1999constrained}
+Eitan Altman.
+\newblock \emph{Constrained {M}arkov decision processes}.
+\newblock Chapman and Hall/CRC, 1999.
+
+\bibitem[Balseiro et~al.(2024)]{balseiro2023budget}
+Santiago Balseiro et~al.
+\newblock A field guide for pacing budget and {ROS} constraints.
+\newblock \emph{International Conference on Machine Learning}, 2024.
+
+\bibitem[Chen et~al.(2025)]{chen2025predictive}
+Yuxiang Chen et~al.
+\newblock Predictive {L}agrangian optimization for constrained reinforcement
+  learning.
+\newblock \emph{arXiv preprint arXiv:2501.15217}, 2025.
+
+\bibitem[Durkin et~al.(2025)]{durkin2025picnn}
+Shashank Durkin et~al.
+\newblock Safe deployment for counterfactual learning to rank with
+  exposure-based constraints via input convex action correction.
+\newblock \emph{arXiv preprint arXiv:2507.22640}, 2025.
+
+\bibitem[Gladstone et~al.(2025)]{gladstone2025ebt}
+Ruairidh Gladstone et~al.
+\newblock Energy-based transformers are scalable learners and thinkers.
+\newblock \emph{arXiv preprint arXiv:2507.02092}, 2025.
+
+\bibitem[Liu et~al.(2026)]{liu2026bcr}
+Chia-Chi Liu et~al.
+\newblock Beyond hard constraints: Budget-conditioned reachability for safe
+  offline reinforcement learning.
+\newblock \emph{arXiv preprint arXiv:2603.22292}, 2026.
+
+\bibitem[Nilsen et~al.(2025)Nilsen, Quick, Simutis, and {\AA}strand]{windgym}
+Marcus~Binder Nilsen, Julian Quick, Ernestas Simutis, and Teodor {\AA}strand.
+\newblock Wind{G}ym: A wind farm reinforcement learning environment.
+\newblock \url{https://github.com/DTUWindEnergy/WindGym}, 2025.
+
+\bibitem[Ning et~al.(2024)]{ning2024execution}
+Boming Ning et~al.
+\newblock Reinforcement learning for optimal execution: A survey.
+\newblock \emph{arXiv preprint arXiv:2411.06389}, 2024.
+
+\bibitem[Sootla et~al.(2022)Sootla, Cowen-Rivers, Jafferjee, Wang, Mguni, Wang,
+  and Ammar]{sootla2022saute}
+Aivar Sootla, Alexander~I Cowen-Rivers, Taher Jafferjee, Ziyan Wang, David~H
+  Mguni, Jun Wang, and Haitham~Bou Ammar.
+\newblock Saut{\'e} {RL}: Almost surely safe reinforcement learning using state
+  augmentation.
+\newblock In \emph{International Conference on Machine Learning}, 2022.
+
+\bibitem[Stooke et~al.(2020)Stooke, Achiam, and Abbeel]{stooke2020responsive}
+Adam Stooke, Joshua Achiam, and Pieter Abbeel.
+\newblock Responsive safety in reinforcement learning by {PID} {L}agrangian
+  methods.
+\newblock In \emph{International Conference on Machine Learning}, 2020.
+
+\bibitem[Todorov et~al.(2012)Todorov, Erez, and Tassa]{todorov2012mujoco}
+Emanuel Todorov, Tom Erez, and Yuval Tassa.
+\newblock Mu{J}o{C}o: A physics engine for model-based control.
+\newblock In \emph{IEEE/RSJ International Conference on Intelligent Robots and
+  Systems}, 2012.
+
+\bibitem[Urain et~al.(2023)Urain, Li, Liu, D'Eramo, and
+  Peters]{urain2023composable}
+Julen Urain, Anqi Li, Puze Liu, Carlo D'Eramo, and Jan Peters.
+\newblock Composable energy policies for reactive motion generation and
+  reinforcement learning.
+\newblock In \emph{International Journal of Robotics Research}, 2023.
+
+\bibitem[van Dijk et~al.(2025)]{dijk2025load}
+Mike van Dijk et~al.
+\newblock Load assessment of a wind farm considering negative and positive yaw
+  misalignment for wake steering.
+\newblock \emph{Wind Energy Science}, 10:\penalty0 1033--1051, 2025.
+
+\bibitem[Xiao et~al.(2025)Xiao, Wang, Zhan, Ramamurthy, Hasani, and
+  Rus]{xiao2023safediffuser}
+Wei Xiao, Tsun-Hsuan Wang, Chuang Zhan, Karthik~Narasimhan Ramamurthy, Ramin
+  Hasani, and Daniela Rus.
+\newblock Safe{D}iffuser: Safe planning with diffusion probabilistic models.
+\newblock \emph{International Conference on Learning Representations}, 2025.
+
+\bibitem[Yao et~al.(2025)]{yao2024caps}
+Zuxin Yao et~al.
+\newblock Constraint-adaptive policy switching for offline safe reinforcement
+  learning.
+\newblock \emph{Proceedings of the AAAI Conference on Artificial Intelligence},
+  2025.
+
+\bibitem[Zhang et~al.(2025)]{zhang2025constrained}
+Zheyu Zhang et~al.
+\newblock Constrained diffusers for safe planning and control.
+\newblock \emph{Advances in Neural Information Processing Systems}, 2025.
+
+\bibitem[Zheng et~al.(2024)]{zheng2024fisor}
+Zuxin Zheng et~al.
+\newblock {FISOR}: Building safe and adaptable offline reinforcement learning
+  agents with feasibility-guided diffusion model.
+\newblock \emph{International Conference on Learning Representations}, 2024.
+
+\end{thebibliography}
