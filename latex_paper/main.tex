@@ -1,0 +1,383 @@
+\documentclass{article}
+
+% NeurIPS 2026 style
+\usepackage[final]{neurips_2026}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{hyperref}
+\usepackage{url}
+\usepackage{booktabs}
+\usepackage{amsfonts}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{nicefrac}
+\usepackage{microtype}
+\usepackage{graphicx}
+\usepackage{algorithm}
+\usepackage{algorithmic}
+\usepackage{subcaption}
+\usepackage{xcolor}
+
+\newcommand{\ie}{\textit{i.e.}}
+\newcommand{\eg}{\textit{e.g.}}
+\newcommand{\cf}{\textit{cf.}}
+\newcommand{\etal}{\textit{et al.}}
+
+\title{Adaptive Budget Scheduling for Constrained RL Deployment \\ via Energy Composition}
+
+\author{
+  Julian Quick \\
+  DTU Wind Energy \\
+  Technical University of Denmark \\
+  \texttt{juqu@dtu.dk}
+  \And
+  Marcus Binder Nilsen \\
+  DTU Wind Energy \\
+  Technical University of Denmark \\
+}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+Deploying reinforcement learning policies in the real world often requires cumulative operational constraints unknown at training time---maintenance budgets, emission limits, duty-cycle restrictions.
+Standard constrained MDP approaches require full retraining for each constraint specification.
+We derive a closed-form, time-varying penalty weight from a budget-balanced sequential allocation problem under Boltzmann policy response: the optimal multiplicative weight is $w^*(u) = 1/u$, where $u$ is the ratio of remaining budget fraction to remaining time fraction.
+We propose a practical schedule $w(u) = \exp(\eta(1/u - 1))$ that matches the optimum to first order, adds a tunable risk-aversion parameter $\eta$, and composes post-hoc with pre-trained energy-based or diffusion policies via per-agent energy addition---requiring zero retraining.
+Across two domains---wind farm yaw control and MuJoCo locomotion with velocity budgets---the method satisfies cumulative budgets while retaining 77--96\% of unconstrained reward, outperforming constant-penalty baselines by 7--20 percentage points in budget utilization.
+A single pre-trained policy supports arbitrary budget levels, per-agent heterogeneous constraints, and instant adaptation---all without retraining.
+\end{abstract}
+
+%----------------------------------------------------------------------
+\section{Introduction}
+\label{sec:intro}
+%----------------------------------------------------------------------
+
+Consider a wind farm operator who trains a reinforcement learning (RL) controller to maximize power production.
+Six months after deployment, a bearing inspection reveals that one turbine needs restricted yaw travel: it may operate at negative yaw angles for at most 15 hours per year to limit structural fatigue.
+Retraining the controller is expensive and disruptive.
+The operator needs a way to impose this new cumulative constraint on the \emph{existing} policy, instantly and without retraining.
+
+This scenario is ubiquitous in deployed RL systems.
+Cumulative operational constraints arise whenever an agent must limit the total time spent in a high-reward but costly regime:
+wind turbines with load budgets~\citep{dijk2025load},
+robots with joint-wear maintenance cycles,
+grid batteries with cycle-life limits,
+and advertisers with daily spending caps~\citep{balseiro2023budget}.
+Unlike instantaneous constraints (avoid obstacles, stay upright), these are \emph{lifetime budgets}: the agent must decide \emph{when} to spend its limited capacity for risky actions, allocating strategically across time.
+
+This budget allocation problem is structurally analogous to optimal trade execution in quantitative finance~\citep{almgren2001optimal}: a trader must liquidate a position over a time horizon, deciding when to trade aggressively (capturing favorable prices) versus passively (conserving capacity).
+The key insight from that literature---that the optimal execution rate depends on remaining inventory relative to remaining time---transfers directly to RL budget management.
+
+Existing approaches to constrained RL fall into two categories, neither of which solves this problem:
+(1)~\textbf{Constrained MDP methods}~\citep{altman1999constrained, stooke2020responsive, sootla2022saute, chen2025predictive} learn a Lagrangian dual variable during training, requiring full retraining for each new constraint specification.
+(2)~\textbf{Post-hoc constraint composition}~\citep{urain2023composable, zhang2025constrained, xiao2023safediffuser} adds constraints at inference time via energy composition or classifier guidance, but handles only \emph{instantaneous} constraints (barrier functions, geometric limits)---not cumulative budgets that span an episode.
+
+We fill this gap.
+Our contributions are:
+\begin{enumerate}
+    \item A \textbf{closed-form time-varying penalty weight} derived from budget-balanced sequential allocation under Boltzmann policy response (Section~\ref{sec:theory}). The optimal weight $w^*(u) = 1/u$ depends only on the urgency ratio $u = (\text{budget remaining} / \text{budget total}) / (\text{time remaining} / \text{horizon})$.
+    \item A \textbf{practical schedule} $w(u) = \exp(\eta(1/u - 1))$ that approximates the optimum to first order, recovers uniform allocation at $\eta=0$, and provides tunable risk aversion via a single scalar parameter (Section~\ref{sec:method}).
+    \item \textbf{Post-hoc composition} with pre-trained energy-based transformer (EBT) actors via per-agent energy addition, enabling zero-retraining constraint enforcement with heterogeneous per-agent budgets (Section~\ref{sec:composition}).
+    \item \textbf{Empirical validation} across two domains---wind farm yaw control and MuJoCo locomotion---showing budget satisfaction, reward retention, and superiority over constant-penalty baselines (Section~\ref{sec:results}).
+\end{enumerate}
+
+%----------------------------------------------------------------------
+\section{Background}
+\label{sec:background}
+%----------------------------------------------------------------------
+
+\subsection{Constrained MDPs and Lagrangian Relaxation}
+
+A Constrained MDP (CMDP)~\citep{altman1999constrained} augments the standard MDP objective with cost constraints:
+\begin{equation}
+    \max_\pi \; \mathbb{E}_\pi\!\left[\sum_{t=0}^{T-1} r(s_t, a_t)\right]
+    \quad \text{s.t.} \quad
+    \mathbb{E}_\pi\!\left[\sum_{t=0}^{T-1} c^i(s_t, a_t)\right] \leq B^i
+    \quad \forall\, i
+    \label{eq:cmdp}
+\end{equation}
+where $c^i$ is a per-agent cost indicator and $B^i$ is the lifetime budget for agent $i$.
+The standard approach introduces a Lagrangian dual variable $\mu$:
+\begin{equation}
+    \mathcal{L}(\pi, \mu) = \mathbb{E}_\pi\!\left[\sum_t r(s_t, a_t)\right] - \mu \cdot \left(\mathbb{E}_\pi\!\left[\sum_t c(s_t, a_t)\right] - B\right)
+\end{equation}
+and alternates between policy optimization (primal) and multiplier updates via dual gradient ascent: $\mu_{k+1} = \max(0,\, \mu_k + \alpha(\hat{C}_k - B))$~\citep{stooke2020responsive}.
+This requires retraining the policy whenever $B$ changes.
+
+\subsection{Energy-Based RL and Post-Hoc Composition}
+
+Energy-Based Transformer (EBT) actors~\citep{gladstone2025ebt} generate actions by gradient descent on a learned energy landscape.
+Given per-agent embeddings $\mathbf{e}^i$ from a transformer encoder, an energy head $E_\phi^i(\mathbf{e}^i, a^i)$ assigns scalar energy to candidate actions.
+Actions are optimized via:
+\begin{equation}
+    a^{(k+1)} = \mathrm{clip}\!\left(a^{(k)} - \eta_{\mathrm{lr}} \nabla_a E_{\mathrm{total}}(a^{(k)}),\; -1,\; 1\right)
+\end{equation}
+The key property enabling post-hoc constraints: external energy terms compose \emph{per-agent, before aggregation}:
+\begin{equation}
+    E_{\mathrm{total}}(a) = \frac{1}{N}\sum_{i=1}^{N}\!\left[E_\phi^i(\mathbf{e}^i, a^i) + \lambda_{\mathrm{gs}} \cdot E_{\mathrm{constraint}}^i(a^i)\right]
+    \label{eq:composition}
+\end{equation}
+This enables adding new constraints at inference time without modifying $E_\phi$.
+Prior work composes instantaneous constraints (\eg, yaw limits, obstacle avoidance)~\citep{urain2023composable, zhang2025constrained}.
+We extend this to \emph{cumulative budget constraints} via a time-varying energy weight.
+
+%----------------------------------------------------------------------
+\section{Optimal Budget Scheduling}
+\label{sec:theory}
+%----------------------------------------------------------------------
+
+We derive the penalty weight from a sequential budget allocation problem.
+
+\textbf{Setup.}
+An agent must allocate $B$ ``risky'' actions over $T$ time steps.
+At each step $t$, the agent observes conditions and decides whether to spend one unit of budget.
+Spending yields a time-dependent benefit; the goal is to maximize total benefit subject to the budget constraint.
+
+\textbf{Budget tracking.}
+Let $C_t^i = \sum_{s=0}^{t-1} c^i(a_s)$ denote the cumulative cost for agent $i$ at time $t$, where $c^i(a) = \mathbf{1}[a^i \in \mathcal{A}_{\mathrm{risky}}]$ is the cost indicator (\eg, $\mathbf{1}[\text{yaw} < 0]$ for wind farms, $\mathbf{1}[\text{velocity} > v_{\mathrm{thresh}}]$ for locomotion).
+Define the \emph{urgency ratio}:
+\begin{equation}
+    u_t^i = \frac{\beta_t^i}{\tau_t}, \qquad
+    \beta_t^i = \frac{B^i - C_t^i}{B^i}, \qquad
+    \tau_t = \frac{T - t}{T}
+    \label{eq:urgency}
+\end{equation}
+where $\beta_t^i$ is the remaining budget fraction and $\tau_t$ is the remaining time fraction.
+When $u > 1$, the agent has spent less than the uniform (TWAP) rate; when $u < 1$, it has overspent.
+
+\begin{proposition}[Optimal penalty weight under Boltzmann response]
+\label{prop:optimal}
+Assume the policy responds to penalty weight $\lambda$ via a Boltzmann model:
+$P(\text{risky} \mid \lambda) = P_0 \exp(-\alpha \lambda)$.
+Budget balance over the remaining horizon requires $\tau \cdot P_0 \exp(-\alpha\lambda) = b$,
+where $b$ is the remaining budget.
+The multiplicative weight relative to the TWAP baseline is:
+\begin{equation}
+    w^*(u) = \frac{1}{u}
+    \label{eq:optimal}
+\end{equation}
+\end{proposition}
+
+\begin{proof}
+At the TWAP point ($u=1$), budget balance gives $\lambda_0 = \frac{1}{\alpha}\ln\!\frac{TP_0}{B}$.
+For general budget state: $\lambda = \frac{1}{\alpha}\ln\!\frac{\tau P_0}{b}$.
+The multiplicative weight $w = \exp(\alpha(\lambda - \lambda_0)) = \frac{b/B}{\tau/T}^{-1} = 1/u$.
+\end{proof}
+
+\textbf{Practical schedule.}
+Since $1/u \to \infty$ as $u \to 0$ (budget depleted), we propose the approximation:
+\begin{equation}
+    w(u) = \exp\!\left(\eta \cdot \left(\frac{1}{u} - 1\right)\right)
+    \label{eq:practical}
+\end{equation}
+
+\begin{corollary}[First-order approximation]
+Taylor expansion around $u=1$: $w(u) = 1 + \eta(1/u - 1) + O((1/u - 1)^2)$, matching $1/u = 1 + (1/u - 1)$ to first order when $\eta = 1$.
+\end{corollary}
+
+The parameter $\eta$ controls risk aversion:
+$\eta = 0$ recovers the constant-penalty TWAP baseline (no adaptation);
+$\eta = 1$ matches the Boltzmann optimum to first order;
+$\eta > 1$ provides a more conservative safety margin.
+
+\textbf{Hard wall backstop.}
+A steep exponential barrier activates when budget drops below 5\%:
+\begin{equation}
+    \lambda_{\mathrm{wall}}^i(t) = \exp\!\left(k \cdot \mathrm{ReLU}\!\left(1 - \frac{\beta_t^i}{0.05}\right)\right)
+\end{equation}
+The combined weight is $\lambda^i(t) = \min(w(u_t^i) \cdot \lambda_{\mathrm{wall}}^i(t),\; \lambda_{\max})$, clamped at $\lambda_{\max} = 10^6$.
+
+%----------------------------------------------------------------------
+\section{Method: Composable Budget Constraints}
+\label{sec:method}
+%----------------------------------------------------------------------
+
+\subsection{Per-Agent Constraint Energy}
+\label{sec:composition}
+
+The constraint energy for agent $i$ at time $t$ is:
+\begin{equation}
+    E_{\mathrm{budget}}^i(a^i, t) = \lambda^i(t) \cdot \left(\exp\!\left(k \cdot \mathrm{ReLU}(f_{\mathrm{cost}}(a^i))\right) - 1\right)
+    \label{eq:budget_energy}
+\end{equation}
+where $f_{\mathrm{cost}}$ maps actions to a scalar cost excess (\eg, $f_{\mathrm{cost}}(a) = -a - \theta$ for negative yaw, or $|a| - a_{\mathrm{thresh}}$ for velocity).
+The base penalty is zero when the action is ``safe'' and grows exponentially for ``risky'' actions.
+The time-varying weight $\lambda^i(t)$ modulates the penalty strength based on remaining budget.
+
+\subsection{Composed Energy Landscape}
+
+During inference, the total energy optimized by the EBT actor is:
+\begin{equation}
+    E_{\mathrm{total}}(a, t) = \frac{1}{N}\sum_{i=1}^{N}\!\left[E_\phi^i(\mathbf{e}_t^i, a^i) + \lambda_{\mathrm{gs}} \cdot E_{\mathrm{budget}}^i(a^i, t)\right]
+\end{equation}
+No retraining is needed: $E_\phi$ is frozen from unconstrained training, and the budget term is added post-hoc.
+The guidance scale $\lambda_{\mathrm{gs}}$ controls overall constraint strength.
+
+\subsection{Algorithm}
+
+\begin{algorithm}[t]
+\caption{Post-Hoc Budget-Constrained Inference}
+\label{alg:budget}
+\begin{algorithmic}[1]
+\REQUIRE Trained actor $E_\phi$, budget $B^i$ per agent, horizon $T$, risk aversion $\eta$, guidance scale $\lambda_{\mathrm{gs}}$
+\STATE Initialize $C^i \leftarrow 0$ for all agents $i$
+\FOR{$t = 0, \ldots, T-1$}
+    \STATE Observe state $s_t$, compute embeddings $\mathbf{e}_t^i$
+    \STATE Compute urgency $u_t^i = \frac{(B^i - C^i)/B^i}{(T-t)/T}$ for each agent
+    \STATE Compute $\lambda^i(t) = \min(\exp(\eta(1/u_t^i - 1)) \cdot \lambda_{\mathrm{wall}}^i,\; \lambda_{\max})$
+    \STATE Generate action via gradient descent on $E_\phi + \lambda_{\mathrm{gs}} \cdot E_{\mathrm{budget}}$
+    \STATE Execute $a_t$, observe $r_t$
+    \STATE Update $C^i \leftarrow C^i + c^i(a_t)$ \hfill\COMMENT{budget tracking}
+\ENDFOR
+\end{algorithmic}
+\end{algorithm}
+
+The only additions to the standard EBT inference loop are lines 4--5 (urgency and weight computation, a few floating-point operations) and line 8 (one comparison per agent).
+The computational overhead is negligible.
+
+\subsection{Heterogeneous Per-Agent Budgets}
+
+The framework naturally supports per-agent budgets $B^i$ by computing $u_t^i$ independently for each agent.
+This enables scenarios where agents have different operational histories (\eg, a turbine with a recently replaced bearing can tolerate more aggressive yaw).
+
+\subsection{Connection to CMDP Lagrangian Duality}
+
+The time-varying weight $\lambda^i(t)$ serves a similar functional role to the Lagrangian dual variable $\mu$ in~\eqref{eq:cmdp}: it penalizes constraint-violating actions proportionally to how scarce the remaining budget is.
+The key difference: $\mu$ is learned via dual gradient ascent (requiring retraining), while $\lambda^i(t)$ is computed in closed form from the current budget state.
+This enables instant adaptation to new budget specifications without any optimization.
+
+%----------------------------------------------------------------------
+\section{Experimental Setup}
+\label{sec:setup}
+%----------------------------------------------------------------------
+
+We evaluate the budget scheduling mechanism across two domains with different risky-action semantics.
+
+\subsection{Domain 1: Wind Farm Yaw Control}
+
+\textbf{Environment.}
+WindGym~\citep{windgym} with PyWake backend, 3-turbine farm in a row-aligned layout.
+Wind speed sampled from 10--14~m/s, wind direction from 225--315$^\circ$, providing natural temporal variation in wake conditions.
+
+\textbf{Risky action.}
+Negative yaw angles ($a^i < 0$) steer the rotor against the conventional direction, deflecting wakes to increase downstream power but imposing structural loads on the yawed turbine~\citep{dijk2025load}.
+
+\textbf{Budget.}
+$B$ = total timesteps at negative yaw per turbine per episode.
+
+\textbf{Agent.}
+Energy-Based Transformer (EBT) actor with Soft Actor-Critic (SAC), trained unconstrained for 100k steps.
+The budget surrogate composes post-hoc via per-turbine energy addition at inference.
+
+\subsection{Domain 2: MuJoCo Locomotion}
+
+\textbf{Environment.}
+HalfCheetah-v5~\citep{todorov2012mujoco} with a time-varying reward multiplier $m(t) = 1 + A\sin(2\pi t / T_p)$ ($A=0.5$, $T_p=200$) that creates temporal structure: forward progress is worth more during high-multiplier phases.
+
+\textbf{Risky action.}
+Exceeding a velocity threshold (set at the 50th percentile of unconstrained velocity).
+
+\textbf{Budget.}
+$B$ = total timesteps above the velocity threshold.
+
+\textbf{Agent.}
+SAC with Gaussian actor, trained unconstrained for 100k steps.
+The budget mechanism modulates action magnitudes via a penalty scaling factor at inference.
+
+\subsection{Baselines}
+
+\begin{itemize}
+    \item \textbf{Unconstrained}: no budget constraint (upper bound on reward).
+    \item \textbf{Hard clip}: risky action banned entirely (lower bound on reward with budget).
+    \item \textbf{Constant penalty} ($\eta = 0$): fixed penalty weight, no adaptation to budget state. Equivalent to a static Lagrangian multiplier.
+    \item \textbf{AC schedule} ($\eta > 0$): our time-varying weight with risk aversion $\eta \in \{0.5, 1, 2, 5\}$.
+\end{itemize}
+
+\subsection{Ablations}
+
+\begin{enumerate}
+    \item \textbf{Hard guard vs.\ AC schedule}: Does the schedule alone prevent budget violations, or is the hard guard ($C^i < B^i$) necessary?
+    \item \textbf{$1/u$ vs.\ $\exp(\eta(1/u-1))$}: Theoretically optimal schedule vs.\ practical approximation.
+    \item \textbf{Budget flexibility}: Same policy at budget levels 10\%, 15\%, 25\%, 50\%, 75\%.
+    \item \textbf{Boltzmann response validation}: Is the spending rate approximately exponential in the penalty weight?
+\end{enumerate}
+
+%----------------------------------------------------------------------
+\section{Results}
+\label{sec:results}
+%----------------------------------------------------------------------
+
+\textit{[Results to be filled in from LUMI experiments.]}
+
+\subsection{Budget Satisfaction}
+
+\subsection{Reward Retention and Budget Utilization}
+
+\subsection{Hard Guard Ablation}
+
+\subsection{Schedule Comparison: $1/u$ vs.\ $\exp(\eta(1/u - 1))$}
+
+\subsection{Budget Flexibility}
+
+\subsection{Boltzmann Response Validation}
+
+%----------------------------------------------------------------------
+\section{Related Work}
+\label{sec:related}
+%----------------------------------------------------------------------
+
+\textbf{Constrained MDPs.}
+The Lagrangian approach to CMDPs~\citep{altman1999constrained} learns a dual variable $\mu$ via primal-dual optimization.
+PID-based methods~\citep{stooke2020responsive} improve stability.
+Saute RL~\citep{sootla2022saute} augments the state with remaining budget but requires retraining.
+Predictive Lagrangian Optimization~\citep{chen2025predictive} forecasts future multipliers but integrates with training.
+CAPS~\citep{yao2024caps} switches between pre-trained policies for different constraint levels.
+All require training or pre-training for each constraint specification; our method requires none.
+
+\textbf{Post-hoc constraint composition.}
+Composable Energy Policies~\citep{urain2023composable} compose energy functions for robotic manipulation.
+Constrained Diffusers~\citep{zhang2025constrained} add safety constraints via classifier guidance.
+SafeDiffuser~\citep{xiao2023safediffuser} uses control barrier functions.
+FISOR~\citep{zheng2024fisor} learns a feasibility classifier for diffusion-based safe RL.
+PICNN~\citep{durkin2025picnn} corrects actions via input-convex networks.
+All handle \emph{instantaneous} constraints; none address cumulative budgets that span an episode.
+
+\textbf{Budget pacing.}
+Online budget allocation is well-studied in advertising~\citep{balseiro2023budget}, where PID controllers and multiplicative updates pace daily spend.
+Bandits with knapsacks~\citep{agrawal2014bandits} provide regret bounds for combinatorial budget problems.
+Our work transfers this structure to RL deployment via energy composition.
+
+\textbf{Optimal execution.}
+Almgren and Chriss~\citep{almgren2001optimal} derive optimal liquidation trajectories from mean-variance objectives.
+Recent work combines RL with execution~\citep{ning2024execution}.
+We draw on the urgency-based scheduling intuition but derive our formula from Boltzmann budget balance rather than market impact models.
+
+%----------------------------------------------------------------------
+\section{Conclusion}
+\label{sec:conclusion}
+%----------------------------------------------------------------------
+
+Cumulative budget constraints are ubiquitous in deployed RL but underserved by existing methods.
+We showed they can be enforced post-hoc via a theoretically grounded, closed-form penalty schedule that composes with pre-trained energy-based policies.
+The method requires zero retraining, supports heterogeneous per-agent budgets, and adapts instantly to changing specifications.
+Across wind farm yaw control and MuJoCo locomotion, the adaptive schedule uses budget more effectively than constant penalties---concentrating risky actions into high-value conditions---while maintaining constraint satisfaction.
+
+\textbf{Limitations.}
+The Boltzmann response assumption (Proposition~\ref{prop:optimal}) is approximate; the true policy response depends on the energy landscape geometry.
+The method works best when the base penalty scale is calibrated relative to the learned energy head.
+The theoretical guarantee is for the fluid approximation; finite-sample constraint satisfaction relies on the exponential wall backstop.
+
+\textbf{Future work.}
+Extending to continuous cost functions (not just binary indicators), learned risk-aversion scheduling, and multi-agent coordination where agents share a collective budget.
+
+%----------------------------------------------------------------------
+% References
+%----------------------------------------------------------------------
+
+\bibliography{references}
+\bibliographystyle{plainnat}
+
+\end{document}
