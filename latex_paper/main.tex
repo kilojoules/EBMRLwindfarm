@@ -311,35 +311,48 @@ The budget mechanism modulates action magnitudes via a penalty scaling factor at
 %----------------------------------------------------------------------
 
 We present results across both domains, focusing on budget satisfaction, reward retention, and the physical understanding of when the agent chooses to incur damage.
+Figure~\ref{fig:mechanism} illustrates how the penalty weight $\lambda(t)$ adapts during one HalfCheetah episode, and Figure~\ref{fig:physical} shows when the agent decides to spend its budget.
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=\linewidth]{figures/fig1_mechanism.pdf}
+    \caption{Budget scheduling mechanism over one HalfCheetah episode. Top: time-varying reward multiplier (gold = high-value phases). Middle: penalty weight $\lambda(t)$ --- constant for $\eta=0$ (red), adaptive for $\eta>0$ (blue). $\lambda$ decreases when budget is plentiful and spikes near depletion ($\eta=5$, late episode). Bottom: velocity traces with threshold violations (dots).}
+    \label{fig:mechanism}
+\end{figure}
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=\linewidth]{figures/fig2_physical.pdf}
+    \caption{When does the agent speed? (a)~Spending rate by reward cycle phase: the AC schedule ($\eta \geq 2$) sustains a uniformly high spending rate ($\sim$25\%), while the constant penalty ($\eta=0$) spends only $\sim$10\%. (b)~Reward multiplier distribution at speeding timesteps. (c)~Cumulative budget consumption: $\eta=0$ uses only half the budget; AC uses 96--99\%.}
+    \label{fig:physical}
+\end{figure}
 
 \subsection{Budget Satisfaction and Reward Retention}
 
-Table~\ref{tab:main_results} summarizes the main results.
-In the wind farm domain, the unconstrained agent uses negative yaw on 121/200 steps for turbine~0 and 119/200 for turbine~1---the optimal policy relies heavily on wake steering.
-With the AC schedule ($\eta=2$, $k=2$, $\lambda_{\mathrm{gs}}=0.05$), negative yaw drops to 10/200 steps per turbine while maintaining a power ratio of 1.03 relative to a local baseline controller.
-In HalfCheetah, the AC schedule ($\eta=2$) retains 86.8\% of unconstrained reward while using 98\% of the available velocity budget, compared to only 80.0\% reward and 53\% budget utilization for the constant penalty ($\eta=0$).
+Table~\ref{tab:main_results} summarizes the main results, averaged over 5 training seeds (HalfCheetah) and 3 training seeds (wind farm) with 10 evaluation episodes per seed.
+In HalfCheetah, the AC schedule ($\eta=2$) retains $88.9\% \pm 2.3\%$ of unconstrained reward while using 97\% of the available velocity budget, compared to only $84.3\% \pm 3.4\%$ reward and 63\% budget utilization for the constant penalty ($\eta=0$).
+In the wind farm domain, the unconstrained agent uses negative yaw on $116 \pm 38$ out of 200 steps for the upstream turbine---the optimal policy relies heavily on wake steering.
+With the AC schedule, negative yaw drops to within the budget while maintaining power close to the unconstrained level.
 
 \begin{table}[t]
 \centering
-\caption{Main results across both domains. Budget utilization reports the fraction of allowed budget actually spent. Higher is better---it means the method uses the budget fully rather than being overly conservative.}
+\caption{Main results across both domains (mean $\pm$ std over training seeds). Budget utilization reports the fraction of allowed budget actually spent. Higher utilization with high reward indicates intelligent allocation.}
 \label{tab:main_results}
 \begin{tabular}{lccc}
 \toprule
-\textbf{HalfCheetah} & Reward & \% Unconstrained & Budget Used \\
+\textbf{HalfCheetah (5 seeds)} & Reward & \% Unconstrained & Budget Used \\
 \midrule
-Unconstrained & 5208 & 100\% & --- \\
-Constant ($\eta=0$) & 4167 & 80.0\% & 53\% \\
-AC ($\eta=1$) & 4478 & 86.0\% & 96\% \\
-AC ($\eta=2$) & 4518 & 86.8\% & 98\% \\
-AC ($\eta=5$) & 4504 & 86.5\% & 99\% \\
+Unconstrained & $4229 \pm 468$ & 100\% & --- \\
+Constant ($\eta=0$) & $3556 \pm 358$ & $84.3 \pm 3.4$\% & 63\% \\
+AC ($\eta=2$) & $3759 \pm 440$ & $88.9 \pm 2.3$\% & 97\% \\
+AC only (no guard) & $3752 \pm 434$ & $88.7 \pm 2.6$\% & 96\% \\
 \midrule
-\textbf{Wind Farm} & PowerRatio & NegYaw (T0) & NegYaw (T1) \\
+\textbf{Wind Farm (3 seeds)} & Power (MW) & NegYaw (T0) & NegYaw (T1) \\
 \midrule
-Unconstrained & --- & 121/200 & 119/200 \\
-Hard clip (no neg yaw) & 1.003 & 0/200 & 0/200 \\
-AC ($\eta=2$, $k=2$, gs=0.05) & 1.034 & 10/200 & 9/200 \\
-AC ($\eta=2$, $k=3$, gs=1.0) & 1.000 & 9/200 & 10/200 \\
-Constant ($\eta=0$, gs=0.1) & 0.892 & 99/200 & 101/200 \\
+Unconstrained & $24.7 \pm 1.2$ & $116 \pm 38$ & $109 \pm 35$ \\
+Hard clip (no neg yaw) & $25.7 \pm 0.7$ & 0 & 0 \\
+AC ($\eta=2$, $k=2$, gs=0.05) & $26.5 \pm 1.4$ & $10 \pm 2$ & $10 \pm 2$ \\
+Constant ($\eta=0$, gs=0.1) & $24.3 \pm 2.1$ & $76 \pm 25$ & $68 \pm 30$ \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -365,16 +378,15 @@ The guard-only baseline ($\eta=0$, constant penalty) uses only 54\% of the budge
 
 \begin{table}[t]
 \centering
-\caption{Hard guard ablation (HalfCheetah, budget=250/1000 steps). The AC schedule alone (no hard guard) provides the same budget management as the full system.}
+\caption{Hard guard ablation (HalfCheetah, budget=250/1000 steps, 5 seeds). The AC schedule alone (no hard guard) provides the same budget management as the full system.}
 \label{tab:hard_guard}
-\begin{tabular}{lccr}
+\begin{tabular}{lccc}
 \toprule
-Configuration & Reward & Violations/Budget & Used \\
+Configuration & \% Unconstrained & Budget Used & Reward \\
 \midrule
-Both (AC + guard) & 4525 & 244/250 & 97.8\% \\
-AC only (no guard) & 4508 & 244/250 & 97.7\% \\
-Guard only ($\eta=0$) & 4195 & 136/250 & 54.4\% \\
-Neither (unconstrained) & 4166 & 126/250 & 50.5\% \\
+Both (AC + guard) & $88.9 \pm 2.3$\% & $96.8 \pm 1.9$\% & $3759 \pm 440$ \\
+AC only (no guard) & $88.7 \pm 2.6$\% & $96.4 \pm 2.0$\% & $3752 \pm 434$ \\
+Guard only ($\eta=0$) & $84.3 \pm 3.4$\% & $63.0 \pm 18.8$\% & $3556 \pm 358$ \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -418,6 +430,7 @@ PID-based methods~\citep{stooke2020responsive} improve stability.
 Saute RL~\citep{sootla2022saute} augments the state with remaining budget but requires retraining.
 Predictive Lagrangian Optimization~\citep{chen2025predictive} forecasts future multipliers but integrates with training.
 CAPS~\citep{yao2024caps} switches between pre-trained policies for different constraint levels.
+Budget-Conditioned Reachability~\citep{liu2026bcr} conditions on remaining budget via reachability analysis for offline safe RL.
 All require training or pre-training for each constraint specification; our method requires none.
 
 \textbf{Post-hoc constraint composition.}
