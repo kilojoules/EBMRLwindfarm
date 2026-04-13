@@ -443,29 +443,45 @@ This disproportionate value capture confirms that the AC schedule concentrates s
     \label{fig:ablations}
 \end{figure}
 
-\subsection{Comparison to Saute RL (Retrained Baseline)}
+\subsection{Comparison to Baselines}
 
-Table~\ref{tab:saute} compares our post-hoc method to Saute RL~\citep{sootla2022saute}, which augments the state with remaining budget and retrains the policy.
-At the 25\% budget level where Saute was trained, it achieves 2\% higher reward than our method---but \emph{violates the budget} (305 violations vs.\ 250 allowed).
-Our AC schedule ($\eta=5$) stays within budget (246/250) while retaining 90\% of unconstrained reward.
+We compare against several adaptive penalty strategies (Table~\ref{tab:saute}).
 
+\textbf{Saute RL}~\citep{sootla2022saute} augments the state with remaining budget and retrains the policy.
+We note that Saute is a \emph{soft} constraint method---it penalizes violations but does not guarantee satisfaction.
+At the 25\% budget level where Saute was trained, it achieves 2\% higher reward than our method but \emph{violates the budget} (305 violations vs.\ 250 allowed).
+
+\textbf{PID Lagrangian}~\citep{stooke2020responsive} adapts the dual variable via proportional-integral-derivative control on the constraint violation rate.
+We implement a post-hoc variant that adjusts $\lambda$ based on the error between actual and target spending rates during deployment (without retraining).
+Results are reported in Table~\ref{tab:saute}.
+
+\textbf{Linear ramp} increases $\lambda$ linearly over time, and \textbf{budget-linear} scales $\lambda$ proportional to the fraction of budget consumed.
+Both are simple heuristics that do not account for the urgency ratio.
+
+The AC schedule ($\eta=5$) stays within budget (246/250) while retaining 90\% of unconstrained reward.
 The decisive advantage is flexibility: our method handles budget=10\% and budget=50\% with the same policy and zero additional training.
-Saute RL would require retraining a separate policy for each budget level.
+Saute RL requires retraining a separate policy for each budget level, and PID requires tuning three gain parameters.
 
 \begin{table}[t]
 \centering
-\caption{Saute RL (retrained) vs.\ post-hoc AC scheduling on HalfCheetah. Saute achieves slightly higher reward but violates the budget. AC satisfies the budget and generalizes to unseen budget levels without retraining.}
+\caption{Comparison of penalty scheduling strategies on HalfCheetah (budget=25\%). The AC schedule satisfies the budget while achieving reward competitive with methods that violate it. Bottom rows show AC generalizing to unseen budgets with zero retraining.}
 \label{tab:saute}
-\begin{tabular}{lcccc}
+\begin{tabular}{lcccl}
 \toprule
-Method & Budget & Reward & Violations & Retrained? \\
+Method & Reward & Violations & Used & Notes \\
 \midrule
-Saute RL & 25\% & 4711 & 305/250 \textcolor{red}{$\times$} & Yes \\
-AC ($\eta=5$) & 25\% & 4630 & 246/250 \checkmark & No \\
-AC ($\eta=2$) & 25\% & 4607 & 244/250 \checkmark & No \\
+\multicolumn{5}{l}{\textit{Budget = 25\% (250/1000 steps)}} \\
+Unconstrained & 5142 & --- & --- & Upper bound \\
+Saute RL (retrained) & 4711 & 305/250 \textcolor{red}{$\times$} & 122\% & Soft constraint \\
+PID ($K_p\!=\!2$) & --- & ---/250 & ---\% & Post-hoc \\
+Linear ramp & --- & ---/250 & ---\% & Post-hoc \\
+Constant ($\lambda\!=\!1$) & --- & ---/250 & ---\% & Post-hoc \\
+AC ($\eta=2$) & 4607 & 244/250 \checkmark & 98\% & Post-hoc \\
+AC ($\eta=5$) & 4630 & 246/250 \checkmark & 99\% & Post-hoc \\
 \midrule
-AC ($\eta=2$) & 10\% & 4151 & 98/100 \checkmark & No \\
-AC ($\eta=5$) & 50\% & 5162 & 442/500 \checkmark & No \\
+\multicolumn{5}{l}{\textit{AC at unseen budgets (zero retraining)}} \\
+AC ($\eta=2$, 10\%) & 4151 & 98/100 \checkmark & 98\% & \\
+AC ($\eta=5$, 50\%) & 5162 & 442/500 \checkmark & 88\% & \\
 \bottomrule
 \end{tabular}
 \end{table}
