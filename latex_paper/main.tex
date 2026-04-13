@@ -44,8 +44,9 @@
 \begin{abstract}
 Deploying reinforcement learning policies in the real world often requires cumulative operational constraints unknown at training time---maintenance budgets, emission limits, duty-cycle restrictions.
 Standard constrained MDP approaches require full retraining for each constraint specification.
-We derive a closed-form, time-varying penalty weight from a budget-balanced sequential allocation problem under Boltzmann policy response: the optimal multiplicative weight is $w^*(u) = 1/u$, where $u$ is the ratio of remaining budget fraction to remaining time fraction.
-We propose a practical schedule $w(u) = \exp(\eta(1/u - 1))$ that matches the optimum to first order, adds a tunable risk-aversion parameter $\eta$, and composes post-hoc with pre-trained energy-based or diffusion policies via per-agent energy addition---requiring zero retraining.
+We propose a closed-form, time-varying penalty weight motivated by a budget-balanced sequential allocation problem: the urgency ratio $u$ (remaining budget fraction over remaining time fraction) determines a multiplicative weight $w(u) = \exp(\eta(1/u - 1))$ that adapts penalty strength to budget state.
+A single risk-aversion parameter $\eta$ interpolates between uniform allocation ($\eta=0$) and aggressive concentration.
+The schedule composes post-hoc with pre-trained energy-based policies via per-agent energy addition---requiring zero retraining.
 Across two domains---wind farm yaw control and MuJoCo locomotion with velocity budgets---the method satisfies cumulative budgets while retaining 77--96\% of unconstrained reward, outperforming constant-penalty baselines by 7--20 percentage points in budget utilization.
 A single pre-trained policy supports arbitrary budget levels, per-agent heterogeneous constraints, and instant adaptation---all without retraining.
 \end{abstract}
@@ -258,7 +259,7 @@ The guidance scale $\lambda_{\mathrm{gs}}$ controls overall constraint strength.
 \end{algorithm}
 
 The only additions to the standard EBT inference loop are lines 4--5 (urgency and weight computation, a few floating-point operations) and line 8 (one comparison per agent).
-The computational overhead is negligible.
+On HalfCheetah, per-step wall-clock time is 0.371~ms without the budget schedule and 0.411~ms with it---an overhead of 0.04~ms (10.8\%), dominated by one \texttt{exp()} and one division.
 
 \subsection{Heterogeneous Per-Agent Budgets}
 
@@ -478,7 +479,7 @@ Saute RL requires retraining a separate policy for each budget level, and PID re
 Method & Reward & Violations & Used & Notes \\
 \midrule
 \multicolumn{5}{l}{\textit{Budget = 25\% (250/1000 steps)}} \\
-Unconstrained & 5213 & --- & --- & Upper bound \\
+Unconstrained & $4229 \pm 468$ & --- & --- & Upper bound \\
 Saute RL (retrained) & 4711 & 305/250 \textcolor{red}{$\times$} & 122\% & Soft constraint \\
 PID ($K_p\!=\!5$) & 2822 & 249/250 \checkmark & 100\% & Unstable ($\pm$495) \\
 Linear ramp & 4381 & 241/250 \checkmark & 96\% & Post-hoc \\
@@ -534,7 +535,7 @@ We adopt the conceptual framework (remaining inventory vs.\ remaining time) with
 Cumulative budget constraints are ubiquitous in deployed RL but underserved by existing methods.
 We showed they can be enforced post-hoc via a theoretically grounded, closed-form penalty schedule that composes with pre-trained energy-based policies.
 The method requires zero retraining, supports heterogeneous per-agent budgets, and adapts instantly to changing specifications.
-Across wind farm yaw control and MuJoCo locomotion, the adaptive schedule uses budget more effectively than constant penalties---concentrating risky actions into high-value conditions---while maintaining constraint satisfaction.
+Across wind farm yaw control and MuJoCo locomotion, the adaptive schedule uses budget more effectively than constant penalties---the primary mechanism is higher budget utilization (97\% vs.\ 53\%), with a secondary benefit from timing when conditions vary---while maintaining constraint satisfaction.
 
 \textbf{Limitations.}
 The Boltzmann response assumption (Proposition~\ref{prop:optimal}) is approximate; the true policy response depends on the energy landscape geometry.
