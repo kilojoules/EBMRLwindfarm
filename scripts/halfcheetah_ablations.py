@@ -219,7 +219,7 @@ def ablation_budget_flexibility(env, actor, act_limit, v_threshold, n_ep=10):
 
     print(f"\n{'Budget%':>8s} | {'Reward':>10s} | {'%Uncon':>7s} | {'Violations':>12s} | {'%Used':>6s}")
     print("-" * 60)
-    for frac in [0.10, 0.15, 0.25, 0.50, 0.75]:
+    for frac in [0.05, 0.10, 0.15, 0.25, 0.50, 0.75]:
         mr, sr, mv, b = run_config(env, actor, act_limit, frac,
                                     ra, k, gs, horizon, v_threshold, n_ep)
         pct_uncon = 100 * mr / uncon_mean if uncon_mean > 0 else 0
@@ -261,10 +261,12 @@ def main():
                                  "schedule", "flexibility", "boltzmann"])
     parser.add_argument("--n-episodes", type=int, default=10)
     parser.add_argument("--v-threshold", type=float, default=None)
+    parser.add_argument("--reward-amplitude", type=float, default=0.5,
+                        help="Reward multiplier amplitude (0=constant reward)")
     cli = parser.parse_args()
 
     actor, act_limit, obs_dim = load_agent(cli.checkpoint)
-    env = make_env(cli.env)
+    env = make_env(cli.env, amplitude=cli.reward_amplitude)
 
     # Auto-detect velocity threshold if not provided
     if cli.v_threshold is None:

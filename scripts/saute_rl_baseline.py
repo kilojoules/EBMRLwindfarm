@@ -37,6 +37,59 @@ from scripts.safety_gym_budget import (
 )
 
 
+class SauteClipWrapper(gym.Wrapper):
+    """
+    Saute RL + hard clip: same as SauteWrapper but additionally forces
+    zero-mean actions when budget is exhausted. This makes Saute a
+    hard-constraint method for fair comparison.
+    """
+
+    def __init__(self, env, budget_frac=0.25, v_threshold=5.8,
+                 penalty_coeff=10.0, horizon=1000):
+        super().__init__(env)
+        self.budget = int(horizon * budget_frac)
+        self.v_threshold = v_threshold
+        self.penalty_coeff = penalty_coeff
+        self.horizon = horizon
+        self.violations = 0
+        self.step_count = 0
+
+        low = np.concatenate([env.observation_space.low, [0.0]])
+        high = np.concatenate([env.observation_space.high, [1.0]])
+        self.observation_space = gym.spaces.Box(low, high, dtype=np.float32)
+
+    def reset(self, **kwargs):
+        obs, info = self.env.reset(**kwargs)
+        self.violations = 0
+        self.step_count = 0
+        return self._augment(obs), info
+
+    def step(self, action):
+        # Hard clip: if budget exhausted, scale down actions to reduce velocity
+        if self.violations >= self.budget:
+            action = action * 0.3  # attenuate to stay slow
+
+        obs, reward, term, trunc, info = self.env.step(action)
+        self.step_count += 1
+
+        velocity = abs(obs[8]) if len(obs) > 8 else abs(obs[0])
+        if velocity > self.v_threshold:
+            self.violations += 1
+
+        if self.violations > self.budget:
+            reward -= self.penalty_coeff
+
+        info["saute_violations"] = self.violations
+        info["saute_budget_remaining"] = max(0, self.budget - self.violations)
+        info["raw_reward"] = reward + (self.penalty_coeff if self.violations > self.budget else 0)
+
+        return self._augment(obs), reward, term, trunc, info
+
+    def _augment(self, obs):
+        budget_frac = max(0, self.budget - self.violations) / max(self.budget, 1)
+        return np.concatenate([obs, [budget_frac]])
+
+
 class SauteWrapper(gym.Wrapper):
     """
     Saute RL wrapper: augments observation with remaining budget fraction
@@ -91,14 +144,16 @@ class SauteWrapper(gym.Wrapper):
 
 def train_saute(budget_frac=0.25, total_timesteps=100000, v_threshold=5.8,
                 save_path="checkpoints/saute_cheetah.pt",
-                reward_amplitude=0.5, reward_period=200, seed=1):
+                reward_amplitude=0.5, reward_period=200, seed=1,
+                hard_clip=False):
     """Train SAC with Saute RL wrapper (budget-aware)."""
     torch.manual_seed(seed)
     np.random.seed(seed)
 
     env = gym.make("HalfCheetah-v5")
     env = TimeVaryingRewardWrapper(env, amplitude=reward_amplitude, period=reward_period)
-    env = SauteWrapper(env, budget_frac=budget_frac, v_threshold=v_threshold)
+    WrapperClass = SauteClipWrapper if hard_clip else SauteWrapper
+    env = WrapperClass(env, budget_frac=budget_frac, v_threshold=v_threshold)
 
     obs_dim = env.observation_space.shape[0]  # original + 1 (budget frac)
     act_dim = env.action_space.shape[0]
@@ -284,12 +339,15 @@ def main():
     parser.add_argument("--ac-checkpoint", default="checkpoints/sac_cheetah.pt")
     parser.add_argument("--n-episodes", type=int, default=10)
     parser.add_argument("--seed", type=int, default=1)
+    parser.add_argument("--hard-clip", action="store_true",
+                        help="Use SauteClipWrapper (hard constraint) instead of soft Saute")
     cli = parser.parse_args()
 
     if cli.train:
-        print(f"Training Saute RL (budget={cli.budget_frac*100:.0f}%)...")
+        mode = "Saute+clip" if cli.hard_clip else "Saute RL"
+        print(f"Training {mode} (budget={cli.budget_frac*100:.0f}%)...")
         train_saute(cli.budget_frac, cli.total_timesteps, save_path=cli.checkpoint,
-                    seed=cli.seed)
+                    seed=cli.seed, hard_clip=cli.hard_clip)
 
     if cli.eval:
         eval_saute(cli.checkpoint, cli.n_episodes)

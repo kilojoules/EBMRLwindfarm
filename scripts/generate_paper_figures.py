@@ -281,17 +281,17 @@ def main():
 
     print("Generating paper figures...")
 
-    # Cheetah data from completed experiments
+    # Cheetah data from completed experiments (5-seed average)
     cheetah_data = {
-        "unconstrained_reward": 5208,
+        "unconstrained_reward": 4229,
         "results": [
-            {"ra": 0.0, "reward": 4167, "violations": 133,
-             "utilization": 53, "budget": 250},
-            {"ra": 1.0, "reward": 4478, "violations": 241,
+            {"ra": 0.0, "reward": 3556, "violations": 158,
+             "utilization": 63, "budget": 250},
+            {"ra": 1.0, "reward": 3700, "violations": 240,
              "utilization": 96, "budget": 250},
-            {"ra": 2.0, "reward": 4518, "violations": 244,
-             "utilization": 98, "budget": 250},
-            {"ra": 5.0, "reward": 4504, "violations": 247,
+            {"ra": 2.0, "reward": 3759, "violations": 243,
+             "utilization": 97, "budget": 250},
+            {"ra": 5.0, "reward": 3752, "violations": 247,
              "utilization": 99, "budget": 250},
         ],
     }

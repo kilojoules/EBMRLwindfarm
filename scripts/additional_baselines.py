@@ -172,13 +172,62 @@ def main():
             self.lam = max(0.01, 1.0 + self.kp * error + self.ki * self.integral + self.kd * derivative)
             return min(self.lam, 1e6)
 
-    run_baseline(env, actor, act_limit, "PID (Kp=2, Ki=0.5, Kd=0.1)",
-                 PIDLambda(kp=2.0, ki=0.5, kd=0.1),
+    # PID gain sweep to find the best configuration
+    print("\n--- PID Gain Sweep (finding best Kp/Ki/Kd) ---")
+    best_pid_reward, best_pid_config = -1e9, None
+    for kp in [0.5, 1.0, 2.0, 5.0, 10.0]:
+        for ki in [0.1, 0.5, 1.0]:
+            for kd in [0.01, 0.1, 0.5]:
+                mr, mv = run_baseline(
+                    env, actor, act_limit,
+                    f"PID({kp},{ki},{kd})",
+                    PIDLambda(kp=kp, ki=ki, kd=kd),
+                    horizon, v_threshold, budget, n_ep)
+                if mr > best_pid_reward and mv <= budget * 1.05:
+                    best_pid_reward = mr
+                    best_pid_config = (kp, ki, kd)
+
+    if best_pid_config:
+        print(f"\n  Best PID: Kp={best_pid_config[0]}, Ki={best_pid_config[1]}, "
+              f"Kd={best_pid_config[2]}, Reward={best_pid_reward:.1f}")
+
+    # 5b. Bisection search for constant λ matching AC's ~97% utilization
+    print("\n--- Bisection: constant λ matching 97% utilization ---")
+    target_util = 0.97 * budget
+    lo, hi = 0.01, 10.0
+    for _ in range(15):
+        mid = (lo + hi) / 2
+        _, mv = run_baseline(
+            env, actor, act_limit, f"Bisect(λ={mid:.3f})",
+            lambda t, br, B, tr, T, lc=mid: lc,
+            horizon, v_threshold, budget, 5)
+        if mv > target_util:
+            lo = mid
+        else:
+            hi = mid
+    matched_lambda = (lo + hi) / 2
+    print(f"  Matched λ={matched_lambda:.3f} for ~97% utilization")
+    run_baseline(env, actor, act_limit,
+                 f"Constant (matched, λ={matched_lambda:.2f})",
+                 lambda t, br, B, tr, T, lc=matched_lambda: lc,
                  horizon, v_threshold, budget, n_ep)
 
-    run_baseline(env, actor, act_limit, "PID (Kp=5, Ki=1, Kd=0.2)",
-                 PIDLambda(kp=5.0, ki=1.0, kd=0.2),
-                 horizon, v_threshold, budget, n_ep)
+    # 5c. Proportional controller on spending rate
+    class ProportionalLambda:
+        def __init__(self, gain=5.0):
+            self.gain = gain
+        def __call__(self, t, br, B, tr, T):
+            if t == 0:
+                return 1.0
+            target_rate = B / T
+            actual_rate = (B - br) / max(t, 1)
+            error = max(actual_rate - target_rate, 0)
+            return max(0.01, 1.0 + self.gain * error)
+
+    for g in [2.0, 5.0, 10.0]:
+        run_baseline(env, actor, act_limit, f"Proportional (K={g})",
+                     ProportionalLambda(gain=g),
+                     horizon, v_threshold, budget, n_ep)
 
     # 6. AC schedule (our method)
     class ACLambda:
