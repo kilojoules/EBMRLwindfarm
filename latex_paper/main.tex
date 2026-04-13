@@ -281,7 +281,8 @@ We evaluate the budget scheduling mechanism across two domains with different ri
 \subsection{Domain 1: Wind Farm Yaw Control}
 
 \textbf{Environment.}
-WindGym~\citep{windgym} with PyWake backend, 3-turbine farm in a row-aligned layout.
+WindGym~\citep{windgym} with PyWake backend.
+We test on two layouts: a 3-turbine row and a 9-turbine $3\!\times\!3$ grid.
 Wind speed sampled from 10--14~m/s, wind direction from 225--315$^\circ$, providing natural temporal variation in wake conditions.
 
 \textbf{Risky action.}
@@ -371,12 +372,18 @@ Constant ($\eta=0$) & $3556 \pm 358$ & $84.3 \pm 3.4$\% & 63\% \\
 AC ($\eta=2$) & $3759 \pm 440$ & $88.9 \pm 2.3$\% & 97\% \\
 AC only (no guard) & $3752 \pm 434$ & $88.7 \pm 2.6$\% & 96\% \\
 \midrule
-\textbf{Wind Farm (3 seeds)} & Power (MW) & NegYaw (T0) & NegYaw (T1) \\
+\textbf{Wind Farm, 3-turb (10 seeds)} & Power (MW) & NegYaw (T0) & NegYaw (T1) \\
 \midrule
-Unconstrained & $24.7 \pm 1.2$ & $116 \pm 38$ & $109 \pm 35$ \\
-Hard clip (no neg yaw) & $25.7 \pm 0.7$ & 0 & 0 \\
-AC ($\eta=2$, $k=2$, gs=0.05) & $26.5 \pm 1.4$ & $10 \pm 2$ & $10 \pm 2$ \\
-Constant ($\eta=0$, gs=0.1) & $24.3 \pm 2.1$ & $76 \pm 25$ & $68 \pm 30$ \\
+Unconstrained & $24.9 \pm 0.8$ & $122 \pm 40$ & --- \\
+Hard clip (no neg yaw) & $25.5 \pm 1.1$ & 0 & 0 \\
+AC ($\eta=2$, $k=2$, gs=0.05) & $25.3 \pm 1.0$ & $10 \pm 3$ & $10 \pm 3$ \\
+Constant ($\eta=0$, gs=0.1) & $24.5 \pm 1.8$ & $76 \pm 25$ & $68 \pm 30$ \\
+\midrule
+\textbf{Wind Farm, 9-turb ($3\!\times\!3$)} & Power (MW) & \multicolumn{2}{c}{Avg NegYaw/turb} \\
+\midrule
+Unconstrained & 79.2 & \multicolumn{2}{c}{$111 \pm 1$} \\
+Hard clip & 75.1 & \multicolumn{2}{c}{0} \\
+AC ($\eta=2$, $k=3$, gs=0.1) & 79.2 & \multicolumn{2}{c}{$\sim$95} \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -471,13 +478,13 @@ Saute RL requires retraining a separate policy for each budget level, and PID re
 Method & Reward & Violations & Used & Notes \\
 \midrule
 \multicolumn{5}{l}{\textit{Budget = 25\% (250/1000 steps)}} \\
-Unconstrained & 5142 & --- & --- & Upper bound \\
+Unconstrained & 5213 & --- & --- & Upper bound \\
 Saute RL (retrained) & 4711 & 305/250 \textcolor{red}{$\times$} & 122\% & Soft constraint \\
-PID ($K_p\!=\!2$) & --- & ---/250 & ---\% & Post-hoc \\
-Linear ramp & --- & ---/250 & ---\% & Post-hoc \\
-Constant ($\lambda\!=\!1$) & --- & ---/250 & ---\% & Post-hoc \\
-AC ($\eta=2$) & 4607 & 244/250 \checkmark & 98\% & Post-hoc \\
-AC ($\eta=5$) & 4630 & 246/250 \checkmark & 99\% & Post-hoc \\
+PID ($K_p\!=\!5$) & 2822 & 249/250 \checkmark & 100\% & Unstable ($\pm$495) \\
+Linear ramp & 4381 & 241/250 \checkmark & 96\% & Post-hoc \\
+Constant ($\lambda\!=\!1$) & 4147 & 138/250 \checkmark & 55\% & Post-hoc \\
+AC ($\eta=2$) & 4501 & 244/250 \checkmark & 98\% & Post-hoc \\
+AC ($\eta=5$) & 4481 & 247/250 \checkmark & 99\% & Post-hoc \\
 \midrule
 \multicolumn{5}{l}{\textit{AC at unseen budgets (zero retraining)}} \\
 AC ($\eta=2$, 10\%) & 4151 & 98/100 \checkmark & 98\% & \\
