@@ -67,6 +67,12 @@
 \citation{chen2025predictive}
 \citation{yao2024caps}
 \citation{liu2026bcr}
+\@writefile{lot}{\contentsline {table}{\numberline {1}{\ignorespaces Main results across both domains (mean $\pm $ std over training seeds). Budget utilization reports the fraction of allowed budget actually spent. Higher utilization with high reward indicates intelligent allocation.}}{9}{table.caption.4}\protected@file@percent }
+\newlabel{tab:main_results}{{1}{9}{Main results across both domains (mean $\pm $ std over training seeds). Budget utilization reports the fraction of allowed budget actually spent. Higher utilization with high reward indicates intelligent allocation}{table.caption.4}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {2}{\ignorespaces Hard guard ablation (HalfCheetah, budget=250/1000 steps, 5 seeds). The AC schedule alone (no hard guard) provides the same budget management as the full system.}}{9}{table.caption.8}\protected@file@percent }
+\newlabel{tab:hard_guard}{{2}{9}{Hard guard ablation (HalfCheetah, budget=250/1000 steps, 5 seeds). The AC schedule alone (no hard guard) provides the same budget management as the full system}{table.caption.8}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {7}Related Work}{9}{section.7}\protected@file@percent }
+\newlabel{sec:related}{{7}{9}{Related Work}{section.7}{}}
 \citation{urain2023composable}
 \citation{zhang2025constrained}
 \citation{xiao2023safediffuser}
@@ -74,20 +80,14 @@
 \citation{durkin2025picnn}
 \citation{balseiro2023budget}
 \citation{agrawal2014bandits}
-\@writefile{lot}{\contentsline {table}{\numberline {1}{\ignorespaces Main results across both domains (mean $\pm $ std over training seeds). Budget utilization reports the fraction of allowed budget actually spent. Higher utilization with high reward indicates intelligent allocation.}}{9}{table.caption.4}\protected@file@percent }
-\newlabel{tab:main_results}{{1}{9}{Main results across both domains (mean $\pm $ std over training seeds). Budget utilization reports the fraction of allowed budget actually spent. Higher utilization with high reward indicates intelligent allocation}{table.caption.4}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {2}{\ignorespaces Hard guard ablation (HalfCheetah, budget=250/1000 steps, 5 seeds). The AC schedule alone (no hard guard) provides the same budget management as the full system.}}{9}{table.caption.8}\protected@file@percent }
-\newlabel{tab:hard_guard}{{2}{9}{Hard guard ablation (HalfCheetah, budget=250/1000 steps, 5 seeds). The AC schedule alone (no hard guard) provides the same budget management as the full system}{table.caption.8}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {7}Related Work}{9}{section.7}\protected@file@percent }
-\newlabel{sec:related}{{7}{9}{Related Work}{section.7}{}}
 \citation{almgren2001optimal}
 \citation{ning2024execution}
-\bibdata{references}
-\bibcite{agrawal2014bandits}{{1}{2014}{{Agrawal and Devanur}}{{}}}
 \@writefile{lof}{\contentsline {figure}{\numberline {4}{\ignorespaces Wind farm spatial yaw allocation. (a) Unconstrained agent uses negative yaw heavily on all turbines; AC ($\eta =2$) constrains to within the 15-step budget; constant penalty over-spends. (b) Turbine layout: T0 (upstream) deflects its wake to benefit T1 and T2.}}{10}{figure.caption.5}\protected@file@percent }
 \newlabel{fig:wf_spatial}{{4}{10}{Wind farm spatial yaw allocation. (a) Unconstrained agent uses negative yaw heavily on all turbines; AC ($\eta =2$) constrains to within the 15-step budget; constant penalty over-spends. (b) Turbine layout: T0 (upstream) deflects its wake to benefit T1 and T2}{figure.caption.5}{}}
 \@writefile{toc}{\contentsline {section}{\numberline {8}Conclusion}{10}{section.8}\protected@file@percent }
 \newlabel{sec:conclusion}{{8}{10}{Conclusion}{section.8}{}}
+\bibdata{references}
+\bibcite{agrawal2014bandits}{{1}{2014}{{Agrawal and Devanur}}{{}}}
 \bibcite{almgren2001optimal}{{2}{2001}{{Almgren and Chriss}}{{}}}
 \bibcite{altman1999constrained}{{3}{1999}{{Altman}}{{}}}
 \bibcite{balseiro2023budget}{{4}{2024}{{Balseiro et~al.}}{{}}}
@@ -97,11 +97,11 @@
 \bibcite{liu2026bcr}{{8}{2026}{{Liu et~al.}}{{}}}
 \bibcite{windgym}{{9}{2025}{{Nilsen et~al.}}{{Nilsen, Quick, Simutis, and {\r A}strand}}}
 \bibcite{ning2024execution}{{10}{2024}{{Ning et~al.}}{{}}}
+\@writefile{lof}{\contentsline {figure}{\numberline {5}{\ignorespaces Wind farm budget effect. (a) Per-turbine allocation: as budget tightens, downstream T2 reduces negative yaw first, preserving upstream wake steering. (b) Power retention (median $\pm $ IQR across configurations): constrained power remains within 5\% of unconstrained, indicating near-zero power cost of budget compliance.}}{11}{figure.caption.6}\protected@file@percent }
+\newlabel{fig:wf_budget}{{5}{11}{Wind farm budget effect. (a) Per-turbine allocation: as budget tightens, downstream T2 reduces negative yaw first, preserving upstream wake steering. (b) Power retention (median $\pm $ IQR across configurations): constrained power remains within 5\% of unconstrained, indicating near-zero power cost of budget compliance}{figure.caption.6}{}}
 \bibcite{sootla2022saute}{{11}{2022}{{Sootla et~al.}}{{Sootla, Cowen-Rivers, Jafferjee, Wang, Mguni, Wang, and Ammar}}}
 \bibcite{stooke2020responsive}{{12}{2020}{{Stooke et~al.}}{{Stooke, Achiam, and Abbeel}}}
 \bibcite{todorov2012mujoco}{{13}{2012}{{Todorov et~al.}}{{Todorov, Erez, and Tassa}}}
-\@writefile{lof}{\contentsline {figure}{\numberline {5}{\ignorespaces Wind farm budget effect. (a) Per-turbine allocation: as budget tightens, downstream T2 reduces negative yaw first, preserving upstream wake steering. (b) Power retention (median $\pm $ IQR across configurations): constrained power remains within 5\% of unconstrained, indicating near-zero power cost of budget compliance.}}{11}{figure.caption.6}\protected@file@percent }
-\newlabel{fig:wf_budget}{{5}{11}{Wind farm budget effect. (a) Per-turbine allocation: as budget tightens, downstream T2 reduces negative yaw first, preserving upstream wake steering. (b) Power retention (median $\pm $ IQR across configurations): constrained power remains within 5\% of unconstrained, indicating near-zero power cost of budget compliance}{figure.caption.6}{}}
 \bibcite{urain2023composable}{{14}{2023}{{Urain et~al.}}{{Urain, Li, Liu, D'Eramo, and Peters}}}
 \bibcite{dijk2025load}{{15}{2025}{{van Dijk et~al.}}{{}}}
 \bibcite{xiao2023safediffuser}{{16}{2025}{{Xiao et~al.}}{{Xiao, Wang, Zhan, Ramamurthy, Hasani, and Rus}}}

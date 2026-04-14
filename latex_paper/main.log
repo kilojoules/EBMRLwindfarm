@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.27 (TeX Live 2025) (preloaded format=pdflatex 2026.1.27)  13 APR 2026 14:45
+This is pdfTeX, Version 3.141592653-2.6-1.40.27 (TeX Live 2025) (preloaded format=pdflatex 2026.1.27)  13 APR 2026 18:16
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -656,31 +656,19 @@ Package pdftex.def Info: figures/fig2_physical.pdf  used on input line 351.
 
 [6{/usr/local/texlive/2025/texmf-dist/fonts/enc/dvips/cm-super/cm-super-ts1.enc
 }]
-
-LaTeX Warning: Reference `fig:wf_spatial' on page 7 undefined on input line 397
-.
-
-
-LaTeX Warning: Reference `fig:wf_budget' on page 7 undefined on input line 399.
-
-
-
-LaTeX Warning: Reference `fig:wf_budget' on page 7 undefined on input line 401.
-
-
-<figures/fig_windfarm_spatial.pdf, id=316, 642.88177pt x 280.64073pt>
+<figures/fig_windfarm_spatial.pdf, id=319, 642.88177pt x 280.64073pt>
 File: figures/fig_windfarm_spatial.pdf Graphic file (type pdf)
 <use figures/fig_windfarm_spatial.pdf>
 Package pdftex.def Info: figures/fig_windfarm_spatial.pdf  used on input line 4
 06.
 (pdftex.def)             Requested size: 469.75502pt x 205.063pt.
-<figures/fig_windfarm_budget.pdf, id=317, 715.15178pt x 316.84122pt>
+<figures/fig_windfarm_budget.pdf, id=320, 715.15178pt x 316.84122pt>
 File: figures/fig_windfarm_budget.pdf Graphic file (type pdf)
 <use figures/fig_windfarm_budget.pdf>
 Package pdftex.def Info: figures/fig_windfarm_budget.pdf  used on input line 41
 3.
 (pdftex.def)             Requested size: 469.75502pt x 208.12474pt.
-<figures/fig3_pareto.pdf, id=318, 713.4669pt x 316.84122pt>
+<figures/fig3_pareto.pdf, id=321, 713.4669pt x 316.84122pt>
 File: figures/fig3_pareto.pdf Graphic file (type pdf)
 <use figures/fig3_pareto.pdf>
 Package pdftex.def Info: figures/fig3_pareto.pdf  used on input line 420.
@@ -716,12 +704,12 @@ Package hyperref Warning: Token not allowed in a PDF string (Unicode):
 Package hyperref Warning: Token not allowed in a PDF string (Unicode):
 (hyperref)                removing `math shift' on input line 448.
 
-<figures/fig4_flexibility.pdf, id=389, 715.15178pt x 280.70622pt>
+<figures/fig4_flexibility.pdf, id=394, 715.15178pt x 280.70622pt>
 File: figures/fig4_flexibility.pdf Graphic file (type pdf)
 <use figures/fig4_flexibility.pdf>
 Package pdftex.def Info: figures/fig4_flexibility.pdf  used on input line 464.
 (pdftex.def)             Requested size: 469.75502pt x 184.3886pt.
-<figures/fig5_ablations.pdf, id=390, 859.75482pt x 244.5411pt>
+<figures/fig5_ablations.pdf, id=395, 859.75482pt x 244.5411pt>
 File: figures/fig5_ablations.pdf Graphic file (type pdf)
 <use figures/fig5_ablations.pdf>
 Package pdftex.def Info: figures/fig5_ablations.pdf  used on input line 471.
@@ -730,9 +718,9 @@ Package pdftex.def Info: figures/fig5_ablations.pdf  used on input line 471.
 
 [8 <./figures/fig2_physical.pdf>]
 
-[9] (./main.bbl
+[9]
 
-[10 <./figures/fig_windfarm_spatial.pdf>]
+[10 <./figures/fig_windfarm_spatial.pdf>] (./main.bbl
 
 [11 <./figures/fig_windfarm_budget.pdf>])
 
@@ -744,70 +732,51 @@ Package pdftex.def Info: figures/fig5_ablations.pdf  used on input line 471.
 LaTeX2e <2024-11-01> patch level 2
 L3 programming layer <2025-01-18>
  ***********
-
-
-LaTeX Warning: There were undefined references.
-
-
-LaTeX Warning: Label(s) may have changed. Rerun to get cross-references right.
-
 Package rerunfilecheck Info: File `main.out' has not changed.
 (rerunfilecheck)             Checksum: 3AEC18055AD656D4CB746B38FC7FECDD;4284.
  ) 
 Here is how much of TeX's memory you used:
- 15706 strings out of 473190
- 248318 string characters out of 5715800
- 696465 words of memory out of 5000000
+ 15705 strings out of 473190
+ 248300 string characters out of 5715800
+ 697100 words of memory out of 5000000
  38384 multiletter control sequences out of 15000+600000
- 589369 words of font info for 221 fonts, out of 8000000 for 9000
+ 589392 words of font info for 222 fonts, out of 8000000 for 9000
  1141 hyphenation exceptions out of 8191
- 75i,10n,79p,1001b,600s stack positions out of 10000i,1000n,20000p,200000b,200000s
-
-pdfTeX warning (dest): name{table.caption.9} has been referenced but does not e
-xist, replaced by a fixed one
-
-
-pdfTeX warning (dest): name{figure.caption.8} has been referenced but does not 
-exist, replaced by a fixed one
-
-
-pdfTeX warning (dest): name{table.caption.6} has been referenced but does not e
-xist, replaced by a fixed one
-
-</usr/local/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx10.pfb><
-/usr/local/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmex10.pfb></
-usr/local/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi10.pfb></u
-sr/local/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi12.pfb></us
-r/local/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi5.pfb></usr/
-local/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi7.pfb></usr/lo
-cal/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi9.pfb></usr/loca
-l/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmr10.pfb></usr/local/
-texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmr12.pfb></usr/local/te
-xlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmr5.pfb></usr/local/texli
-ve/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmr7.pfb></usr/local/texlive/
-2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmr9.pfb></usr/local/texlive/202
-5/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy10.pfb></usr/local/texlive/2025
-/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy7.pfb></usr/local/texlive/2025/t
-exmf-dist/fonts/type1/public/amsfonts/cm/cmsy8.pfb></usr/local/texlive/2025/tex
-mf-dist/fonts/type1/public/amsfonts/cm/cmsy9.pfb></usr/local/texlive/2025/texmf
--dist/fonts/type1/public/amsfonts/symbols/msam10.pfb></usr/local/texlive/2025/t
-exmf-dist/fonts/type1/public/amsfonts/symbols/msbm10.pfb></usr/local/texlive/20
-25/texmf-dist/fonts/type1/public/cm-super/sfbx0900.pfb></usr/local/texlive/2025
-/texmf-dist/fonts/type1/public/cm-super/sfbx1000.pfb></usr/local/texlive/2025/t
-exmf-dist/fonts/type1/public/cm-super/sfbx1200.pfb></usr/local/texlive/2025/tex
-mf-dist/fonts/type1/public/cm-super/sfbx1440.pfb></usr/local/texlive/2025/texmf
--dist/fonts/type1/public/cm-super/sfrm0800.pfb></usr/local/texlive/2025/texmf-d
-ist/fonts/type1/public/cm-super/sfrm0900.pfb></usr/local/texlive/2025/texmf-dis
-t/fonts/type1/public/cm-super/sfrm1000.pfb></usr/local/texlive/2025/texmf-dist/
-fonts/type1/public/cm-super/sfrm1200.pfb></usr/local/texlive/2025/texmf-dist/fo
-nts/type1/public/cm-super/sfrm1728.pfb></usr/local/texlive/2025/texmf-dist/font
-s/type1/public/cm-super/sfti1000.pfb></usr/local/texlive/2025/texmf-dist/fonts/
-type1/public/cm-super/sftt1000.pfb></usr/local/texlive/2025/texmf-dist/fonts/ty
-pe1/public/cm-super/sftt1200.pfb>
-Output written on main.pdf (13 pages, 733238 bytes).
+ 75i,10n,79p,1001b,598s stack positions out of 10000i,1000n,20000p,200000b,200000s
+</usr/local/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx10.pfb
+></usr/local/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmex10.pfb>
+</usr/local/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi10.pfb><
+/usr/local/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi12.pfb></
+usr/local/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi5.pfb></us
+r/local/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi7.pfb></usr/
+local/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi9.pfb></usr/lo
+cal/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmr10.pfb></usr/loca
+l/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmr12.pfb></usr/local/
+texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmr5.pfb></usr/local/tex
+live/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmr7.pfb></usr/local/texliv
+e/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmr9.pfb></usr/local/texlive/2
+025/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy10.pfb></usr/local/texlive/20
+25/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy7.pfb></usr/local/texlive/2025
+/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy8.pfb></usr/local/texlive/2025/t
+exmf-dist/fonts/type1/public/amsfonts/cm/cmsy9.pfb></usr/local/texlive/2025/tex
+mf-dist/fonts/type1/public/amsfonts/symbols/msam10.pfb></usr/local/texlive/2025
+/texmf-dist/fonts/type1/public/amsfonts/symbols/msbm10.pfb></usr/local/texlive/
+2025/texmf-dist/fonts/type1/public/cm-super/sfbx0900.pfb></usr/local/texlive/20
+25/texmf-dist/fonts/type1/public/cm-super/sfbx1000.pfb></usr/local/texlive/2025
+/texmf-dist/fonts/type1/public/cm-super/sfbx1200.pfb></usr/local/texlive/2025/t
+exmf-dist/fonts/type1/public/cm-super/sfbx1440.pfb></usr/local/texlive/2025/tex
+mf-dist/fonts/type1/public/cm-super/sfrm0800.pfb></usr/local/texlive/2025/texmf
+-dist/fonts/type1/public/cm-super/sfrm0900.pfb></usr/local/texlive/2025/texmf-d
+ist/fonts/type1/public/cm-super/sfrm1000.pfb></usr/local/texlive/2025/texmf-dis
+t/fonts/type1/public/cm-super/sfrm1200.pfb></usr/local/texlive/2025/texmf-dist/
+fonts/type1/public/cm-super/sfrm1728.pfb></usr/local/texlive/2025/texmf-dist/fo
+nts/type1/public/cm-super/sfti1000.pfb></usr/local/texlive/2025/texmf-dist/font
+s/type1/public/cm-super/sftt1000.pfb></usr/local/texlive/2025/texmf-dist/fonts/
+type1/public/cm-super/sftt1200.pfb>
+Output written on main.pdf (13 pages, 734476 bytes).
 PDF statistics:
- 986 PDF objects out of 1000 (max. 8388607)
- 483 compressed objects within 5 object streams
- 102 named destinations out of 1000 (max. 500000)
+ 985 PDF objects out of 1000 (max. 8388607)
+ 482 compressed objects within 5 object streams
+ 99 named destinations out of 1000 (max. 500000)
  60649 words of extra memory for PDF output out of 61914 (max. 10000000)
 

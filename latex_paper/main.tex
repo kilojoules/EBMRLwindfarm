@@ -477,20 +477,29 @@ This disproportionate value capture confirms that the AC schedule concentrates s
 
 We compare against several adaptive penalty strategies (Table~\ref{tab:saute}).
 
-\textbf{Saute RL}~\citep{sootla2022saute} augments the state with remaining budget and retrains the policy.
-We note that Saute is a \emph{soft} constraint method---it penalizes violations but does not guarantee satisfaction.
-At the 25\% budget level where Saute was trained, it achieves 2\% higher reward than our method but \emph{violates the budget} (305 violations vs.\ 250 allowed).
+\textbf{Saute RL}~\citep{sootla2022saute} augments the state with remaining budget and retrains.
+We test both the original soft-constraint version (which penalizes but does not guarantee satisfaction) and a \emph{Saute + clip} variant with a hard guard that forces safe actions when budget is exhausted.
+Saute + clip achieves 4551 reward while satisfying the budget (233/250)---2.6\% higher than AC (4436).
+However, Saute requires full retraining for each budget level.
 
-\textbf{PID Lagrangian}~\citep{stooke2020responsive} adapts the dual variable via proportional-integral-derivative control on the constraint violation rate.
-We implement a post-hoc variant that adjusts $\lambda$ based on the error between actual and target spending rates during deployment (without retraining).
-Results are reported in Table~\ref{tab:saute}.
+\textbf{PID Lagrangian}~\citep{stooke2020responsive} adapts the dual variable via proportional-integral-derivative control.
+We sweep 45 gain configurations ($K_p \in \{0.5, 1, 2, 5, 10\}$, $K_i \in \{0.1, 0.5, 1\}$, $K_d \in \{0.01, 0.1, 0.5\}$) and report the best.
+Even with oracle-tuned gains, the best budget-satisfying PID achieves only 3900 reward---12\% below AC.
+PID is fundamentally reactive: it corrects after overspending rather than anticipating depletion.
 
-\textbf{Linear ramp} increases $\lambda$ linearly over time, and \textbf{budget-linear} scales $\lambda$ proportional to the fraction of budget consumed.
-Both are simple heuristics that do not account for the urgency ratio.
+\textbf{Matched constant penalty.}
+A bisection search finds the constant $\lambda=0.85$ that matches AC's 97\% utilization.
+This achieves 4407 reward---comparable to AC (4436) but requiring tuning against the specific dataset.
+AC achieves similar performance with a single parameter $\eta$ that generalizes across budget levels.
 
-The AC schedule ($\eta=5$) stays within budget (246/250) while retaining 90\% of unconstrained reward.
-The decisive advantage is flexibility: our method handles budget=10\% and budget=50\% with the same policy and zero additional training.
-Saute RL requires retraining a separate policy for each budget level, and PID requires tuning three gain parameters.
+The decisive advantage is flexibility: AC handles budget=10\% and budget=50\% with the same policy and zero additional training.
+Saute + clip requires full retraining, PID requires gain tuning, and the matched constant requires per-dataset calibration.
+
+\textbf{Attribution: utilization vs.\ timing.}
+To disentangle the contributions of budget utilization and intelligent timing, we train a separate HalfCheetah policy with constant reward (amplitude$=0$, no time-varying multiplier).
+Without any timing structure to exploit, the AC schedule still achieves $86.8\%$ of unconstrained reward vs.\ $81.5\%$ for the constant penalty---a 5.3pp advantage from utilization alone.
+With the time-varying multiplier (main experiments), the total advantage is 4.6pp.
+This confirms the primary mechanism is fuller budget utilization, not timing.
 
 \begin{table}[t]
 \centering
@@ -501,13 +510,13 @@ Saute RL requires retraining a separate policy for each budget level, and PID re
 Method & Reward & Violations & Used & Notes \\
 \midrule
 \multicolumn{5}{l}{\textit{Budget = 25\% (250/1000 steps)}} \\
-Unconstrained & $4229 \pm 468$ & --- & --- & Upper bound \\
-Saute RL (retrained) & 4711 & 305/250 \textcolor{red}{$\times$} & 122\% & Soft constraint \\
-PID ($K_p\!=\!5$) & 2822 & 249/250 \checkmark & 100\% & Unstable ($\pm$495) \\
-Linear ramp & 4381 & 241/250 \checkmark & 96\% & Post-hoc \\
-Constant ($\lambda\!=\!1$) & 4147 & 138/250 \checkmark & 55\% & Post-hoc \\
-AC ($\eta=2$) & 4501 & 244/250 \checkmark & 98\% & Post-hoc \\
-AC ($\eta=5$) & 4481 & 247/250 \checkmark & 99\% & Post-hoc \\
+Unconstrained & 5165 & --- & --- & Upper bound \\
+Saute RL (soft) & 4659 & 281/250 \textcolor{red}{$\times$} & 113\% & Retrained \\
+Saute + clip (hard) & 4551 & 233/250 \checkmark & 93\% & Retrained \\
+Best PID ($K_p\!=\!10$) & 4176 & 253/250 \textcolor{red}{$\times$} & 101\% & Post-hoc (45 gains) \\
+Matched const ($\lambda\!=\!0.85$) & 4407 & 241/250 \checkmark & 96\% & Post-hoc (tuned) \\
+AC ($\eta=2$) & 4436 & 245/250 \checkmark & 98\% & Post-hoc \\
+AC ($\eta=5$) & 4436 & 247/250 \checkmark & 99\% & Post-hoc \\
 \midrule
 \multicolumn{5}{l}{\textit{AC at unseen budgets (zero retraining)}} \\
 AC ($\eta=2$, 10\%) & 4151 & 98/100 \checkmark & 98\% & \\
