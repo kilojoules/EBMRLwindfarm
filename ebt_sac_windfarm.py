@@ -740,7 +740,7 @@ def main():
             print(f"  Running guided evaluation sweep...")
             actor.eval()
             assessment_env = evaluator.eval_envs
-            guided_steps = min(50, args.num_eval_steps)
+            guided_steps = args.num_eval_steps
             for lam in [0.0, 1.0, 5.0, 10.0]:
                 gfn = load_surrogate if lam > 0 else None
                 ep_obs, _ = assessment_env.reset()
@@ -863,7 +863,7 @@ def main():
         ep_reward, ep_load = 0.0, 0.0
         ep_yaw_abs = []
         ep_yaw_per_turb: list[list[float]] = [[] for _ in range(n_turbines_max)]
-        for _ in range(min(50, args.num_eval_steps)):
+        for _ in range(args.num_eval_steps):
             with torch.no_grad():
                 act = agent.act(final_env, test_obs, guidance_fn=gfn, guidance_scale=lam)
             test_obs, rew, _, _, step_info = final_env.step(act)
@@ -879,7 +879,7 @@ def main():
                 mask_t = torch.tensor(
                     get_env_attention_masks(final_env), device=device, dtype=torch.bool)
                 ep_load += gfn(act_t, mask_t).mean().item()
-        final_steps = min(50, args.num_eval_steps)
+        final_steps = args.num_eval_steps
         mean_reward = ep_reward / max(final_steps, 1)
         mean_load = ep_load / max(final_steps, 1)
         yaw_str = f", AbsYaw={np.mean(ep_yaw_abs):.1f}deg" if ep_yaw_abs else ""
