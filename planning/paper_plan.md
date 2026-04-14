@@ -5,6 +5,37 @@
 
 ---
 
+## 🚦 Status Update (2026-04-14)
+
+**Priority 1 (Kill Test): ✅ PASSED.** The hero experiment works. See [`../EXPERIMENTS.md`](../EXPERIMENTS.md) for full details.
+
+**Key result:** `ebt_150k_nodroq_reg05` (R2) at λ=0.5 under `t1_positive_only`:
+- T0 flips from -14.2° (unconstrained) to +18.9° (constrained) — a 33° flip
+- T1 shifts from -21.5° to **-9.0° — within 0.3° of PyWake ground truth** -9.3°
+- Power: 8.46 MW constrained vs 9.36 MW unconstrained (9.6% loss vs PyWake's 3.3%)
+
+This is the clearest demonstration of the paper's central claim: **emergent cooperative adaptation under post-hoc energy composition, no retraining**.
+
+**Priority 2-7: Not started.** Remaining work for submission (see [`../TODO.md`](../TODO.md)):
+
+| Priority | Item | Status |
+|---|---|---|
+| P1 | Hero experiment | ✅ Done |
+| P2a | Seed variance (5 seeds) | ⏸ **Critical** — all results currently seed=1 only |
+| P2b | Naive clipping baseline | ⏸ Cheap (~1h eval) |
+| P2c | Lagrangian SAC baseline | ⏸ **Critical** — shows retraining cost |
+| P2d | Pareto front | ⏸ ~2h eval |
+| P3 | Hero figure (2D energy landscape) | ⏸ ~1h |
+| P4 | 9-turbine scaling experiment | ⏸ **Strengthens claim** — ~2h eval |
+| P5 | Multi-constraint composition | ⏸ ~2h eval |
+| Writing | Method, experiments, intro, etc. | ⏸ Not started |
+
+**Strategic call:** Results are strong enough for NeurIPS if we can execute P2a + P2b + P2c + P3 + P4 before the deadline (~3 weeks). If not, target ICLR 2027 with 6 months of runway.
+
+**Hyperparameter sensitivity is our biggest risk.** No single config wins on both unconstrained AND constrained metrics — R2 wins cooperative adaptation, F1 wins unconstrained T2 fit. See EXPERIMENTS.md "Current best configurations" for the tradeoff analysis.
+
+---
+
 ## The Nugget
 
 **Energy-based transformer policies enable zero-shot constraint composition in multi-agent control: constraining one agent at deployment causes the entire team to cooperatively reorganize to a new joint optimum — without retraining.**
@@ -224,6 +255,8 @@ min_a  E_actor(s, a)    subject to    E_constraint(a) ≤ 0
 
 ## Timeline
 
+**Original plan (Apr 10):**
+
 | Date | Milestone |
 |------|-----------|
 | Apr 10-17 | **Kill test:** Train EBT-SAC on multi_modal, validate hero experiment |
@@ -235,7 +268,19 @@ min_a  E_actor(s, a)    subject to    E_constraint(a) ≤ 0
 | May 4 | Abstract submission |
 | May 6 | Full paper submission |
 
-**If hero experiment fails by Apr 17:** Stop. Diagnose. Target ICLR 2027 with more time to fix training (multi-modal energy regularization, contrastive samples, etc.).
+**Updated status (Apr 14):**
+
+| Date | Milestone | Status |
+|---|---|---|
+| Apr 10-17 | Kill test | ✅ **Done (Apr 14, 3 days early)** |
+| Apr 14-17 | Seed variance + baselines + hero figure | ⏸ Next |
+| Apr 17-22 | Scale-up + multi-constraint + Pareto front | ⏸ |
+| Apr 22-May 1 | Writing (method + experiments) | ⏸ |
+| May 1-4 | Writing (intro, related work, conclusion), figures | ⏸ |
+| May 4 | Abstract submission | ⏸ |
+| May 6 | Full paper submission | ⏸ |
+
+**If hero experiment failed by Apr 17:** Would have stopped and targeted ICLR 2027. Passed — proceeding with NeurIPS timeline. Main risk now is execution speed on P2-P5; fallback remains ICLR 2027 if any of P2a/P2c/P4 hit unexpected obstacles.
 
 ---
 
