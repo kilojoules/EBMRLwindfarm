@@ -906,7 +906,8 @@ def main():
 
         # --- Helper: run one episode and collect metrics ---
         def _run_budget_episode(surr, gs_val):
-            surr.reset()
+            if surr is not None and hasattr(surr, 'reset'):
+                surr.reset()
             obs, _ = budget_eval_env.reset()
             ep_rew, ep_powers, neg_counts = 0.0, [], np.zeros(n_turbines_max)
             for _ in range(horizon_steps):
@@ -922,7 +923,7 @@ def main():
                     for ti in range(min(len(yaw_flat), n_turbines_max)):
                         if yaw_flat[ti] < 0:
                             neg_counts[ti] += 1
-                    if surr is not None:
+                    if surr is not None and hasattr(surr, 'update'):
                         surr.update(torch.tensor(yaw_flat, device=device, dtype=torch.float32))
                 if "Power agent" in info:
                     ep_powers.append(float(np.mean(info["Power agent"])))
@@ -1035,6 +1036,85 @@ def main():
                     print(f"{budget_steps:6d} {k_val:4.1f} {gs_val:5.2f} {'1.0':>5s} | "
                           f"{np.mean(ep_rewards):8.2f} {mean_pwr:10.0f} {pwr_ratio:8.4f} "
                           f"{str(mean_neg):>20s}")
+
+        # --- Trajectory logging for visualization ---
+        # Run a few representative configs with per-step yaw/power/lambda recording
+        print("\n=== Logging trajectories for visualization ===")
+        import json
+
+        traj_configs = [
+            {"ra": 0.0, "gs": 0.0, "k": 3.0, "budget": 15, "label": "unconstrained"},
+            {"ra": 0.0, "gs": 0.5, "k": 3.0, "budget": 15, "label": "constant_eta0"},
+            {"ra": 2.0, "gs": 0.5, "k": 3.0, "budget": 15, "label": "ac_eta2"},
+            {"ra": 5.0, "gs": 0.5, "k": 3.0, "budget": 15, "label": "ac_eta5"},
+            {"ra": 2.0, "gs": 0.5, "k": 3.0, "budget": 50, "label": "ac_eta2_b50"},
+        ]
+
+        all_trajectories = {}
+        for cfg in traj_configs:
+            label = cfg["label"]
+            is_uncon = cfg["gs"] == 0.0
+
+            surr = None
+            if not is_uncon:
+                surr = NegativeYawBudgetSurrogate(
+                    budget_steps=cfg["budget"],
+                    horizon_steps=horizon_steps,
+                    risk_aversion=cfg["ra"],
+                    steepness=cfg["k"],
+                    yaw_max_deg=30.0,
+                )
+                surr.reset()
+
+            obs, _ = budget_eval_env.reset()
+            steps_data = []
+
+            for t_step in range(horizon_steps):
+                lam_val = surr.compute_lambda() if (surr and hasattr(surr, 'compute_lambda')) else (
+                    float(surr._compute_lambda().squeeze().cpu()) if surr else 1.0)
+
+                with torch.no_grad():
+                    act = agent.act(budget_eval_env, obs,
+                                    guidance_fn=surr if not is_uncon else None,
+                                    guidance_scale=cfg["gs"])
+
+                obs, rew, _, _, info = budget_eval_env.step(act)
+
+                yaw_flat = np.zeros(n_turbines_max)
+                power_val = 0.0
+                ws_val, wd_val = 0.0, 0.0
+
+                if "yaw angles agent" in info:
+                    yaw_arr = np.array(info["yaw angles agent"])
+                    yaw_flat = yaw_arr[0] if yaw_arr.ndim > 1 else yaw_arr
+                    if surr is not None and hasattr(surr, 'update'):
+                        surr.update(torch.tensor(yaw_flat[:n_turbines_max],
+                                                  device=device, dtype=torch.float32))
+
+                if "Power agent" in info:
+                    power_val = float(np.mean(info["Power agent"]))
+
+                step_record = {
+                    "t": t_step,
+                    "lambda": float(lam_val) if np.isscalar(lam_val) else float(lam_val),
+                    "power": power_val,
+                    "reward": float(rew.mean()),
+                }
+                for ti in range(min(len(yaw_flat), n_turbines_max)):
+                    step_record[f"yaw_T{ti}"] = float(yaw_flat[ti])
+
+                steps_data.append(step_record)
+
+            all_trajectories[label] = steps_data
+            neg_count = sum(1 for s in steps_data if s.get("yaw_T0", 0) < 0)
+            print(f"  {label}: {len(steps_data)} steps, T0 neg_yaw={neg_count}")
+
+        # Save trajectories
+        os.makedirs("results", exist_ok=True)
+        traj_path = "results/windfarm_trajectories.json"
+        with open(traj_path, "w") as f:
+            json.dump(all_trajectories, f)
+        print(f"  Saved trajectories to {traj_path}")
 
     writer.close()
     envs.close()
