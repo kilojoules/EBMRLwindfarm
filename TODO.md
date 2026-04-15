@@ -1,4 +1,4 @@
-# TODO — Composable Energy Policies for Constrained Multi-Agent Control
+# TODO — NeurIPS 2026 Sprint (2026-04-15 → 2026-05-06)
 
 > Organized by priority. See [`EXPERIMENTS.md`](EXPERIMENTS.md) for the full experimental log and [`planning/paper_plan.md`](planning/paper_plan.md) for the research plan.
 >
@@ -126,6 +126,12 @@
 - [ ] Final figures and tables (blocked by P3c)
 - [ ] Abstract — final version with real numbers
 
+## Deferred to CoRL 2026 / future work
+
+- [ ] Real SCADA + strain-gauge validation (Lillgrund, Horns Rev)
+- [ ] Second domain beyond wind farms (cooperative navigation, multi-drone)
+- [ ] End-to-end joint training of DEL surrogates with the EBT actor
+
 ---
 
 ## Completed infrastructure (historical)
@@ -160,4 +166,4 @@
 
 ### Literature
 - [x] Curated reading list (`papers/PAPERS.md`)
-- [x] Competitive landscape analysis (see `planning/paper_plan.md`)
+- [x] NeurIPS 2026 LaTeX template (`paper/main.tex`, `paper/figs/`)

@@ -28,3 +28,4 @@ scripts/wandb_plots/
 .vscode/
 .ipynb_checkpoints/
 .claude/
+/surrogate
