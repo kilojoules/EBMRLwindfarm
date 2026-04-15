@@ -208,6 +208,20 @@ Ablation results (Table~\ref{tab:hard_guard}) show that the smooth schedule alon
     \label{fig:approx}
 \end{figure}
 
+\textbf{Penalty landscape.}
+Figure~\ref{fig:contours} visualizes $\lambda(\beta, \tau)$ as a function of remaining budget fraction $\beta$ and remaining time fraction $\tau$ for three risk-aversion values.
+The TWAP diagonal ($\beta = \tau$, where $u=1$) separates the surplus region ($\lambda < 1$, agent may spend freely) from the deficit region ($\lambda > 1$, agent conserves).
+At $\eta = 0.5$, gradients are gentle---the schedule tolerates moderate budget imbalance.
+At $\eta = 5$, the penalty rises steeply near the diagonal, aggressively penalizing any deviation from the TWAP trajectory.
+The hard wall (red band at $\beta < 0.05$) provides a safety backstop independent of $\eta$.
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=\linewidth]{figures/fig_lambda_contours.pdf}
+    \caption{Penalty weight $\lambda(\beta, \tau)$ across the budget--time state space for three risk-aversion values $\eta$. The TWAP diagonal (white dashed, $u = \beta/\tau = 1$) separates surplus (blue, $\lambda < 1$) from deficit (red, $\lambda > 1$). Contour lines show penalty magnitudes. Higher $\eta$ produces steeper gradients near the diagonal, concentrating budget spending into favorable conditions.}
+    \label{fig:contours}
+\end{figure}
+
 \textbf{Note on the Boltzmann assumption.}
 Proposition~\ref{prop:optimal} assumes a Boltzmann response, which is approximate for EBT actors optimized by gradient descent and does not hold for standard MLP policies.
 The derivation serves to identify the urgency ratio $u$ as the natural state variable and to constrain the schedule to be monotone decreasing in $u$ with TWAP recovery at $\eta=0$.

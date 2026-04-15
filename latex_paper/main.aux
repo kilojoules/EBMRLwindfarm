@@ -33,44 +33,42 @@
 \@writefile{toc}{\contentsline {subsection}{\numberline {4.1}Per-Agent Constraint Energy}{4}{subsection.4.1}\protected@file@percent }
 \newlabel{sec:composition}{{4.1}{4}{Per-Agent Constraint Energy}{subsection.4.1}{}}
 \newlabel{eq:budget_energy}{{9}{4}{Per-Agent Constraint Energy}{equation.9}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.2}Composed Energy Landscape}{4}{subsection.4.2}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {2}{\ignorespaces Penalty weight $\lambda (\beta , \tau )$ across the budget--time state space for three risk-aversion values $\eta $. The TWAP diagonal (white dashed, $u = \beta /\tau = 1$) separates surplus (blue, $\lambda < 1$) from deficit (red, $\lambda > 1$). Contour lines show penalty magnitudes. Higher $\eta $ produces steeper gradients near the diagonal, concentrating budget spending into favorable conditions.}}{5}{figure.caption.2}\protected@file@percent }
+\newlabel{fig:contours}{{2}{5}{Penalty weight $\lambda (\beta , \tau )$ across the budget--time state space for three risk-aversion values $\eta $. The TWAP diagonal (white dashed, $u = \beta /\tau = 1$) separates surplus (blue, $\lambda < 1$) from deficit (red, $\lambda > 1$). Contour lines show penalty magnitudes. Higher $\eta $ produces steeper gradients near the diagonal, concentrating budget spending into favorable conditions}{figure.caption.2}{}}
+\@writefile{loa}{\contentsline {algorithm}{\numberline {1}{\ignorespaces Post-Hoc Budget-Constrained Inference}}{5}{algorithm.1}\protected@file@percent }
+\newlabel{alg:budget}{{1}{5}{Post-Hoc Budget-Constrained Inference}{algorithm.1}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.2}Composed Energy Landscape}{5}{subsection.4.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.3}Algorithm}{5}{subsection.4.3}\protected@file@percent }
 \citation{windgym}
 \citation{dijk2025load}
 \citation{todorov2012mujoco}
-\@writefile{loa}{\contentsline {algorithm}{\numberline {1}{\ignorespaces Post-Hoc Budget-Constrained Inference}}{5}{algorithm.1}\protected@file@percent }
-\newlabel{alg:budget}{{1}{5}{Post-Hoc Budget-Constrained Inference}{algorithm.1}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.3}Algorithm}{5}{subsection.4.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.4}Heterogeneous Per-Agent Budgets}{5}{subsection.4.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.5}Connection to CMDP Lagrangian Duality}{5}{subsection.4.5}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {5}Experimental Setup}{5}{section.5}\protected@file@percent }
-\newlabel{sec:setup}{{5}{5}{Experimental Setup}{section.5}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.1}Domain 1: Wind Farm Yaw Control}{5}{subsection.5.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.4}Heterogeneous Per-Agent Budgets}{6}{subsection.4.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.5}Connection to CMDP Lagrangian Duality}{6}{subsection.4.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {5}Experimental Setup}{6}{section.5}\protected@file@percent }
+\newlabel{sec:setup}{{5}{6}{Experimental Setup}{section.5}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.1}Domain 1: Wind Farm Yaw Control}{6}{subsection.5.1}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsection}{\numberline {5.2}Domain 2: MuJoCo Locomotion}{6}{subsection.5.2}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsection}{\numberline {5.3}Baselines}{6}{subsection.5.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.4}Ablations}{6}{subsection.5.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {6}Results}{6}{section.6}\protected@file@percent }
-\newlabel{sec:results}{{6}{6}{Results}{section.6}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.1}Budget Satisfaction and Reward Retention}{6}{subsection.6.1}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {2}{\ignorespaces Budget scheduling mechanism over one HalfCheetah episode. Top: time-varying reward multiplier (gold = high-value phases). Middle: penalty weight $\lambda (t)$ --- constant for $\eta =0$ (red), adaptive for $\eta >0$ (blue). $\lambda $ decreases when budget is plentiful and spikes near depletion ($\eta =5$, late episode). Bottom: velocity traces with threshold violations (dots).}}{7}{figure.caption.2}\protected@file@percent }
-\newlabel{fig:mechanism}{{2}{7}{Budget scheduling mechanism over one HalfCheetah episode. Top: time-varying reward multiplier (gold = high-value phases). Middle: penalty weight $\lambda (t)$ --- constant for $\eta =0$ (red), adaptive for $\eta >0$ (blue). $\lambda $ decreases when budget is plentiful and spikes near depletion ($\eta =5$, late episode). Bottom: velocity traces with threshold violations (dots)}{figure.caption.2}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.4}Ablations}{7}{subsection.5.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {6}Results}{7}{section.6}\protected@file@percent }
+\newlabel{sec:results}{{6}{7}{Results}{section.6}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.1}Budget Satisfaction and Reward Retention}{7}{subsection.6.1}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsection}{\numberline {6.2}Hard Guard Ablation}{7}{subsection.6.2}\protected@file@percent }
-\citation{sootla2022saute}
-\citation{stooke2020responsive}
-\@writefile{lof}{\contentsline {figure}{\numberline {3}{\ignorespaces When does the agent speed? (a)~Spending rate by reward cycle phase: the AC schedule ($\eta \geq 2$) sustains a uniformly high spending rate ($\sim $25\%), while the constant penalty ($\eta =0$) spends only $\sim $10\%. (b)~Reward multiplier distribution at speeding timesteps. (c)~Cumulative budget consumption: $\eta =0$ uses only half the budget; AC uses 96--99\%.}}{8}{figure.caption.3}\protected@file@percent }
-\newlabel{fig:physical}{{3}{8}{When does the agent speed? (a)~Spending rate by reward cycle phase: the AC schedule ($\eta \geq 2$) sustains a uniformly high spending rate ($\sim $25\%), while the constant penalty ($\eta =0$) spends only $\sim $10\%. (b)~Reward multiplier distribution at speeding timesteps. (c)~Cumulative budget consumption: $\eta =0$ uses only half the budget; AC uses 96--99\%}{figure.caption.3}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {3}{\ignorespaces Budget scheduling mechanism over one HalfCheetah episode. Top: time-varying reward multiplier (gold = high-value phases). Middle: penalty weight $\lambda (t)$ --- constant for $\eta =0$ (red), adaptive for $\eta >0$ (blue). $\lambda $ decreases when budget is plentiful and spikes near depletion ($\eta =5$, late episode). Bottom: velocity traces with threshold violations (dots).}}{8}{figure.caption.3}\protected@file@percent }
+\newlabel{fig:mechanism}{{3}{8}{Budget scheduling mechanism over one HalfCheetah episode. Top: time-varying reward multiplier (gold = high-value phases). Middle: penalty weight $\lambda (t)$ --- constant for $\eta =0$ (red), adaptive for $\eta >0$ (blue). $\lambda $ decreases when budget is plentiful and spikes near depletion ($\eta =5$, late episode). Bottom: velocity traces with threshold violations (dots)}{figure.caption.3}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {6.3}Schedule Comparison: $w^*(u)=1/u$ vs.\ $w(u)=\exp (\eta (1/u - 1))$}{8}{subsection.6.3}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsection}{\numberline {6.4}Budget Flexibility}{8}{subsection.6.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.5}Comparison to Baselines}{8}{subsection.6.5}\protected@file@percent }
+\citation{sootla2022saute}
+\citation{stooke2020responsive}
 \citation{altman1999constrained}
 \citation{stooke2020responsive}
 \citation{sootla2022saute}
 \citation{chen2025predictive}
 \citation{yao2024caps}
 \citation{liu2026bcr}
-\@writefile{lot}{\contentsline {table}{\numberline {1}{\ignorespaces Main results across both domains (mean $\pm $ std over training seeds). Budget utilization reports the fraction of allowed budget actually spent. Higher utilization with high reward indicates intelligent allocation.}}{9}{table.caption.4}\protected@file@percent }
-\newlabel{tab:main_results}{{1}{9}{Main results across both domains (mean $\pm $ std over training seeds). Budget utilization reports the fraction of allowed budget actually spent. Higher utilization with high reward indicates intelligent allocation}{table.caption.4}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {2}{\ignorespaces Hard guard ablation (HalfCheetah, budget=250/1000 steps, 5 seeds). The AC schedule alone (no hard guard) provides the same budget management as the full system.}}{9}{table.caption.8}\protected@file@percent }
-\newlabel{tab:hard_guard}{{2}{9}{Hard guard ablation (HalfCheetah, budget=250/1000 steps, 5 seeds). The AC schedule alone (no hard guard) provides the same budget management as the full system}{table.caption.8}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {4}{\ignorespaces When does the agent speed? (a)~Spending rate by reward cycle phase: the AC schedule ($\eta \geq 2$) sustains a uniformly high spending rate ($\sim $25\%), while the constant penalty ($\eta =0$) spends only $\sim $10\%. (b)~Reward multiplier distribution at speeding timesteps. (c)~Cumulative budget consumption: $\eta =0$ uses only half the budget; AC uses 96--99\%.}}{9}{figure.caption.4}\protected@file@percent }
+\newlabel{fig:physical}{{4}{9}{When does the agent speed? (a)~Spending rate by reward cycle phase: the AC schedule ($\eta \geq 2$) sustains a uniformly high spending rate ($\sim $25\%), while the constant penalty ($\eta =0$) spends only $\sim $10\%. (b)~Reward multiplier distribution at speeding timesteps. (c)~Cumulative budget consumption: $\eta =0$ uses only half the budget; AC uses 96--99\%}{figure.caption.4}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.5}Comparison to Baselines}{9}{subsection.6.5}\protected@file@percent }
 \@writefile{toc}{\contentsline {section}{\numberline {7}Related Work}{9}{section.7}\protected@file@percent }
 \newlabel{sec:related}{{7}{9}{Related Work}{section.7}{}}
 \citation{urain2023composable}
@@ -82,10 +80,10 @@
 \citation{agrawal2014bandits}
 \citation{almgren2001optimal}
 \citation{ning2024execution}
-\@writefile{lof}{\contentsline {figure}{\numberline {4}{\ignorespaces Wind farm spatial yaw allocation. (a) Unconstrained agent uses negative yaw heavily on all turbines; AC ($\eta =2$) constrains to within the 15-step budget; constant penalty over-spends. (b) Turbine layout: T0 (upstream) deflects its wake to benefit T1 and T2.}}{10}{figure.caption.5}\protected@file@percent }
-\newlabel{fig:wf_spatial}{{4}{10}{Wind farm spatial yaw allocation. (a) Unconstrained agent uses negative yaw heavily on all turbines; AC ($\eta =2$) constrains to within the 15-step budget; constant penalty over-spends. (b) Turbine layout: T0 (upstream) deflects its wake to benefit T1 and T2}{figure.caption.5}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {8}Conclusion}{10}{section.8}\protected@file@percent }
-\newlabel{sec:conclusion}{{8}{10}{Conclusion}{section.8}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {1}{\ignorespaces Main results across both domains (mean $\pm $ std over training seeds). Budget utilization reports the fraction of allowed budget actually spent. Higher utilization with high reward indicates intelligent allocation.}}{10}{table.caption.5}\protected@file@percent }
+\newlabel{tab:main_results}{{1}{10}{Main results across both domains (mean $\pm $ std over training seeds). Budget utilization reports the fraction of allowed budget actually spent. Higher utilization with high reward indicates intelligent allocation}{table.caption.5}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {2}{\ignorespaces Hard guard ablation (HalfCheetah, budget=250/1000 steps, 5 seeds). The AC schedule alone (no hard guard) provides the same budget management as the full system.}}{10}{table.caption.9}\protected@file@percent }
+\newlabel{tab:hard_guard}{{2}{10}{Hard guard ablation (HalfCheetah, budget=250/1000 steps, 5 seeds). The AC schedule alone (no hard guard) provides the same budget management as the full system}{table.caption.9}{}}
 \bibdata{references}
 \bibcite{agrawal2014bandits}{{1}{2014}{{Agrawal and Devanur}}{{}}}
 \bibcite{almgren2001optimal}{{2}{2001}{{Almgren and Chriss}}{{}}}
@@ -93,12 +91,14 @@
 \bibcite{balseiro2023budget}{{4}{2024}{{Balseiro et~al.}}{{}}}
 \bibcite{chen2025predictive}{{5}{2025}{{Chen et~al.}}{{}}}
 \bibcite{durkin2025picnn}{{6}{2025}{{Durkin et~al.}}{{}}}
+\@writefile{lof}{\contentsline {figure}{\numberline {5}{\ignorespaces Wind farm spatial yaw allocation. (a) Unconstrained agent uses negative yaw heavily on all turbines; AC ($\eta =2$) constrains to within the 15-step budget; constant penalty over-spends. (b) Turbine layout: T0 (upstream) deflects its wake to benefit T1 and T2.}}{11}{figure.caption.6}\protected@file@percent }
+\newlabel{fig:wf_spatial}{{5}{11}{Wind farm spatial yaw allocation. (a) Unconstrained agent uses negative yaw heavily on all turbines; AC ($\eta =2$) constrains to within the 15-step budget; constant penalty over-spends. (b) Turbine layout: T0 (upstream) deflects its wake to benefit T1 and T2}{figure.caption.6}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {8}Conclusion}{11}{section.8}\protected@file@percent }
+\newlabel{sec:conclusion}{{8}{11}{Conclusion}{section.8}{}}
 \bibcite{gladstone2025ebt}{{7}{2025}{{Gladstone et~al.}}{{}}}
 \bibcite{liu2026bcr}{{8}{2026}{{Liu et~al.}}{{}}}
 \bibcite{windgym}{{9}{2025}{{Nilsen et~al.}}{{Nilsen, Quick, Simutis, and {\r A}strand}}}
 \bibcite{ning2024execution}{{10}{2024}{{Ning et~al.}}{{}}}
-\@writefile{lof}{\contentsline {figure}{\numberline {5}{\ignorespaces Wind farm budget effect. (a) Per-turbine allocation: as budget tightens, downstream T2 reduces negative yaw first, preserving upstream wake steering. (b) Power retention (median $\pm $ IQR across configurations): constrained power remains within 5\% of unconstrained, indicating near-zero power cost of budget compliance.}}{11}{figure.caption.6}\protected@file@percent }
-\newlabel{fig:wf_budget}{{5}{11}{Wind farm budget effect. (a) Per-turbine allocation: as budget tightens, downstream T2 reduces negative yaw first, preserving upstream wake steering. (b) Power retention (median $\pm $ IQR across configurations): constrained power remains within 5\% of unconstrained, indicating near-zero power cost of budget compliance}{figure.caption.6}{}}
 \bibcite{sootla2022saute}{{11}{2022}{{Sootla et~al.}}{{Sootla, Cowen-Rivers, Jafferjee, Wang, Mguni, Wang, and Ammar}}}
 \bibcite{stooke2020responsive}{{12}{2020}{{Stooke et~al.}}{{Stooke, Achiam, and Abbeel}}}
 \bibcite{todorov2012mujoco}{{13}{2012}{{Todorov et~al.}}{{Todorov, Erez, and Tassa}}}
@@ -106,15 +106,17 @@
 \bibcite{dijk2025load}{{15}{2025}{{van Dijk et~al.}}{{}}}
 \bibcite{xiao2023safediffuser}{{16}{2025}{{Xiao et~al.}}{{Xiao, Wang, Zhan, Ramamurthy, Hasani, and Rus}}}
 \bibcite{yao2024caps}{{17}{2025}{{Yao et~al.}}{{}}}
+\@writefile{lof}{\contentsline {figure}{\numberline {6}{\ignorespaces Wind farm budget effect. (a) Per-turbine allocation: as budget tightens, downstream T2 reduces negative yaw first, preserving upstream wake steering. (b) Power retention (median $\pm $ IQR across configurations): constrained power remains within 5\% of unconstrained, indicating near-zero power cost of budget compliance.}}{12}{figure.caption.7}\protected@file@percent }
+\newlabel{fig:wf_budget}{{6}{12}{Wind farm budget effect. (a) Per-turbine allocation: as budget tightens, downstream T2 reduces negative yaw first, preserving upstream wake steering. (b) Power retention (median $\pm $ IQR across configurations): constrained power remains within 5\% of unconstrained, indicating near-zero power cost of budget compliance}{figure.caption.7}{}}
 \bibcite{zhang2025constrained}{{18}{2025}{{Zhang et~al.}}{{}}}
 \bibcite{zheng2024fisor}{{19}{2024}{{Zheng et~al.}}{{}}}
 \bibstyle{plainnat}
-\@writefile{lof}{\contentsline {figure}{\numberline {6}{\ignorespaces Budget utilization vs.\ reward retention. Constant penalty (squares, red) cannot simultaneously achieve high utilization and high reward. AC schedule (circles, blue shades by $\eta $) clusters in the efficient top-right region.}}{12}{figure.caption.7}\protected@file@percent }
-\newlabel{fig:pareto}{{6}{12}{Budget utilization vs.\ reward retention. Constant penalty (squares, red) cannot simultaneously achieve high utilization and high reward. AC schedule (circles, blue shades by $\eta $) clusters in the efficient top-right region}{figure.caption.7}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {7}{\ignorespaces Budget flexibility. Left: same policy at different budget levels (concave curve = intelligent allocation). Right: cumulative spending trajectories depart from the TWAP diagonal, spending conservatively early and catching up during high-value phases.}}{13}{figure.caption.9}\protected@file@percent }
-\newlabel{fig:flexibility}{{7}{13}{Budget flexibility. Left: same policy at different budget levels (concave curve = intelligent allocation). Right: cumulative spending trajectories depart from the TWAP diagonal, spending conservatively early and catching up during high-value phases}{figure.caption.9}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {8}{\ignorespaces Ablations on HalfCheetah. (a)~Risk aversion sweep: $\eta =0$ wastes budget (53\% used), $\eta \geq 1$ achieves $>$96\% utilization and 7\% more reward. (b)~Schedule comparison: $u^{-\eta }$ (optimal) and $\exp (\eta (1/u-1))$ (practical) perform comparably. (c)~Hard guard ablation: the AC schedule alone matches the full system.}}{13}{figure.caption.10}\protected@file@percent }
-\newlabel{fig:ablations}{{8}{13}{Ablations on HalfCheetah. (a)~Risk aversion sweep: $\eta =0$ wastes budget (53\% used), $\eta \geq 1$ achieves $>$96\% utilization and 7\% more reward. (b)~Schedule comparison: $u^{-\eta }$ (optimal) and $\exp (\eta (1/u-1))$ (practical) perform comparably. (c)~Hard guard ablation: the AC schedule alone matches the full system}{figure.caption.10}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {3}{\ignorespaces Comparison of penalty scheduling strategies on HalfCheetah (budget=25\%). The AC schedule satisfies the budget while achieving reward competitive with methods that violate it. Bottom rows show AC generalizing to unseen budgets with zero retraining.}}{13}{table.caption.11}\protected@file@percent }
-\newlabel{tab:saute}{{3}{13}{Comparison of penalty scheduling strategies on HalfCheetah (budget=25\%). The AC schedule satisfies the budget while achieving reward competitive with methods that violate it. Bottom rows show AC generalizing to unseen budgets with zero retraining}{table.caption.11}{}}
-\gdef \@abspage@last{13}
+\@writefile{lof}{\contentsline {figure}{\numberline {7}{\ignorespaces Budget utilization vs.\ reward retention. Constant penalty (squares, red) cannot simultaneously achieve high utilization and high reward. AC schedule (circles, blue shades by $\eta $) clusters in the efficient top-right region.}}{13}{figure.caption.8}\protected@file@percent }
+\newlabel{fig:pareto}{{7}{13}{Budget utilization vs.\ reward retention. Constant penalty (squares, red) cannot simultaneously achieve high utilization and high reward. AC schedule (circles, blue shades by $\eta $) clusters in the efficient top-right region}{figure.caption.8}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {8}{\ignorespaces Budget flexibility. Left: same policy at different budget levels (concave curve = intelligent allocation). Right: cumulative spending trajectories depart from the TWAP diagonal, spending conservatively early and catching up during high-value phases.}}{14}{figure.caption.10}\protected@file@percent }
+\newlabel{fig:flexibility}{{8}{14}{Budget flexibility. Left: same policy at different budget levels (concave curve = intelligent allocation). Right: cumulative spending trajectories depart from the TWAP diagonal, spending conservatively early and catching up during high-value phases}{figure.caption.10}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {9}{\ignorespaces Ablations on HalfCheetah. (a)~Risk aversion sweep: $\eta =0$ wastes budget (53\% used), $\eta \geq 1$ achieves $>$96\% utilization and 7\% more reward. (b)~Schedule comparison: $u^{-\eta }$ (optimal) and $\exp (\eta (1/u-1))$ (practical) perform comparably. (c)~Hard guard ablation: the AC schedule alone matches the full system.}}{14}{figure.caption.11}\protected@file@percent }
+\newlabel{fig:ablations}{{9}{14}{Ablations on HalfCheetah. (a)~Risk aversion sweep: $\eta =0$ wastes budget (53\% used), $\eta \geq 1$ achieves $>$96\% utilization and 7\% more reward. (b)~Schedule comparison: $u^{-\eta }$ (optimal) and $\exp (\eta (1/u-1))$ (practical) perform comparably. (c)~Hard guard ablation: the AC schedule alone matches the full system}{figure.caption.11}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {3}{\ignorespaces Comparison of penalty scheduling strategies on HalfCheetah (budget=25\%). The AC schedule satisfies the budget while achieving reward competitive with methods that violate it. Bottom rows show AC generalizing to unseen budgets with zero retraining.}}{14}{table.caption.12}\protected@file@percent }
+\newlabel{tab:saute}{{3}{14}{Comparison of penalty scheduling strategies on HalfCheetah (budget=25\%). The AC schedule satisfies the budget while achieving reward competitive with methods that violate it. Bottom rows show AC generalizing to unseen budgets with zero retraining}{table.caption.12}{}}
+\gdef \@abspage@last{14}
