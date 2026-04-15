@@ -1,0 +1,7 @@
+config,constraint_type,lambda,steepness,T0_yaw,T1_yaw,T2_yaw,power,power_ratio,coop_score,satisfied,converge_step
+unconstrained,none,0.0,10.0,-30.0,-18.8,-6.3,9077003,1.000,0.00,,
+t1_positive_only_lam0.5_k6.0,t1_positive_only,0.5,6.0,-30.0,-20.2,14.6,8777519,0.967,11.15,False,59
+t1_positive_only_lam1.0_k6.0,t1_positive_only,1.0,6.0,-30.0,20.9,-7.0,7209291,0.794,20.22,False,106
+t1_positive_only_lam2.0_k6.0,t1_positive_only,2.0,6.0,-30.0,7.1,0.8,7696267,0.848,16.43,False,62
+t1_positive_only_lam5.0_k6.0,t1_positive_only,5.0,6.0,-30.0,7.1,0.8,7699823,0.848,16.46,False,104
+t1_positive_only_lam10.0_k6.0,t1_positive_only,10.0,6.0,10.0,-11.8,-5.6,7913272,0.872,3.81,True,56

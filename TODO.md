@@ -1,115 +1,130 @@
 # TODO — NeurIPS 2026 Sprint (2026-04-15 → 2026-05-06)
 
-> Execution checklist for the re-planned NeurIPS submission. Full plan:
-> `~/.claude/plans/gentle-kindling-papert.md`. Archived original plan:
-> `planning/paper_plan_v1.md`.
-
-**Deadline:** abstract 2026-05-04, full paper 2026-05-06. Fallback: CoRL 2026.
+> Organized by priority. See [`EXPERIMENTS.md`](EXPERIMENTS.md) for the full experimental log and [`planning/paper_plan.md`](planning/paper_plan.md) for the research plan.
+>
+> **Status (2026-04-14):** ✅ Proof of concept achieved. Hero experiment works on `ebt_150k_nodroq_reg05` (see EXPERIMENTS.md). Remaining work is about reproducibility, scaling, and baselines for publication.
 
 ---
 
-## Decision gates
+## Priority 1: Hero Experiment — Kill Test ✅ COMPLETED
 
-- [ ] **G0 (Apr 17)** — `stag4_5d` layout trains end-to-end on EBT-SAC without errors
-- [ ] **G1 (Apr 22)** — E1 hero: cooperative reorganization reproduces on ≥1 real DEL
-      constraint on BOTH hero layouts across ≥5 seeds (variance < half effect size)
-- [ ] **G2 (Apr 22)** — E4 scale-up: cooperative adaptation on 7/9-turbine is ≥ 0.5×
-      the 3-turbine value across ≥3 seeds
-- [ ] **G3 (Apr 27)** — E3 phase diagram readable AND E5 CEP-ablation decisive
-- [ ] **G4 (Apr 28)** — commit main-track-only vs. main+D&B after verifying the
-      NeurIPS 2026 D&B deadline
+- [x] Train EBT-SAC on `multi_modal` 3-turbine layout to convergence
+- [x] Evaluate unconstrained → close to [-16°, -17.3°, 0°] (R2: [-14.2, -21.5, -8.2]; F1: [-12.6, -18.8, -0.7])
+- [x] Evaluate with `t1_positive_only` at λ ∈ {0.1, 0.5, 1.0, 2.0, 5.0}
+- [x] **Kill criterion satisfied:** T0 flips positive AND T1 measurably changes. R2 at λ=0.5 gives [+18.9, -9.0, -4.2] vs ground truth [+22.7, -9.3, 0.0] — T1 within 0.3°.
+- [x] Constraint saturation at +30° (Round 0 failure mode) is FIXED at 150K steps with energy_reg=0.05
 
----
+## Priority 2: Publication-critical experiments (MUST DO for NeurIPS)
 
-## Window 1: Apr 15 – 17 (foundation)
+### 2a. Seed variance on the winning config
+- [ ] Run 3-5 additional seeds of `ebt_150k_nodroq_reg05` (R2) at 150K or 200K steps
+- [ ] Compute mean±std of constrained yaw angles at λ=0.5 across seeds
+- [ ] Establish that the cooperative adaptation is seed-robust (not cherry-picked)
+- **Why:** Every current result uses seed=1. A reviewer will immediately ask "is this cherry-picked?"
+- **Cost:** ~15-20h compute in parallel (4 seeds × 4h each, or 5 seeds on 4 GPUs)
 
-- [x] Add `stag4_5d` layout to `helpers/layouts.py`
-- [x] Archive `planning/paper_plan.md` → `paper_plan_v1.md`; write new pointer
-- [x] Update this TODO.md
-- [ ] **User:** plumb real DEL surrogates (tower-base fore-aft, blade-root flapwise,
-      main-bearing moment, …) into `load_surrogates.py` as `nn.Module` classes
-      exposing `per_turbine_energy(action, mask) → (batch, n_turbines, 1)`
-- [ ] Kick off EBT-SAC training on `multi_modal` (≥5 seeds)
-- [ ] Kick off EBT-SAC training on `stag4_5d` (≥5 seeds)
-- [ ] Begin drafting `paper/main.tex` — submission track fix + abstract + methodology
-- [ ] **G0 check** — confirm `stag4_5d` training runs to completion on ≥1 seed
+### 2b. Baseline: naive action clipping
+- [ ] Take the trained R2 checkpoint
+- [ ] Eval-time modification: replace constraint composition with `torch.clamp(actions[..., 0], 0, 1)` on T0
+- [ ] Run the same constraint sweep as the main experiment
+- [ ] Show that clipping gives T0 at 0° (boundary) and NO cooperative adaptation in T1/T2
+- **Why:** This is the "null hypothesis" — shows that energy composition produces qualitatively different behavior than trivial clipping.
+- **Cost:** ~1h (eval only, no training)
 
-## Window 2: Apr 17 – 22 (hero experiments)
+### 2c. Baseline: Lagrangian SAC (retrained per constraint)
+- [ ] Train a Gaussian SAC (or EBT) from scratch with the constraint baked into the reward: `r - λ * constraint_violation`
+- [ ] Use the same 150K training budget
+- [ ] Evaluate at the same λ values
+- [ ] Compare cooperative adaptation quality vs our zero-shot method
+- **Why:** This is the "strong" baseline — shows that retraining gives similar or worse results despite costing far more.
+- **Cost:** ~12h training (1-2 runs needed for the comparison)
 
-- [ ] **E1**: evaluate trained hero models with `t1_positive_only` (sanity baseline)
-      and real tower-base DEL constraint across the existing sweep harness
-- [ ] **E4**: evaluate zero-shot on `r1` (6-turb) and `square_3x3` (9-turb) WITH
-      constraints; compute per-turbine shift vs. graph-distance-from-constrained
-- [ ] **E5 baselines — launch early**: fork `transformer_sac_windfarm.py` as
-      `transformer_sac_lagrangian.py` with multi-channel DEL summed into reward;
-      kick off ~8 Lagrangian-retrained runs across the λ-vector lattice
-- [ ] **E5 scientific control — wire in**: add `no_cross_attention_energy` flag in
-      `networks.py` (per-turbine energy MLP only, no cross-token information flow)
-- [ ] **E2**: start multi-channel Pareto sweeps as soon as ≥2 DEL channels are
-      plumbed in
-- [ ] **G1 check** — hero result reproduces across ≥5 seeds on real DEL constraint
-- [ ] **G2 check** — scale-up result holds on 9-turbine layout
+### 2d. Pareto front
+- [ ] Use R2 checkpoint, sweep λ ∈ {0, 0.1, 0.2, 0.5, 1.0, 2.0, 5.0, 10.0, 20.0}
+- [ ] For each λ, compute: (mean power, constraint violation magnitude)
+- [ ] Plot Pareto curve
+- [ ] Overlay baseline curves from 2b and 2c
+- **Why:** Standard visualization for constraint trade-offs.
+- **Cost:** ~2h (eval only)
 
-## Window 3: Apr 22 – 27 (characterization + ablations)
+### 2e. Pick ONE main result config
+- [ ] Decide between R2 (hero constraint adaptation) and F1 (best unconstrained)
+- [ ] Document the tradeoff explicitly in the paper
+- [ ] Alternative: run Round 3 experiments to find a config that's good on both (R2 base + profile encoder with stronger energy_reg)
+- **Cost:** 0h if we just pick; ~16h if we run Round 3
 
-- [ ] **E2**: complete multi-channel Pareto sweep (~40 λ-weightings × multiple
-      layouts); generate the 3D Pareto-surface hero figure; run the per-turbine ×
-      per-channel heterogeneity demo
-- [ ] **E3**: phase-diagram sweep across `(constraint strength × coupling strength
-      × channel)`; classify cells as {clipping, composition-matches, violating,
-      inconclusive}; generate heatmap figure
-- [ ] **E5**: train CEP-style ablation (no cross-agent attention); compare
-      cooperative adaptation metric against full EBT
-- [ ] **E5**: run diffusion-actor + classifier guidance as "approximate composition"
-      baseline
-- [ ] **E6**: stacked multi-constraint demo (multi-channel DEL + travel budget +
-      per-turbine yaw limit); verify orthogonal controllability
-- [ ] Draft Experiments section in `paper/main.tex` as results land
-- [ ] **G3 check** — phase diagram readable AND CEP-ablation result decisive
+## Priority 3: Publication-strengthening experiments (SHOULD DO)
 
-## Window 4: Apr 27 – May 4 (writing)
+### 3a. Zero-shot layout generalization
+- [ ] Evaluate the R2 checkpoint on a 9-turbine layout (existing in `helpers/layouts.py`)
+- [ ] Evaluate with and without the `t1_positive_only` constraint
+- [ ] Show that the transformer handles the larger farm zero-shot
+- [ ] Ideally show "locality of cooperation" — nearby turbines adapt to T0's flip, distant ones don't
+- **Why:** Core paper claim is "turbines-as-tokens enables zero-shot scale generalization." Without this, it's just a 3-turbine paper.
+- **Cost:** ~2h eval (no training)
 
-- [ ] **G4 (Apr 28)**: check NeurIPS 2026 D&B deadline, commit main-only vs. main+D&B
-- [ ] Draft Introduction (1–1.5 pages; 3–4 numbered contributions)
-- [ ] Draft Related Work — cite EBT-Policy (arXiv 2510.27545), WFCRL (NeurIPS 2024
-      D&B), CoDiG (CoRL 2025, arXiv 2505.13131), CEP (Urain IJRR 2023), ALGD
-      (arXiv 2602.02924), Kadoche 2025 PhD, CCPO (NeurIPS 2023), UPDeT (ICLR 2021),
-      Haarnoja Soft Q-Learning (2017)
-- [ ] Draft Background (SAC ↔ EBM connection, tight)
-- [ ] Polish Methodology section
-- [ ] Polish all figures — hero (Pareto surface), phase diagram, scale-up locality,
-      energy landscape, CEP-ablation comparison
-- [ ] Write Analysis/Discussion (limitations, phase-diagram interpretation, compute)
-- [ ] Write Conclusion (from the draft in the plan)
-- [ ] Final Abstract
-- [ ] Internal read-through for flow
-- [ ] **May 4**: abstract submission
+### 3b. Multi-constraint composition
+- [ ] Compose 2-3 constraints: `E_total = E_actor + λ₁·E_t1_positive + λ₂·E_yaw_limit`
+- [ ] Show each constraint is independently controllable via its λ
+- [ ] Show removing one (λ=0) recovers single-constraint solution
+- **Why:** The word "composition" in the paper title requires showing actual composition of multiple constraints.
+- **Cost:** ~2h eval
 
-## Window 5: May 4 – 6 (polish + submit)
+### 3c. Hero figure: 2D energy landscape
+- [ ] Use `helpers/constraint_viz.py:plot_local_energy_landscape` on R2 checkpoint
+- [ ] Render side-by-side E_actor vs E_actor + λ·E_constraint
+- [ ] Polish for paper (axis labels, colorbars, minimum markers, two-basin annotation)
+- [ ] Generate PNG and PDF at publication resolution
+- **Why:** This is the figure reviewers will remember.
+- **Cost:** ~30 min rendering + ~1h polishing
 
-- [ ] Final figure polish and captions
-- [ ] Double-check all citations and bib entries
-- [ ] Final anonymization check (no `final` option, no author-revealing text)
-- [ ] Fill `checklist.tex`
-- [ ] Upload appendix/supplementary
-- [ ] **May 6**: full paper submission
+### 3d. Power ratio clarification
+- [ ] Document the baseline that power ratios are computed against (likely greedy zero-yaw)
+- [ ] Alternative: report absolute power in MW and normalize against PyWake optimum (9.71 MW unconstrained)
+- [ ] Ensure "power cost of constraint" is never negative in the final plots
+- **Cost:** ~1h analysis
 
-## Post-May-6 (conditional)
+## Priority 4: Nice-to-have (TIME PERMITTING)
 
-- [ ] If G4 committed to D&B: repackage `scripts/constraint_coupling_results.md`
-      + phase-diagram + baseline table + WindGym wrapper as WindCoupleBench
-      (~5 days extra writing)
+### 4a. Cooperative adaptation metric
+- [ ] Define: `adapt_score = mean(|y_constrained - y_unconstrained|)` over unconstrained turbines
+- [ ] Compute for ours vs clipping baseline (should be zero for clipping by definition)
+- [ ] Compute for Lagrangian baseline (should be nonzero but expensive to produce)
+- **Why:** Gives a single number that quantifies the "emergence" claim.
+- **Cost:** ~1h analysis
 
----
+### 4b. Attention visualization
+- [ ] Extract attention weights from the transformer during eval
+- [ ] Visualize how attention shifts when constraint is applied
+- [ ] Test hypothesis: constrained turbines receive more attention from others
+- **Why:** Interpretability — reviewers like this.
+- **Cost:** ~3h
 
-## Backlog (nice-to-haves if time permits)
+### 4c. Inference-time compute scaling
+- [ ] Sweep `ebt_opt_steps_eval` ∈ {5, 10, 20, 50, 100}
+- [ ] Show that more optimization steps → better constraint satisfaction (or better unconstrained power)
+- [ ] Frame as "test-time compute scaling for control"
+- **Why:** Connects to the broader trend of compute-efficient inference scaling.
+- **Cost:** ~1h eval
 
-- [ ] Attention-shift visualization (which turbines attend to which when
-      constraints are applied)
+## Priority 5: Speculative / research questions (POST-SUBMISSION)
+
+- [ ] SAC entropy with proper log_Z estimation via candidate logsumexp (requires modifying `ebt.py:optimize_actions` to return all candidate energies)
 - [ ] Automatic λ-tuning via dual ascent
-- [ ] Second mid-size layout for cross-layout generalization of E2
-- [ ] Consistency distillation for single-step inference
+- [ ] Learned constraint surrogates from SCADA data (instead of hand-crafted analytical ones)
+- [ ] Second domain beyond wind farms (cooperative navigation, traffic signal control, etc.)
+- [ ] Consistency distillation for single-step EBT inference
 - [ ] Formal convergence analysis of composed energy optimization
+
+## Writing tasks
+
+- [ ] Method section — architecture, composition mechanism, Lagrangian connection
+- [ ] Experiments section (blocked by P2 and P3)
+- [ ] Introduction
+- [ ] Related work (mostly done, see `planning/paper_plan.md`)
+- [ ] Conclusion
+- [ ] Final figures and tables (blocked by P3c)
+- [ ] Abstract — final version with real numbers
 
 ## Deferred to CoRL 2026 / future work
 
@@ -119,18 +134,36 @@
 
 ---
 
-## Completed infrastructure (carry-over from the 2026-04-10 plan)
+## Completed infrastructure (historical)
 
-- [x] EBT actor (`ebt.py`) + EBT-SAC training (`ebt_sac_windfarm.py`)
-- [x] Diffusion actor (`diffusion.py`) + Diffusion-SAC (`diffusion_sac_windfarm.py`)
-- [x] 6 toy load surrogates (`load_surrogates.py`) with per-turbine interface
+### Code
+- [x] EBT actor implementation (`ebt.py`)
+- [x] EBT-SAC training pipeline (`ebt_sac_windfarm.py`)
+- [x] Diffusion actor implementation (`diffusion.py`) — alternative, not headline
+- [x] 7 constraint surrogates (`load_surrogates.py`) — original 6 + `QuadraticPositiveYawT1Surrogate` + `LinearPositiveYawT1Surrogate`
 - [x] Per-turbine energy composition in EBT actor
-- [x] Classifier guidance in diffusion actor
 - [x] Multi-layout training environment (`helpers/multi_layout_env.py`)
-- [x] 14+ positional encoding variants
-- [x] Evaluation + sweep pipeline (`scripts/evaluate_constraints.py` — 1068 lines)
-- [x] Energy landscape viz (`scripts/visualize_energy_landscape.py`)
-- [x] PyWake brute-force constraint coupling scan (`scripts/find_constraint_coupling.py`,
-      `scripts/constraint_coupling_results.md`)
+- [x] 14+ positional encoding variants (`positional_encodings/`)
+- [x] 6 profile encoder variants including `FourierProfileEncoder` (`profile_encodings/`)
+- [x] Comprehensive constraint evaluation script (`scripts/evaluate_constraints.py`)
+- [x] Wandb integration with periodic constraint-viz figures
+- [x] Existing energy landscape visualization (`helpers/constraint_viz.py`)
+- [x] Turbine shuffle support (`shuffle_turbs` flag)
+- [x] Geometric profile computation (`helpers/geometric_profiles.py`)
+
+### Validation
+- [x] PyWake brute-force ground truth in `test.ipynb`
+- [x] `scripts/find_constraint_coupling.py` to identify layouts with coupled constraint response
+- [x] `multi_modal` 3-turbine layout identified as the kill-test scenario
+
+### Experiments
+- [x] Round 0: Initial 30K runs (2026-04-11) — baseline that failed to converge
+- [x] Round 1: 60K DroQ × ep_length sweep (2026-04-12) — characterized the DroQ collapse issue
+- [x] Round 1': 150K DroQ × energy_reg sweep (2026-04-14) — **R2 winner for hero experiment**
+- [x] Round 2: 150K Fourier profile × shuffle_turbs sweep (2026-04-14) — F1 winner for unconstrained
+- [x] All Round 1' and Round 2 checkpoints evaluated with zero-init + steady-state averaging
+- [x] Identified and fixed hardcoded `min(50, num_eval_steps)` viz cap
+
+### Literature
 - [x] Curated reading list (`papers/PAPERS.md`)
 - [x] NeurIPS 2026 LaTeX template (`paper/main.tex`, `paper/figs/`)

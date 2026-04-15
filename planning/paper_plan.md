@@ -1,55 +1,293 @@
-# Paper Plan — Pointer
+# Paper Plan: Composable Energy Policies for Constrained Multi-Agent Control
 
-> **Status:** superseded by the 2026-04-15 re-plan. The execution-ready plan lives at
-> `~/.claude/plans/gentle-kindling-papert.md`. The original 2026-04-10 plan (dramatic-flip framing)
-> is preserved verbatim at `planning/paper_plan_v1.md` for the record.
+> Research planning document — synthesized from structured ideation session (2026-04-10).
+> Target: NeurIPS 2026 (abstract deadline ~May 4, full paper ~May 6). Backup: ICLR 2027 (~Oct 2026).
 
-## What changed on 2026-04-15
+---
 
-After re-reading the empirical results (`scripts/constraint_coupling_results.md`,
-`results/constraint_eval_v2_histlen2/summary.csv`, `results/eval_droq_60k/summary.csv`) and
-checking the literature with fresh eyes, the original "dramatic bimodal flip"
-framing was replaced. Two hard facts drove the pivot:
+## 🚦 Status Update (2026-04-14)
 
-1. **Physics ceiling.** PyWake brute-force over 1500+ layouts shows genuine strategy
-   shifts under yaw constraints top out at ~10° per free turbine at ≥5D spacing; larger
-   apparent flips are `cos²(+θ) = cos²(-θ)` inline-symmetry artifacts. The original
-   `[-16°, -17°, 0°] → [+22.7°, -9.3°, 0°]` story does not robustly exist in realistic
-   farm geometries.
-2. **Training fragility.** The EBT-SAC model on `multi_modal` does show emergent
-   cooperative adaptation, but only in a narrow `(λ, steepness)` window, and the
-   effect is sensitive to training recipe across seeds.
+**Priority 1 (Kill Test): ✅ PASSED.** The hero experiment works. See [`../EXPERIMENTS.md`](../EXPERIMENTS.md) for full details.
 
-And one hard fact from the literature:
+**Key result:** `ebt_150k_nodroq_reg05` (R2) at λ=0.5 under `t1_positive_only`:
+- T0 flips from -14.2° (unconstrained) to +18.9° (constrained) — a 33° flip
+- T1 shifts from -21.5° to **-9.0° — within 0.3° of PyWake ground truth** -9.3°
+- Power: 8.46 MW constrained vs 9.36 MW unconstrained (9.6% loss vs PyWake's 3.3%)
 
-3. **EBT-Policy** (Gladstone et al., arXiv 2510.27545, Oct 2025) already claims
-   "energy-based transformers as visuomotor policies with inference-time compute
-   scaling and emergent behaviors." This closes the "EBT for control" framing and
-   forces the headline claim to be **multi-agent-specific**.
+This is the clearest demonstration of the paper's central claim: **emergent cooperative adaptation under post-hoc energy composition, no retraining**.
 
-## The new headline
+**Priority 2-7: Not started.** Remaining work for submission (see [`../TODO.md`](../TODO.md)):
 
-> In multi-agent energy-based control, composing per-agent × per-channel constraint
-> energies at deployment produces *cooperative reorganization across agent tokens* —
-> a structural property that single-agent composable-energy methods (CEP, CoDiG,
-> EBT-Policy) cannot express. A single EBT-SAC policy trained for power
-> maximization admits arbitrary per-turbine × per-damage-channel constraint
-> profiles at deployment, tracing Pareto frontiers across multiple fatigue
-> channels with zero retraining. We characterize the regime in which cooperative
-> emergence occurs and validate against Lagrangian-retrained and action-clipping
-> baselines.
+| Priority | Item | Status |
+|---|---|---|
+| P1 | Hero experiment | ✅ Done |
+| P2a | Seed variance (5 seeds) | ⏸ **Critical** — all results currently seed=1 only |
+| P2b | Naive clipping baseline | ⏸ Cheap (~1h eval) |
+| P2c | Lagrangian SAC baseline | ⏸ **Critical** — shows retraining cost |
+| P2d | Pareto front | ⏸ ~2h eval |
+| P3 | Hero figure (2D energy landscape) | ⏸ ~1h |
+| P4 | 9-turbine scaling experiment | ⏸ **Strengthens claim** — ~2h eval |
+| P5 | Multi-constraint composition | ⏸ ~2h eval |
+| Writing | Method, experiments, intro, etc. | ⏸ Not started |
 
-## Key operational changes
+**Strategic call:** Results are strong enough for NeurIPS if we can execute P2a + P2b + P2c + P3 + P4 before the deadline (~3 weeks). If not, target ICLR 2027 with 6 months of runway.
 
-- **Multi-channel DEL surrogates** (real neural surrogates fit to high-fidelity
-  aeroelastic simulations, all basic channels: tower base, blade root, main bearing,
-  etc.) replace the toy load surrogates in `load_surrogates.py` as the hero constraint.
-- **Phase diagram** `(coupling strength × constraint strength × channel)` turns the
-  fragility into a scientific characterization.
-- **CEP-style ablation** (strip cross-agent attention from the energy head) is the
-  crucial scientific control isolating the multi-agent joint-optimization claim.
-- **Second hero layout**: `stag4_5d` added to `helpers/layouts.py` — validated by
-  PyWake as the layout with strongest constraint coupling.
+**Hyperparameter sensitivity is our biggest risk.** No single config wins on both unconstrained AND constrained metrics — R2 wins cooperative adaptation, F1 wins unconstrained T2 fit. See EXPERIMENTS.md "Current best configurations" for the tradeoff analysis.
 
-See `~/.claude/plans/gentle-kindling-papert.md` for the full experiment plan, timeline,
-decision gates, and positioning table.
+---
+
+## The Nugget
+
+**Energy-based transformer policies enable zero-shot constraint composition in multi-agent control: constraining one agent at deployment causes the entire team to cooperatively reorganize to a new joint optimum — without retraining.**
+
+## Framing Strategy
+
+Lead with **one headline contribution**: post-hoc constraint composition via energy addition that produces emergent cooperative adaptation. Everything else is supporting evidence.
+
+| Element | Role in paper |
+|---------|--------------|
+| Post-hoc constraint composition + emergent cooperation | **Headline** — the "wow" result |
+| Lagrangian duality connection | **Theory** — grounds the mechanism formally |
+| Turbines-as-tokens zero-shot generalization | **Supporting** — Section 4.x, not the headline |
+| Inference-time compute scaling (more opt steps → better) | **Appendix** — nice-to-have |
+| EBT vs. diffusion comparison | **Not included** — doesn't excite, dilutes focus |
+
+### What this paper is NOT
+
+- "We applied EBMs to wind farms" — too narrow, niche framing
+- "We combined transformer + EBM + RL" — no clear thesis, the "kitchen sink" trap
+- A wind energy paper — the domain is the demonstration, not the contribution
+
+### What this paper IS
+
+A **general principle for deployable constrained multi-agent RL**, demonstrated on a compelling physical domain. The pitch:
+
+> "Operational constraints in multi-agent systems often affect only a subset of agents, yet standard constrained MARL methods require retraining the entire team for each new constraint configuration. We show that energy-based transformer policies enable exact post-hoc composition of per-agent constraints as additive energy terms. Constraining a single agent causes the team to cooperatively reorganize to a genuinely new joint optimum — not merely clipping the constrained agent's actions — with zero retraining."
+
+---
+
+## Title Candidates
+
+1. **Composable Energy Policies: Zero-Shot Constraint Adaptation in Multi-Agent Control**
+2. Train Once, Constrain Anywhere: Energy-Based Policies for Deployable Constrained Control
+3. Composable Energy Policies for Generalizable Wind Farm Control
+
+Preference: (1) — clean, specific, signals both composition and multi-agent.
+
+---
+
+## Draft Abstract
+
+> **(Topic)** Deploying reinforcement learning policies in multi-agent physical systems requires adapting to operational constraints that change over the system's lifetime — load limits on individual agents, travel budgets, safety exclusion zones — yet standard constrained RL methods require costly retraining for each new constraint configuration.
+>
+> **(Problem)** This retraining bottleneck is particularly severe when constraints affect only a subset of agents, because optimal cooperative strategies may change qualitatively: the best joint response to a single-agent constraint is not simply clipping that agent's actions, but reorganizing the entire team.
+>
+> **(Method)** We introduce Composable Energy Policies for multi-agent control, where a transformer backbone treats each agent as a token and an energy-based actor learns the task objective as an energy landscape E(s,a). At deployment, arbitrary differentiable constraints are composed as additive energy terms — E_total = E_task + Σ λ_i · E_constraint_i — and gradient-based action optimization naturally respects all objectives without retraining.
+>
+> **(Results)** On wind farm yaw control, a single policy trained on small layouts generalizes zero-shot to larger farms and, when per-turbine constraints are composed at deployment, discovers qualitatively different cooperative strategies: constraining one turbine to positive-only yaw causes it to flip from −16° to +23° while unconstrained neighbors cooperatively adjust their angles, recovering [X]% of optimal power. We show this composition is formally equivalent to Lagrangian relaxation and that sweeping λ traces the Pareto frontier between performance and constraint satisfaction.
+>
+> **(Why it matters)** Our results establish energy-based policies as a principled framework for deploying adaptive multi-agent control under changing operational constraints, eliminating the retraining cycle that currently limits real-world RL deployment.
+
+## Draft Conclusion
+
+> We have shown that energy-based transformer policies fundamentally change how constraints interact with multi-agent RL: rather than retraining for each constraint configuration, operators compose constraint energies at deployment and the policy cooperatively adapts. The key finding is not merely that constraints can be enforced post-hoc — it is that the energy landscape's joint optimization produces emergent cooperative behavior, where constraining one agent causes others to reorganize to a qualitatively different optimum. This is impossible with post-hoc action clipping and prohibitively expensive with constraint-conditioned retraining. Combined with the turbines-as-tokens architecture that enables zero-shot generalization across system sizes, this yields a single trained model deployable to any farm with any constraint profile — a practical paradigm shift for operational RL.
+
+---
+
+## Experiment Plan
+
+### Priority 1: Hero Experiment (Kill Test) — by April 17
+
+**Goal:** Validate that the EBT actor discovers emergent cooperative behavior under constraints.
+
+- Train EBT-SAC on `multi_modal` 3-turbine layout
+- Evaluate with `t1_positive_only` constraint at guidance scales λ ∈ {0.1, 0.5, 1.0, 2.0, 5.0}
+- **Success criterion:** T1 flips from negative to positive yaw (ideally near +22.7°) AND at least one other turbine measurably changes its yaw
+- **Kill criterion:** If T1 stays negative across all guidance scales, the central claim fails → target ICLR 2027
+
+**Known optimal solutions (PyWake brute-force):**
+- Unconstrained: `[-16°, -17.3°, 0°]`
+- With `t1_positive_only`: `[+22.7°, -9.3°, 0°]`
+
+### Priority 2: Energy Landscape Visualization — 1 day
+
+The figure reviewers will remember. Side-by-side:
+- Left: Actor energy E_actor(s, a) landscape (T1 vs T2 yaw, T3 fixed)
+- Right: Composed energy E_actor + λ·E_constraint landscape
+- Show the minimum shifting to a different basin
+
+### Priority 3: Pareto Front — 1-2 days
+
+Sweep λ from 0 to large. Plot (power output, constraint satisfaction) as a Pareto curve.
+Compare against:
+- Naive post-hoc action clipping
+- Lagrangian SAC retrained at each constraint level (if time permits)
+
+### Priority 4: Scale to 9-16 Turbines — 3-5 days
+
+Train on small layouts, evaluate on 9+ turbine layouts WITH constraints.
+Key result: show "locality of cooperation" — nearby wake-affected turbines adapt, distant ones don't.
+Addresses the "3 turbines is too small" criticism.
+
+### Priority 5: Multi-Constraint Composition — 2-3 days
+
+Compose 2-3 constraints simultaneously:
+`E_total = E_actor + λ₁·E_yaw_limit + λ₂·E_travel_budget + λ₃·E_t1_positive`
+
+Show:
+- Each constraint independently controllable via its λ
+- Removing one (λ=0) recovers the unconstrained solution for that dimension
+- Joint solution differs from satisfying constraints sequentially
+
+### Priority 6: Cooperative Adaptation Metric — 1 day
+
+Define and compute: how much do unconstrained turbines change their actions when a constraint is added to another turbine?
+- Clipping: exactly zero (by definition)
+- Energy composition: nonzero (the point of the paper)
+- Lagrangian retraining: nonzero but requires expensive retraining
+
+### Priority 7: Attention Visualization — 1-2 days
+
+Show which turbines attend to which others, and how attention shifts when constraints are applied.
+Hypothesis: when T1 is constrained, other turbines attend more to T1.
+
+---
+
+## Baseline Comparisons
+
+| Method | Retraining needed? | Can find new optima? | Handles variable agents? |
+|--------|-------------------|---------------------|-------------------------|
+| Post-hoc action clipping | No | No (clips to boundary) | N/A |
+| Lagrangian SAC (retrained) | Yes (per constraint) | Yes (but expensive) | No (fixed architecture) |
+| CCPO (constraint-conditioned) | Yes (trains on constraint range) | Partially | No |
+| **Ours (composable energy)** | **No** | **Yes** | **Yes** |
+
+---
+
+## Theoretical Contribution: Lagrangian Duality
+
+Adding λ·E_constraint to E_actor is exactly Lagrangian relaxation:
+
+```
+min_a  E_actor(s, a)    subject to    E_constraint(a) ≤ 0
+```
+
+- λ is the Lagrangian multiplier
+- The guidance scale has a formal interpretation
+- Sweeping λ traces the Pareto frontier (by Lagrangian duality)
+- Can implement automatic λ-tuning via dual ascent (~20 lines of code)
+
+**Note:** Do NOT overclaim this as a contribution — ALGD (Feb 2026) already frames Lagrangian-as-energy for diffusion. Present as supporting theory/background.
+
+---
+
+## Key Prior Work and Positioning
+
+### Must cite and clearly differentiate from:
+
+| Paper | What they did | What's new in our work |
+|-------|--------------|----------------------|
+| **Urain et al. (RSS 2021, IJRR 2023)** — Composable Energy Policies | Energy composition for single-robot reactive motion | Multi-agent, RL-trained energies, emergent cross-agent cooperation |
+| **Du & Mordatch (NeurIPS 2020)** — Compositional EBMs | Additive energy composition for image generation | Sequential control (not one-shot generation), multi-agent |
+| **Gladstone et al. (2025)** — Energy-Based Transformers | EBT architecture for supervised learning | RL training, control applications, constraint composition |
+| **UPDeT (ICLR 2021)** — Agents-as-tokens | Transformer for multi-agent RL | Energy-based actor (not just transformer backbone), constraint composition |
+| **Haarnoja et al. (ICML 2017)** — Soft Q-Learning | Original EBM + RL connection | Explicit energy with post-hoc composition, transformer backbone |
+| **CCPO (NeurIPS 2023)** | Zero-shot constraint adaptation | No constraint-conditioned training needed; energy composition is post-hoc |
+| **CoDiG (CoRL 2025)** | Constraint-aware diffusion guidance | EBM (not diffusion), multi-agent cooperation (not single-robot) |
+| **ALGD (Feb 2026)** | Lagrangian as energy for diffusion | Multi-agent, cooperative emergence, post-hoc (not retrained) |
+
+### Cross-field connections to mention:
+
+- **Protein design:** Composable energy landscapes for multi-property optimization (binding + stability + solubility)
+- **Test-time compute scaling:** EBT's variable optimization steps as inference-time scaling for control (brief mention, not headline)
+
+---
+
+## Competitive Landscape
+
+**Scooping risk: LOW.** No group is pursuing the exact combination of EBM + multi-agent + transformer + post-hoc constraints.
+
+**Groups to watch:**
+- Julen Urain (META FAIR) — composable energy policies inventor, moved to flow matching
+- Alexi Gladstone (MIT) — EBT paper, focused on supervised learning
+- Hao Ma / Melanie Zeilinger (ETH Zurich) — CoDiG, constraint-aware diffusion
+
+**Timing: Well-timed.** Within a 12-18 month optimal window. EBMs resurging, composable policies trending, safe RL hot. The window is open but will narrow as diffusion-based constraint methods converge toward energy-based formulations.
+
+---
+
+## Positioning Dos and Don'ts
+
+**Do:**
+- Lead with emergent cooperative adaptation — it's the surprise
+- Frame as general multi-agent principle, wind farms as compelling domain
+- Acknowledge Urain et al. explicitly, state clearly what's new
+- Compare against clipping AND Lagrangian retraining baselines
+- Explain why EBM composition > diffusion guidance (exact vs. approximate)
+
+**Don't:**
+- Lead with "we applied EBMs to wind farms"
+- Position as a wind energy paper
+- Overclaim Lagrangian duality as novel (ALGD exists)
+- Compare only against naive clipping
+- Try to sell all contributions equally — one headline, rest supporting
+
+---
+
+## Paper Structure (Suggested)
+
+1. **Introduction** — The deployment problem: constraints change, retraining is expensive. Our solution: composable energy policies.
+2. **Background** — EBMs, SAC, the SAC↔EBM connection, transformer for variable-size agents
+3. **Method**
+   - 3.1 Energy-Based Transformer Actor (architecture)
+   - 3.2 Post-Hoc Constraint Composition (the mechanism)
+   - 3.3 Connection to Lagrangian Duality (theoretical grounding)
+4. **Experiments**
+   - 4.1 Hero: Emergent cooperative adaptation (multi_modal + t1_positive_only)
+   - 4.2 Pareto fronts and constraint trade-offs
+   - 4.3 Multi-constraint composition
+   - 4.4 Zero-shot layout generalization with constraints
+   - 4.5 Energy landscape visualization
+5. **Related Work** — Composable EBMs, constrained RL, transformer MARL, wind farm RL
+6. **Conclusion**
+
+---
+
+## Timeline
+
+**Original plan (Apr 10):**
+
+| Date | Milestone |
+|------|-----------|
+| Apr 10-17 | **Kill test:** Train EBT-SAC on multi_modal, validate hero experiment |
+| Apr 17-18 | Energy landscape visualization |
+| Apr 18-20 | Pareto fronts + baseline comparisons |
+| Apr 20-25 | Scale-up experiments (9-16 turbines) + multi-constraint |
+| Apr 25-May 1 | Writing (method + experiments sections) |
+| May 1-4 | Writing (intro, related work, conclusion), figures |
+| May 4 | Abstract submission |
+| May 6 | Full paper submission |
+
+**Updated status (Apr 14):**
+
+| Date | Milestone | Status |
+|---|---|---|
+| Apr 10-17 | Kill test | ✅ **Done (Apr 14, 3 days early)** |
+| Apr 14-17 | Seed variance + baselines + hero figure | ⏸ Next |
+| Apr 17-22 | Scale-up + multi-constraint + Pareto front | ⏸ |
+| Apr 22-May 1 | Writing (method + experiments) | ⏸ |
+| May 1-4 | Writing (intro, related work, conclusion), figures | ⏸ |
+| May 4 | Abstract submission | ⏸ |
+| May 6 | Full paper submission | ⏸ |
+
+**If hero experiment failed by Apr 17:** Would have stopped and targeted ICLR 2027. Passed — proceeding with NeurIPS timeline. Main risk now is execution speed on P2-P5; fallback remains ICLR 2027 if any of P2a/P2c/P4 hit unexpected obstacles.
+
+---
+
+## Key Diagnostic: Energy Landscape Shape
+
+Before running the full hero experiment, visualize the 2D energy landscape (T1 yaw vs T2 yaw, T3 fixed at 0°):
+- **With composition:** Should show two distinct basins (one near [-16, -17], one near [+23, -9])
+- **Without composition:** Should show single basin near [-16, -17]
+
+If the composed landscape is unimodal with a repulsive wall (constraint pushes to boundary, no second basin), the cooperation claim will fail and training may need adjustment.
