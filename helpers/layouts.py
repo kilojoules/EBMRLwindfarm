@@ -111,6 +111,14 @@ def get_layout_positions(layout_type: str, wind_turbine) -> Tuple[np.ndarray, np
         "25_turb_test": lambda: (np.array([3588.3005, 2297.0637, 240.3961, 1820.7693, 217.3375, 2907.9353, 1938.7787, 1749.1438, 3016.3428, 3921.0451, 1013.2723, 905.9995, 3593.7048, 664.3395, 1999.3853, 3565.463, 2730.2981, 4420.399, 4407.848, 12.2368, 2647.9952, 89.6966, 2509.7429, 1165.3624, 4223.4441]), np.array([2881.1169, 1019.1677, 1367.0934, 161.4513, 3563.062, 836.2634, 3473.948, 1758.1201, 216.8225, 228.9887, 3193.1684, 1158.7455, 1128.4681, 2490.8938, 2849.0182, 1808.205, 3355.6095, 2580.6295, 669.2488, 695.9389, 2629.8073, 1985.8477, 1753.7013, 166.5023, 1334.7882])),
         "multi_modal": lambda: (np.array([0.0, 5.0, 11.0]) * wind_turbine.diameter(),
                         np.array([0.0, 0.4, -0.1]) * wind_turbine.diameter()),
+        # 4-turbine staggered chain, 5D inline spacing, +0.5D lateral offset on
+        # odd-indexed turbines. Validated by PyWake brute-force as the layout
+        # with strongest constraint coupling (~10 deg shifts on free turbines
+        # at ~2.4% power cost, WD=85 deg); see scripts/constraint_coupling_results.md
+        # and scripts/find_constraint_coupling.py. Used as the second hero
+        # layout alongside `multi_modal` for the NeurIPS 2026 re-plan.
+        "stag4_5d": lambda: (np.array([0.0, 5.0, 10.0, 15.0]) * wind_turbine.diameter(),
+                             np.array([0.0, 0.5,  0.0,  0.5]) * wind_turbine.diameter()),
     }
 
     if layout_type not in layouts:
