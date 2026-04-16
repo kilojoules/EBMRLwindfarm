@@ -116,6 +116,22 @@ def sector_averages(
     return WS @ W.T, TI @ W.T
 
 
+def sector_averages_reordered(
+    wfm, x_wt, y_wt, hub_h, wd, ws, ti, yaw, template, sim_res=None,
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Like sector_averages but returns (WS, TI) already in the surrogate's
+    input order [left, right, up, down] with the verified L/R swap applied.
+
+    Returns (n_turbines, 4), (n_turbines, 4).
+    """
+    WS_sec, TI_sec = sector_averages(
+        wfm, x_wt, y_wt, hub_h, wd, ws, ti, yaw, template, sim_res
+    )
+    WS_in = np.stack([WS_sec[:, 1], WS_sec[:, 3], WS_sec[:, 0], WS_sec[:, 2]], axis=1)
+    TI_in = np.stack([TI_sec[:, 1], TI_sec[:, 3], TI_sec[:, 0], TI_sec[:, 2]], axis=1)
+    return WS_in, TI_in
+
+
 # -----------------------------------------------------------------------------
 # Surrogate wrapper
 # -----------------------------------------------------------------------------

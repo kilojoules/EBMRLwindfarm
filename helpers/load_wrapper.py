@@ -143,6 +143,20 @@ class LoadWrapper(gym.Wrapper):
 
         info["loads_baseline"] = self._compute_loads(baseline_yaws)
         info["loads_current"] = self._compute_loads(current_yaws)
+
+        # Expose sector averages for the current state so the DEL constraint
+        # module can use them as frozen context inside the EBT optimization loop.
+        from helpers.surrogate_loads import sector_averages_reordered
+        x = np.asarray(base.x_pos, dtype=float)
+        y = np.asarray(base.y_pos, dtype=float)
+        hub_h = np.full(len(x), self._hub_height)
+        WS_in, TI_in = sector_averages_reordered(
+            self._wfm, x, y, hub_h,
+            wd=float(base.wd), ws=float(base.ws), ti=float(base.ti),
+            yaw=current_yaws, template=self._rotor_template,
+        )
+        # (n_turbines, 8): [saws_L, saws_R, saws_U, saws_D, sati_L, sati_R, sati_U, sati_D]
+        info["sector_averages"] = np.hstack([WS_in, TI_in])
         return info
 
     # ------------------------------------------------------------------- API
