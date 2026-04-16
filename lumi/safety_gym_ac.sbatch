@@ -5,7 +5,7 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=7
 #SBATCH --mem=60G
-#SBATCH --time=04:00:00
+#SBATCH --time=06:00:00
 #SBATCH --job-name=safety_ac
 #SBATCH --output=logs/safety_ac_%j.out
 #SBATCH --error=logs/safety_ac_%j.err

@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.27 (TeX Live 2025) (preloaded format=pdflatex 2026.1.27)  15 APR 2026 21:35
+This is pdfTeX, Version 3.141592653-2.6-1.40.27 (TeX Live 2025) (preloaded format=pdflatex 2026.1.27)  16 APR 2026 09:50
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -626,7 +626,7 @@ my insertion and my current dilemma will both disappear.
 al/texlive/2025/texmf-dist/fonts/enc/dvips/cm-super/cm-super-t1.enc}]
 
 [2]
-<figures/fig_approx_quality.pdf, id=188, 713.69241pt x 277.95029pt>
+<figures/fig_approx_quality.pdf, id=192, 713.69241pt x 277.95029pt>
 File: figures/fig_approx_quality.pdf Graphic file (type pdf)
 <use figures/fig_approx_quality.pdf>
 Package pdftex.def Info: figures/fig_approx_quality.pdf  used on input line 206
@@ -635,7 +635,7 @@ Package pdftex.def Info: figures/fig_approx_quality.pdf  used on input line 206
 
 
 [3]
-<figures/fig_lambda_contours.pdf, id=203, 935.09329pt x 320.69917pt>
+<figures/fig_lambda_contours.pdf, id=207, 935.09329pt x 320.69917pt>
 File: figures/fig_lambda_contours.pdf Graphic file (type pdf)
 <use figures/fig_lambda_contours.pdf>
 Package pdftex.def Info: figures/fig_lambda_contours.pdf  used on input line 22
@@ -652,42 +652,42 @@ put line 259.
 
 [6{/usr/local/texlive/2025/texmf-dist/fonts/enc/dvips/cm-super/cm-super-ts1.enc
 }]
-<figures/fig1_mechanism.pdf, id=376, 713.58047pt x 497.56201pt>
+<figures/fig1_mechanism.pdf, id=380, 713.58047pt x 497.56201pt>
 File: figures/fig1_mechanism.pdf Graphic file (type pdf)
 <use figures/fig1_mechanism.pdf>
 Package pdftex.def Info: figures/fig1_mechanism.pdf  used on input line 358.
 (pdftex.def)             Requested size: 469.75502pt x 327.54921pt.
-<figures/fig2_physical.pdf, id=377, 859.07161pt x 280.70622pt>
+<figures/fig2_physical.pdf, id=381, 859.07161pt x 280.70622pt>
 File: figures/fig2_physical.pdf Graphic file (type pdf)
 <use figures/fig2_physical.pdf>
 Package pdftex.def Info: figures/fig2_physical.pdf  used on input line 365.
 (pdftex.def)             Requested size: 469.75502pt x 153.4937pt.
-<figures/fig_windfarm_spatial.pdf, id=383, 642.88177pt x 280.64073pt>
+<figures/fig_windfarm_spatial.pdf, id=387, 642.88177pt x 280.64073pt>
 File: figures/fig_windfarm_spatial.pdf Graphic file (type pdf)
 <use figures/fig_windfarm_spatial.pdf>
 Package pdftex.def Info: figures/fig_windfarm_spatial.pdf  used on input line 4
 20.
 (pdftex.def)             Requested size: 469.75502pt x 205.063pt.
-<figures/fig_windfarm_budget.pdf, id=384, 715.15178pt x 316.84122pt>
+<figures/fig_windfarm_budget.pdf, id=388, 715.15178pt x 316.84122pt>
 File: figures/fig_windfarm_budget.pdf Graphic file (type pdf)
 <use figures/fig_windfarm_budget.pdf>
 Package pdftex.def Info: figures/fig_windfarm_budget.pdf  used on input line 42
 7.
 (pdftex.def)             Requested size: 469.75502pt x 208.12474pt.
-<figures/fig_windfarm_timeseries.pdf, id=385, 859.24644pt x 714.37201pt>
+<figures/fig_windfarm_timeseries.pdf, id=389, 859.24644pt x 714.37201pt>
 File: figures/fig_windfarm_timeseries.pdf Graphic file (type pdf)
 <use figures/fig_windfarm_timeseries.pdf>
 Package pdftex.def Info: figures/fig_windfarm_timeseries.pdf  used on input lin
 e 434.
 (pdftex.def)             Requested size: 469.75502pt x 390.56223pt.
-<figures/fig_windfarm_timeseries_heatmap.pdf, id=386, 931.83195pt x 243.53358pt
+<figures/fig_windfarm_timeseries_heatmap.pdf, id=390, 931.83195pt x 243.53358pt
 >
 File: figures/fig_windfarm_timeseries_heatmap.pdf Graphic file (type pdf)
 <use figures/fig_windfarm_timeseries_heatmap.pdf>
 Package pdftex.def Info: figures/fig_windfarm_timeseries_heatmap.pdf  used on i
 nput line 441.
 (pdftex.def)             Requested size: 469.75502pt x 122.7698pt.
-<figures/fig3_pareto.pdf, id=387, 713.4669pt x 316.84122pt>
+<figures/fig3_pareto.pdf, id=391, 713.4669pt x 316.84122pt>
 File: figures/fig3_pareto.pdf Graphic file (type pdf)
 <use figures/fig3_pareto.pdf>
 Package pdftex.def Info: figures/fig3_pareto.pdf  used on input line 448.
@@ -723,12 +723,12 @@ Package hyperref Warning: Token not allowed in a PDF string (Unicode):
 Package hyperref Warning: Token not allowed in a PDF string (Unicode):
 (hyperref)                removing `math shift' on input line 476.
 
-<figures/fig4_flexibility.pdf, id=406, 715.15178pt x 280.70622pt>
+<figures/fig4_flexibility.pdf, id=410, 715.15178pt x 280.70622pt>
 File: figures/fig4_flexibility.pdf Graphic file (type pdf)
 <use figures/fig4_flexibility.pdf>
 Package pdftex.def Info: figures/fig4_flexibility.pdf  used on input line 492.
 (pdftex.def)             Requested size: 469.75502pt x 184.3886pt.
-<figures/fig5_ablations.pdf, id=407, 859.75482pt x 244.5411pt>
+<figures/fig5_ablations.pdf, id=411, 859.75482pt x 244.5411pt>
 File: figures/fig5_ablations.pdf Graphic file (type pdf)
 <use figures/fig5_ablations.pdf>
 Package pdftex.def Info: figures/fig5_ablations.pdf  used on input line 499.
@@ -739,85 +739,71 @@ Package pdftex.def Info: figures/fig5_ablations.pdf  used on input line 499.
 
 [9 <./figures/fig2_physical.pdf>]
 
-[10] (./main.bbl
+[10]
 
 [11 <./figures/fig_windfarm_spatial.pdf>]
 
-[12 <./figures/fig_windfarm_budget.pdf>])
+[12 <./figures/fig_windfarm_budget.pdf>] (./main.bbl
 
-[13]
+[13])
 
-[14 <./figures/fig_windfarm_timeseries.pdf> <./figures/fig_windfarm_timeseries_
+[14]
+
+[15 <./figures/fig_windfarm_timeseries.pdf> <./figures/fig_windfarm_timeseries_
 heatmap.pdf>]
 
-[15 <./figures/fig3_pareto.pdf> <./figures/fig4_flexibility.pdf>]
+[16 <./figures/fig3_pareto.pdf> <./figures/fig4_flexibility.pdf>]
 
-[16 <./figures/fig5_ablations.pdf>] (./main.aux)
+[17 <./figures/fig5_ablations.pdf>] (./main.aux)
  ***********
 LaTeX2e <2024-11-01> patch level 2
 L3 programming layer <2025-01-18>
  ***********
-
-
-LaTeX Warning: Label(s) may have changed. Rerun to get cross-references right.
-
 Package rerunfilecheck Info: File `main.out' has not changed.
-(rerunfilecheck)             Checksum: 3AEC18055AD656D4CB746B38FC7FECDD;4284.
+(rerunfilecheck)             Checksum: 5C9F470356CDDAF2F7711853E35661DD;4618.
  ) 
 Here is how much of TeX's memory you used:
- 15748 strings out of 473190
- 249534 string characters out of 5715800
- 699489 words of memory out of 5000000
- 38408 multiletter control sequences out of 15000+600000
- 589674 words of font info for 227 fonts, out of 8000000 for 9000
+ 15769 strings out of 473190
+ 249762 string characters out of 5715800
+ 701491 words of memory out of 5000000
+ 38413 multiletter control sequences out of 15000+600000
+ 590259 words of font info for 235 fonts, out of 8000000 for 9000
  1141 hyphenation exceptions out of 8191
- 75i,10n,79p,1001b,608s stack positions out of 10000i,1000n,20000p,200000b,200000s
-
-pdfTeX warning (dest): name{table.caption.12} has been referenced but does not 
-exist, replaced by a fixed one
-
-
-pdfTeX warning (dest): name{figure.caption.11} has been referenced but does not
- exist, replaced by a fixed one
-
-
-pdfTeX warning (dest): name{table.caption.9} has been referenced but does not e
-xist, replaced by a fixed one
-
-</usr/local/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx10.pfb><
-/usr/local/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmex10.pfb></
-usr/local/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi10.pfb></u
-sr/local/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi12.pfb></us
-r/local/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi5.pfb></usr/
-local/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi7.pfb></usr/lo
-cal/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi9.pfb></usr/loca
-l/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmr10.pfb></usr/local/
-texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmr12.pfb></usr/local/te
-xlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmr5.pfb></usr/local/texli
-ve/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmr7.pfb></usr/local/texlive/
-2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmr9.pfb></usr/local/texlive/202
-5/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy10.pfb></usr/local/texlive/2025
-/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy7.pfb></usr/local/texlive/2025/t
-exmf-dist/fonts/type1/public/amsfonts/cm/cmsy8.pfb></usr/local/texlive/2025/tex
-mf-dist/fonts/type1/public/amsfonts/cm/cmsy9.pfb></usr/local/texlive/2025/texmf
--dist/fonts/type1/public/amsfonts/symbols/msam10.pfb></usr/local/texlive/2025/t
-exmf-dist/fonts/type1/public/amsfonts/symbols/msbm10.pfb></usr/local/texlive/20
-25/texmf-dist/fonts/type1/public/cm-super/sfbx0900.pfb></usr/local/texlive/2025
-/texmf-dist/fonts/type1/public/cm-super/sfbx1000.pfb></usr/local/texlive/2025/t
-exmf-dist/fonts/type1/public/cm-super/sfbx1200.pfb></usr/local/texlive/2025/tex
-mf-dist/fonts/type1/public/cm-super/sfbx1440.pfb></usr/local/texlive/2025/texmf
--dist/fonts/type1/public/cm-super/sfrm0800.pfb></usr/local/texlive/2025/texmf-d
-ist/fonts/type1/public/cm-super/sfrm0900.pfb></usr/local/texlive/2025/texmf-dis
-t/fonts/type1/public/cm-super/sfrm1000.pfb></usr/local/texlive/2025/texmf-dist/
-fonts/type1/public/cm-super/sfrm1200.pfb></usr/local/texlive/2025/texmf-dist/fo
-nts/type1/public/cm-super/sfrm1728.pfb></usr/local/texlive/2025/texmf-dist/font
-s/type1/public/cm-super/sfti1000.pfb></usr/local/texlive/2025/texmf-dist/fonts/
-type1/public/cm-super/sftt1000.pfb></usr/local/texlive/2025/texmf-dist/fonts/ty
-pe1/public/cm-super/sftt1200.pfb>
-Output written on main.pdf (16 pages, 978454 bytes).
+ 75i,10n,79p,1001b,598s stack positions out of 10000i,1000n,20000p,200000b,200000s
+</usr/local/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx10.pfb
+></usr/local/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmex10.pfb>
+</usr/local/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi10.pfb><
+/usr/local/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi12.pfb></
+usr/local/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi5.pfb></us
+r/local/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi7.pfb></usr/
+local/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi9.pfb></usr/lo
+cal/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmr10.pfb></usr/loca
+l/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmr12.pfb></usr/local/
+texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmr5.pfb></usr/local/tex
+live/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmr7.pfb></usr/local/texliv
+e/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmr9.pfb></usr/local/texlive/2
+025/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy10.pfb></usr/local/texlive/20
+25/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy7.pfb></usr/local/texlive/2025
+/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy8.pfb></usr/local/texlive/2025/t
+exmf-dist/fonts/type1/public/amsfonts/cm/cmsy9.pfb></usr/local/texlive/2025/tex
+mf-dist/fonts/type1/public/amsfonts/symbols/msam10.pfb></usr/local/texlive/2025
+/texmf-dist/fonts/type1/public/amsfonts/symbols/msbm10.pfb></usr/local/texlive/
+2025/texmf-dist/fonts/type1/public/cm-super/sfbx0900.pfb></usr/local/texlive/20
+25/texmf-dist/fonts/type1/public/cm-super/sfbx1000.pfb></usr/local/texlive/2025
+/texmf-dist/fonts/type1/public/cm-super/sfbx1200.pfb></usr/local/texlive/2025/t
+exmf-dist/fonts/type1/public/cm-super/sfbx1440.pfb></usr/local/texlive/2025/tex
+mf-dist/fonts/type1/public/cm-super/sfrm0800.pfb></usr/local/texlive/2025/texmf
+-dist/fonts/type1/public/cm-super/sfrm0900.pfb></usr/local/texlive/2025/texmf-d
+ist/fonts/type1/public/cm-super/sfrm1000.pfb></usr/local/texlive/2025/texmf-dis
+t/fonts/type1/public/cm-super/sfrm1200.pfb></usr/local/texlive/2025/texmf-dist/
+fonts/type1/public/cm-super/sfrm1728.pfb></usr/local/texlive/2025/texmf-dist/fo
+nts/type1/public/cm-super/sfti1000.pfb></usr/local/texlive/2025/texmf-dist/font
+s/type1/public/cm-super/sftt1000.pfb></usr/local/texlive/2025/texmf-dist/fonts/
+type1/public/cm-super/sftt1200.pfb>
+Output written on main.pdf (17 pages, 984633 bytes).
 PDF statistics:
- 1184 PDF objects out of 1200 (max. 8388607)
- 534 compressed objects within 6 object streams
+ 1193 PDF objects out of 1200 (max. 8388607)
+ 542 compressed objects within 6 object streams
  108 named destinations out of 1000 (max. 500000)
- 60664 words of extra memory for PDF output out of 61914 (max. 10000000)
+ 60672 words of extra memory for PDF output out of 61914 (max. 10000000)
 

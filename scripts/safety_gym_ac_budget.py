@@ -390,20 +390,28 @@ def compare_methods(env_name, checkpoint, n_episodes=10, horizon=1000):
           f"{'%Uncon':>7s} {'Used':>6s} {'GoalRate':>8s}")
     print(f"  {'-'*25} {'-'*7} {'-'*10} {'-'*8} {'-'*7} {'-'*6} {'-'*8}")
 
-    for budget_pct in [5, 10, 25, 50]:
-        budget_frac = budget_pct / 100.0
-        budget_steps = int(horizon * budget_frac)
+    # Set budgets relative to unconstrained cost (not horizon)
+    # Standard Safety-Gym cost limit is 25. Unconstrained cost ~56.
+    # Use absolute cost budgets that are genuinely binding.
+    cost_budgets = [10, 25, 40, 56]  # 18%, 45%, 71%, 100% of unconstrained
+    print(f"  Testing absolute cost budgets: {cost_budgets}")
+    print(f"  (Unconstrained cost = {uncon_cost:.0f})")
 
-        for ra, label in [(0.0, f"Constant (B={budget_pct}%)"),
-                           (2.0, f"AC η=2 (B={budget_pct}%)"),
-                           (5.0, f"AC η=5 (B={budget_pct}%)")]:
+    for cost_budget in cost_budgets:
+        budget_frac = cost_budget / horizon  # convert to fraction of horizon
+        pct_of_uncon = 100 * cost_budget / max(uncon_cost, 1)
+
+        for ra, label in [(0.0, f"Const (C≤{cost_budget})"),
+                           (2.0, f"AC η=2 (C≤{cost_budget})"),
+                           (5.0, f"AC η=5 (C≤{cost_budget})")]:
             res = eval_with_budget(env_name, checkpoint, budget_frac=budget_frac,
                                     risk_aversion=ra, n_episodes=n_episodes,
                                     horizon=horizon)
             pct_uncon = 100 * res['reward'] / uncon_reward if uncon_reward != 0 else 0
-            print(f"  {label:<25s} {budget_steps:>7d} {res['reward']:>10.1f} "
-                  f"{res['cost']:>8.0f} {pct_uncon:>6.1f}% {res['utilization']:>5.0f}% "
-                  f"{res['goal_rate']:>7.0f}%")
+            budget_used = 100 * res['cost'] / cost_budget if cost_budget > 0 else 0
+            print(f"  {label:<25s} {cost_budget:>4d}/{int(uncon_cost)} "
+                  f"{res['reward']:>10.1f} {res['cost']:>8.0f} "
+                  f"{pct_uncon:>6.1f}% {budget_used:>5.0f}% {res['goal_rate']:>7.0f}%")
 
 
 # =============================================================================

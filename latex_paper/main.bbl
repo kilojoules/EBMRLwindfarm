@@ -1,4 +1,4 @@
-\begin{thebibliography}{19}
+\begin{thebibliography}{20}
 \providecommand{\natexlab}[1]{#1}
 \providecommand{\url}[1]{\texttt{#1}}
 \expandafter\ifx\csname urlstyle\endcsname\relax
@@ -41,6 +41,12 @@ Shashank Durkin et~al.
 Ruairidh Gladstone et~al.
 \newblock Energy-based transformers are scalable learners and thinkers.
 \newblock \emph{arXiv preprint arXiv:2507.02092}, 2025.
+
+\bibitem[Lin et~al.(2023)]{lin2023trebi}
+Qian Lin et~al.
+\newblock Safe offline reinforcement learning with real-time budget
+  constraints.
+\newblock In \emph{International Conference on Machine Learning}, 2023.
 
 \bibitem[Liu et~al.(2026)]{liu2026bcr}
 Chia-Chi Liu et~al.

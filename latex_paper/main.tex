@@ -565,7 +565,8 @@ Saute RL~\citep{sootla2022saute} augments the state with remaining budget but re
 Predictive Lagrangian Optimization~\citep{chen2025predictive} forecasts future multipliers but integrates with training.
 CAPS~\citep{yao2024caps} switches between pre-trained policies for different constraint levels.
 Budget-Conditioned Reachability~\citep{liu2026bcr} conditions on remaining budget via reachability analysis for offline safe RL.
-All require training or pre-training for each constraint specification; our method requires none.
+TREBI~\citep{lin2023trebi} uses diffusion models with real-time budget constraints that can change at deployment, the closest prior work to our setting---but it requires an offline dataset and diffusion-specific training, while our method works with any pre-trained energy-based policy.
+All of these methods require training or pre-training for each constraint class; our method requires none.
 
 \textbf{Post-hoc constraint composition.}
 Composable Energy Policies~\citep{urain2023composable} compose energy functions for robotic manipulation.
@@ -587,22 +588,66 @@ Our work is inspired by the \emph{pacing logic} of optimal execution---the urgen
 We adopt the conceptual framework (remaining inventory vs.\ remaining time) without claiming structural equivalence.
 
 %----------------------------------------------------------------------
+\section{Discussion: Competitive Landscape and Future Directions}
+\label{sec:discussion}
+%----------------------------------------------------------------------
+
+\textbf{How close is the competition?}
+An honest assessment of our results reveals that the performance gap between the AC schedule and simpler alternatives is modest in some settings.
+In HalfCheetah, a bisection-tuned constant penalty ($\lambda=0.85$) achieves 4407 reward at 96\% utilization---within 0.7\% of the AC schedule's 4436.
+Saute RL with a hard clip retains 93\% of the budget and achieves 2.6\% higher reward than AC, at the cost of full retraining.
+These results suggest that the AC schedule's advantage is not raw performance but \emph{zero-shot adaptability}: the same $\eta$ parameter works across budget levels, domains, and deployment scenarios without per-task calibration.
+
+The matched constant baseline, while competitive at a single operating point, required 15 bisection steps (each evaluating 5 episodes) to find $\lambda=0.85$.
+Changing the budget from 25\% to 10\% would require repeating this search.
+The AC schedule handles this change by adjusting $u_t$ automatically---no search, no retraining, no additional evaluation budget.
+
+\textbf{When does the AC schedule win decisively?}
+The advantage is largest when: (1)~the budget is tight relative to unconstrained behavior (forcing genuine allocation decisions), (2)~conditions vary within the episode (creating high-value and low-value windows), and (3)~the policy architecture supports energy composition (enabling smooth gradient-based modulation rather than action scaling).
+In our wind farm experiments, where all three conditions hold, the AC schedule concentrates negative yaw into wake-aligned wind conditions and achieves near-unconstrained power.
+In HalfCheetah with constant reward (no temporal variation), the advantage narrows to pure utilization (5.3pp over constant penalty).
+
+\textbf{Paths to widening the gap.}
+Several extensions could amplify the AC schedule's advantage over simpler alternatives:
+
+\emph{Learned risk aversion.}
+Currently $\eta$ is fixed for the entire episode.
+A meta-learned $\eta(s_t)$ that adapts to the current state---high when the agent recognizes favorable conditions, low otherwise---could concentrate budget spending more precisely than the urgency ratio alone.
+This would require a small auxiliary network trained offline on logged episodes.
+
+\emph{Benefit prediction.}
+The AC schedule reacts to budget state but does not predict future opportunities.
+A lightweight forecasting model $\hat{b}(t+k \mid s_t)$ that estimates upcoming benefit (e.g., expected wind direction or upcoming terrain) could inform a lookahead urgency calculation, shifting from reactive to proactive budget management.
+
+\emph{Multi-agent budget sharing.}
+In the wind farm setting, turbines currently have independent budgets.
+A shared farm-level budget with per-turbine allocation---analogous to portfolio optimization across assets---could exploit cross-turbine complementarities (e.g., spending T0's budget when T2 has surplus).
+
+\emph{Tighter integration with policy training.}
+The post-hoc paradigm trades optimality for flexibility.
+A hybrid approach that \emph{trains} with a generic budget-awareness module (not tied to a specific budget level) and \emph{deploys} with the AC schedule for budget-specific adaptation could close the gap to retrained methods while preserving zero-shot generalization.
+
+%----------------------------------------------------------------------
 \section{Conclusion}
 \label{sec:conclusion}
 %----------------------------------------------------------------------
 
-Cumulative budget constraints are ubiquitous in deployed RL but underserved by existing methods.
-We showed they can be enforced post-hoc via a theoretically grounded, closed-form penalty schedule that composes with pre-trained energy-based policies.
-The method requires zero retraining, supports heterogeneous per-agent budgets, and adapts instantly to changing specifications.
-Across wind farm yaw control and MuJoCo locomotion, the adaptive schedule uses budget more effectively than constant penalties---the primary mechanism is higher budget utilization (97\% vs.\ 53\%), with a secondary benefit from timing when conditions vary---while maintaining constraint satisfaction.
+We introduced an Almgren-Chriss-inspired penalty schedule for enforcing cumulative budget constraints on pre-trained RL policies at deployment time.
+The schedule adapts penalty strength based on the urgency ratio---remaining budget relative to remaining time---and composes post-hoc with energy-based policies via per-agent energy addition.
+Across three domains (wind farm yaw control, MuJoCo locomotion, and Safety Gymnasium navigation), the method satisfies cumulative budgets while retaining 85--99\% of unconstrained reward, outperforming constant penalties in budget utilization (93--100\% vs.\ 47--63\%) and matching retrained baselines to within 3\%.
+
+The method's primary value is practical: a single pre-trained policy serves arbitrary budget levels, per-agent heterogeneous constraints, and instant specification changes---all without retraining.
+The performance gap to optimally-tuned alternatives is small but the deployment cost gap is large.
+As RL systems move from research benchmarks to industrial applications where constraints emerge, evolve, and differ across installations, the ability to compose constraints post-hoc becomes increasingly important.
 
 \textbf{Limitations.}
-The Boltzmann response assumption (Proposition~\ref{prop:optimal}) is approximate; the true policy response depends on the energy landscape geometry.
+The Boltzmann response assumption (Proposition~\ref{prop:optimal}) is a motivating analysis, not an optimality guarantee.
 The method works best when the base penalty scale is calibrated relative to the learned energy head.
-The theoretical guarantee is for the fluid approximation; finite-sample constraint satisfaction relies on the exponential wall backstop.
+The advantage over simpler alternatives is modest when conditions do not vary within episodes.
+Finite-sample constraint satisfaction relies on the exponential wall backstop rather than the smooth schedule alone.
 
-\textbf{Future work.}
-Extending to continuous cost functions (not just binary indicators), learned risk-aversion scheduling, and multi-agent coordination where agents share a collective budget.
+\textbf{Reproducibility.}
+Code, trained checkpoints, and experiment scripts are available at \url{[anonymized]}.
 
 %----------------------------------------------------------------------
 % References
