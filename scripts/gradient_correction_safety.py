@@ -37,31 +37,32 @@ from scripts.safety_gym_ac_budget import (
 
 def hazard_cost_from_obs(obs_tensor, action_tensor):
     """
-    Differentiable hazard cost approximation from observation.
+    Differentiable directional hazard cost from observation.
 
-    In SafetyPointGoal1, the observation includes lidar readings that
-    encode distances to hazards. We use the action magnitude weighted
-    by the hazard proximity signal as a differentiable proxy.
+    The hazard lidar (last 16 dims) encodes hazard proximity in angular
+    bins. We compute the dot product between the action and the hazard
+    direction — penalizing actions that move the agent *toward* hazards.
 
-    The key insight: if the agent is near hazards (high cost obs signal),
-    large actions in any direction increase the risk. The gradient of
-    this cost w.r.t. action pushes toward smaller, more cautious actions
-    specifically when near hazards — unlike action scaling which is
-    always active regardless of hazard proximity.
+    The gradient w.r.t. action points away from hazard directions,
+    steering the agent around obstacles rather than just slowing it.
     """
-    # Use action magnitude as base cost
-    action_mag = (action_tensor ** 2).sum()
+    n_lidar = 16
+    hazard_lidar = obs_tensor[-n_lidar:].clamp(min=0)
 
-    # Scale by a proxy for hazard proximity
-    # SafetyPointGoal1 obs includes hazard lidar in the last ~16 dims
-    # Higher lidar values = closer to hazard
-    if obs_tensor.shape[0] >= 60:
-        # Hazard lidar occupies a portion of the observation
-        hazard_signal = obs_tensor[-16:].clamp(min=0).sum()
-    else:
-        hazard_signal = torch.tensor(1.0)
+    angles = torch.linspace(0, 2 * np.pi * (1 - 1 / n_lidar), n_lidar)
 
-    return action_mag * (1.0 + hazard_signal)
+    # Hazard direction in ego frame
+    hx = (hazard_lidar * torch.cos(angles)).sum()
+    hy = (hazard_lidar * torch.sin(angles)).sum()
+
+    # Alignment: how much does the action move toward hazards?
+    # action[0] = forward, action[1] = rotation
+    alignment = action_tensor[0] * hx + action_tensor[1] * hy
+
+    hazard_intensity = hazard_lidar.max()
+
+    # Softplus for smooth gradient (unlike ReLU which has zero gradient when alignment < 0)
+    return F.softplus(alignment, beta=2.0) * (1.0 + hazard_intensity)
 
 
 def run_episode_gradient(env, actor, act_limit, budget_surr, horizon,
@@ -79,21 +80,21 @@ def run_episode_gradient(env, actor, act_limit, budget_surr, horizon,
             a, _, _ = actor.sample(torch.FloatTensor(obs).unsqueeze(0))
         action = a.squeeze(0) * act_limit  # tensor
 
-        # Gradient correction: steer away from high-cost regions
-        if budget_surr.cumulative_cost < budget_surr.budget_steps:
-            obs_t = torch.FloatTensor(obs)
-            a_corr = action.clone().detach()
+        # Gradient correction: steer away from hazard directions
+        obs_t = torch.FloatTensor(obs)
+        a_corr = action.clone().detach()
 
-            for _ in range(correction_steps):
-                a_corr.requires_grad_(True)
-                cost = hazard_cost_from_obs(obs_t, a_corr)
-                grad = torch.autograd.grad(cost, a_corr)[0]
-                a_corr = a_corr.detach() - lam * correction_lr * grad
-                a_corr = a_corr.clamp(-act_limit, act_limit)
+        # Use high lambda even after budget exhaustion (maximum avoidance)
+        effective_lam = lam if budget_surr.cumulative_cost < budget_surr.budget_steps else 100.0
 
-            action_np = a_corr.detach().numpy()
-        else:
-            action_np = action.detach().numpy()
+        for _ in range(correction_steps):
+            a_corr.requires_grad_(True)
+            cost = hazard_cost_from_obs(obs_t, a_corr)
+            grad = torch.autograd.grad(cost, a_corr)[0]
+            a_corr = a_corr.detach() - effective_lam * correction_lr * grad
+            a_corr = a_corr.clamp(-act_limit, act_limit)
+
+        action_np = a_corr.detach().numpy()
 
         step_result = env.step(action_np)
         if len(step_result) == 6:
@@ -125,12 +126,12 @@ def run_episode_scaling(env, actor, act_limit, budget_surr, horizon):
             a, _, _ = actor.sample(torch.FloatTensor(obs).unsqueeze(0))
         action = a.squeeze(0).numpy() * act_limit
 
-        # Action scaling
-        if budget_surr.cumulative_cost < budget_surr.budget_steps:
-            action_mag = np.linalg.norm(action)
-            penalty = max(0, action_mag - 0.3)
-            scale = 1.0 / (1.0 + 0.1 * lam * penalty)
-            action = action * scale
+        # Action scaling (always active — stronger when budget is depleted)
+        effective_lam = lam if budget_surr.cumulative_cost < budget_surr.budget_steps else 100.0
+        action_mag = np.linalg.norm(action)
+        penalty = max(0, action_mag - 0.3)
+        scale = 1.0 / (1.0 + 0.1 * effective_lam * penalty)
+        action = action * scale
 
         step_result = env.step(action)
         if len(step_result) == 6:

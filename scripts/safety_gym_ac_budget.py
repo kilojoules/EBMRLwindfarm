@@ -292,10 +292,38 @@ def train_sac(env_name, total_timesteps=200000, save_path="checkpoints/sac_safet
 # EVALUATION WITH BUDGET CONSTRAINT
 # =============================================================================
 
+def compute_hazard_repulsion(obs, n_lidar=16):
+    """
+    Compute a repulsive correction vector from hazard lidar readings.
+
+    The hazard lidar (last 16 dims of obs) encodes hazard proximity in
+    16 angular bins around the agent. High values = close hazard.
+
+    Returns (repulse_forward, repulse_rotation, hazard_intensity):
+      - repulse_forward: how much to reduce forward motion (positive = slow down)
+      - repulse_rotation: which way to turn away (positive = turn left/CCW)
+      - hazard_intensity: max lidar reading (0 = no hazards nearby)
+    """
+    hazard_lidar = obs[-n_lidar:]
+    hazard_lidar = np.clip(hazard_lidar, 0, 1)
+
+    hazard_intensity = float(np.max(hazard_lidar))
+    if hazard_intensity < 0.01:
+        return 0.0, 0.0, 0.0
+
+    angles = np.linspace(0, 2 * np.pi * (1 - 1 / n_lidar), n_lidar)
+
+    # Weighted hazard direction in ego frame (bin 0 = ahead)
+    hx = np.sum(hazard_lidar * np.cos(angles))  # forward component
+    hy = np.sum(hazard_lidar * np.sin(angles))  # lateral component
+
+    return float(hx), float(hy), hazard_intensity
+
+
 def eval_with_budget(env_name, checkpoint, budget_frac=0.10, risk_aversion=2.0,
                      steepness=3.0, n_episodes=10, horizon=1000,
-                     action_penalty_scale=0.1):
-    """Evaluate with AC budget constraint on Safety Gym."""
+                     correction_scale=0.3):
+    """Evaluate with AC budget constraint using directional hazard avoidance."""
     import safety_gymnasium
 
     ckpt = torch.load(checkpoint, map_location="cpu", weights_only=False)
@@ -327,14 +355,23 @@ def eval_with_budget(env_name, checkpoint, budget_frac=0.10, risk_aversion=2.0,
                 a, _, _ = actor.sample(torch.FloatTensor(obs).unsqueeze(0))
             action = a.squeeze(0).numpy() * act_limit
 
-            # Apply penalty: scale down action magnitude when lambda is high
-            # This makes the agent more cautious (slower, tighter turns)
-            if surr.cumulative_cost < budget:
-                # Action-magnitude penalty (higher lambda = more conservative)
-                action_mag = np.linalg.norm(action)
-                penalty = max(0, action_mag - 0.3)  # penalize large actions
-                scale = 1.0 / (1.0 + action_penalty_scale * lam * penalty)
-                action = action * scale
+            hx, hy, h_intensity = compute_hazard_repulsion(obs)
+
+            if surr.cumulative_cost >= budget:
+                # Budget exhausted: maximum avoidance
+                if h_intensity > 0.01:
+                    action[0] -= 5.0 * correction_scale * hx
+                    action[1] -= 5.0 * correction_scale * hy
+                else:
+                    action = action * 0.1  # crawl when budget gone
+            elif h_intensity > 0.01:
+                # Directional correction: steer away from hazards
+                # Lambda scales the correction strength based on budget state
+                strength = min(lam, 100.0) * correction_scale
+                action[0] -= strength * hx
+                action[1] -= strength * hy
+
+            action = np.clip(action, -act_limit, act_limit)
 
             step_result = env.step(action)
             if len(step_result) == 6:
@@ -362,7 +399,7 @@ def eval_with_budget(env_name, checkpoint, budget_frac=0.10, risk_aversion=2.0,
         "reward": np.mean(rewards), "reward_std": np.std(rewards),
         "cost": np.mean(costs), "cost_std": np.std(costs),
         "budget": budget, "budget_frac": budget_frac,
-        "utilization": 100 * np.mean(costs) / budget,
+        "utilization": 100 * np.mean(costs) / max(budget, 1),
         "goal_rate": 100 * np.mean(goal_reached),
     }
 
