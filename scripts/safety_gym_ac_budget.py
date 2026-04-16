@@ -28,6 +28,7 @@ Usage:
 """
 
 import argparse
+import json
 import os
 import sys
 import time
@@ -366,7 +367,8 @@ def eval_with_budget(env_name, checkpoint, budget_frac=0.10, risk_aversion=2.0,
     }
 
 
-def compare_methods(env_name, checkpoint, n_episodes=10, horizon=1000):
+def compare_methods(env_name, checkpoint, n_episodes=10, horizon=1000,
+                    output_json=None):
     """Full comparison: unconstrained vs constant vs AC at multiple budgets."""
     try:
         import safety_gymnasium  # noqa: F401
@@ -377,6 +379,8 @@ def compare_methods(env_name, checkpoint, n_episodes=10, horizon=1000):
     print(f"  Safety Gym AC Budget Comparison: {env_name}")
     print(f"{'='*75}")
 
+    all_results = {}
+
     # Unconstrained
     res = eval_with_budget(env_name, checkpoint, budget_frac=1.0,
                             risk_aversion=0.0, n_episodes=n_episodes, horizon=horizon)
@@ -384,6 +388,7 @@ def compare_methods(env_name, checkpoint, n_episodes=10, horizon=1000):
           f"Cost={res['cost']:.0f}, GoalRate={res['goal_rate']:.0f}%")
     uncon_reward = res['reward']
     uncon_cost = res['cost']
+    all_results["unconstrained"] = res
 
     print(f"\n  Budget levels (as % of unconstrained cost {uncon_cost:.0f}):")
     print(f"  {'Method':<25s} {'Budget':>7s} {'Reward':>10s} {'Cost':>8s} "
@@ -412,6 +417,15 @@ def compare_methods(env_name, checkpoint, n_episodes=10, horizon=1000):
             print(f"  {label:<25s} {cost_budget:>4d}/{int(uncon_cost)} "
                   f"{res['reward']:>10.1f} {res['cost']:>8.0f} "
                   f"{pct_uncon:>6.1f}% {budget_used:>5.0f}% {res['goal_rate']:>7.0f}%")
+            all_results[f"ra{ra}_budget{cost_budget}"] = {
+                **res, "pct_unconstrained": pct_uncon, "budget_used_pct": budget_used,
+            }
+
+    if output_json:
+        os.makedirs(os.path.dirname(output_json) or ".", exist_ok=True)
+        with open(output_json, "w") as f:
+            json.dump(all_results, f, indent=2)
+        print(f"\n  Results saved to {output_json}")
 
 
 # =============================================================================
@@ -430,10 +444,12 @@ def main():
     parser.add_argument("--n-episodes", type=int, default=10)
     parser.add_argument("--horizon", type=int, default=1000)
     parser.add_argument("--seed", type=int, default=1)
+    parser.add_argument("--output-json", default=None,
+                        help="Save comparison results to JSON (for multi-seed aggregation)")
     cli = parser.parse_args()
 
     if cli.train:
-        print(f"Training SAC on {cli.env}...")
+        print(f"Training SAC on {cli.env} (seed={cli.seed})...")
         train_sac(cli.env, cli.total_timesteps, cli.checkpoint, cli.seed)
 
     if cli.eval:
@@ -442,12 +458,16 @@ def main():
             res = eval_with_budget(cli.env, cli.checkpoint, cli.budget_frac,
                                     risk_aversion=ra, n_episodes=cli.n_episodes,
                                     horizon=cli.horizon)
-            print(f"  RA={ra}: Reward={res['reward']:.1f}±{res['reward_std']:.1f}, "
+            print(f"  η={ra}: Reward={res['reward']:.1f}±{res['reward_std']:.1f}, "
                   f"Cost={res['cost']:.0f}/{res['budget']} ({res['utilization']:.0f}%), "
                   f"GoalRate={res['goal_rate']:.0f}%")
 
     if cli.compare:
-        compare_methods(cli.env, cli.checkpoint, cli.n_episodes, cli.horizon)
+        output = cli.output_json
+        if output is None and cli.seed != 1:
+            output = f"results/safety_gym_seed_{cli.seed}.json"
+        compare_methods(cli.env, cli.checkpoint, cli.n_episodes, cli.horizon,
+                        output_json=output)
 
     if not any([cli.train, cli.eval, cli.compare]):
         print("Specify --train, --eval, or --compare")

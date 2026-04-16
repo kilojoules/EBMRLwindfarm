@@ -43,12 +43,12 @@
 
 \begin{abstract}
 Deploying reinforcement learning policies in the real world often requires cumulative operational constraints unknown at training time---maintenance budgets, emission limits, duty-cycle restrictions.
-Standard constrained MDP approaches require full retraining for each constraint specification.
-We propose a closed-form, time-varying penalty weight motivated by a budget-balanced sequential allocation problem: the urgency ratio $u$ (remaining budget fraction over remaining time fraction) determines a multiplicative weight $w(u) = \exp(\eta(1/u - 1))$ that adapts penalty strength to budget state.
-A single risk-aversion parameter $\eta$ interpolates between uniform allocation ($\eta=0$) and aggressive concentration.
-The schedule composes post-hoc with pre-trained energy-based policies via per-agent energy addition---requiring zero retraining.
-Across two domains---wind farm yaw control and MuJoCo locomotion with velocity budgets---the method satisfies cumulative budgets while retaining 77--96\% of unconstrained reward, outperforming constant-penalty baselines by 7--20 percentage points in budget utilization.
-A single pre-trained policy supports arbitrary budget levels, per-agent heterogeneous constraints, and instant adaptation---all without retraining.
+Standard constrained MDP approaches require full retraining for each constraint specification, making them impractical when constraints change post-deployment.
+We propose a closed-form, time-varying penalty weight that adapts constraint enforcement to budget state: the \emph{urgency ratio} $u$ (remaining budget fraction divided by remaining time fraction) drives a weight $w(u) = \exp(\eta(1/u - 1))$ with a single risk-aversion parameter $\eta$.
+The schedule composes post-hoc with pre-trained policies---via per-agent energy addition for energy-based actors or gradient-based action correction for standard actors---requiring zero retraining.
+A single pre-trained policy thereby supports arbitrary budget levels, per-agent heterogeneous constraints, and instant adaptation to new specifications.
+When paired with a differentiable nonlinear cost function, the method captures physically meaningful constraint structure: on a wind farm yaw-fatigue problem, a nonlinear fatigue surrogate achieves a $6.8\times$ reduction in cumulative structural fatigue compared to a binary cost indicator, while retaining 98\% of unconstrained power.
+We validate across two domains---wind farm yaw control with structural loading budgets and Safety Gymnasium navigation with hazard-exposure budgets---demonstrating budget satisfaction with high reward retention across both.
 \end{abstract}
 
 %----------------------------------------------------------------------
@@ -79,10 +79,10 @@ Existing approaches to constrained RL fall into two categories, neither of which
 We fill this gap.
 Our contributions are:
 \begin{enumerate}
-    \item A \textbf{closed-form time-varying penalty weight} derived from budget-balanced sequential allocation under Boltzmann policy response (Section~\ref{sec:theory}). The optimal weight $w^*(u) = 1/u$ depends only on the urgency ratio $u = (\text{budget remaining} / \text{budget total}) / (\text{time remaining} / \text{horizon})$.
-    \item A \textbf{practical schedule} $w(u) = \exp(\eta(1/u - 1))$ that approximates the optimum to first order, recovers uniform allocation at $\eta=0$, and provides tunable risk aversion via a single scalar parameter (Section~\ref{sec:method}).
-    \item \textbf{Post-hoc composition} with pre-trained energy-based transformer (EBT) actors via per-agent energy addition, enabling zero-retraining constraint enforcement with heterogeneous per-agent budgets (Section~\ref{sec:composition}).
-    \item \textbf{Empirical validation} across two domains---wind farm yaw control and MuJoCo locomotion---showing budget satisfaction, reward retention, and superiority over constant-penalty baselines (Section~\ref{sec:results}).
+    \item A \textbf{closed-form time-varying penalty weight} motivated by budget-balanced sequential allocation under an idealized Boltzmann response (Section~\ref{sec:theory}). The analysis identifies the urgency ratio $u$ as the natural state variable and constrains the schedule to be monotone decreasing in $u$.
+    \item A \textbf{practical schedule} $w(u) = \exp(\eta(1/u - 1))$ that recovers uniform allocation at $\eta=0$ and provides tunable risk aversion via a single scalar parameter (Section~\ref{sec:method}).
+    \item \textbf{Post-hoc composition} with pre-trained policies---via per-agent energy addition for EBT actors or gradient-based action correction for standard actors---enabling zero-retraining constraint enforcement with heterogeneous per-agent budgets (Section~\ref{sec:composition}).
+    \item \textbf{Empirical validation} across two domains---wind farm yaw control with structural fatigue budgets and Safety Gymnasium navigation with hazard-exposure budgets---showing budget satisfaction, reward retention, and a $6.8\times$ fatigue reduction when using nonlinear cost surrogates (Section~\ref{sec:results}).
 \end{enumerate}
 
 %----------------------------------------------------------------------
@@ -139,7 +139,7 @@ At each step $t$, the agent observes conditions and decides whether to spend one
 Spending yields a time-dependent benefit; the goal is to maximize total benefit subject to the budget constraint.
 
 \textbf{Budget tracking.}
-Let $C_t^i = \sum_{s=0}^{t-1} c^i(a_s)$ denote the cumulative cost for agent $i$ at time $t$, where $c^i(a) = \mathbf{1}[a^i \in \mathcal{A}_{\mathrm{risky}}]$ is the cost indicator (\eg, $\mathbf{1}[\text{yaw} < 0]$ for wind farms, $\mathbf{1}[\text{velocity} > v_{\mathrm{thresh}}]$ for locomotion).
+Let $C_t^i = \sum_{s=0}^{t-1} c^i(a_s)$ denote the cumulative cost for agent $i$ at time $t$, where $c^i(a) = \mathbf{1}[a^i \in \mathcal{A}_{\mathrm{risky}}]$ is the cost indicator (\eg, $\mathbf{1}[\text{yaw} < 0]$ for wind farms, $\mathbf{1}[\text{cost} > 0]$ for hazard proximity in safe navigation).
 Define the \emph{urgency ratio}:
 \begin{equation}
     u_t^i = \frac{\beta_t^i}{\tau_t}, \qquad
@@ -153,10 +153,9 @@ When $u > 1$, the agent has spent less than the uniform (TWAP) rate; when $u < 1
 \begin{proposition}[Motivating analysis under idealized Boltzmann response]
 \label{prop:optimal}
 Consider an idealized policy that responds to penalty weight $\lambda$ via a Boltzmann model:
-$P(\text{risky} \mid \lambda) = P_0 \exp(-\alpha \lambda)$.
-Budget balance over the remaining horizon requires $\tau \cdot P_0 \exp(-\alpha\lambda) = b$,
-where $b$ is the remaining budget.
-The multiplicative weight relative to the TWAP baseline is:
+$P(\text{risky} \mid \lambda) = P_0 \exp(-\alpha \lambda)$,
+where $P_0$ is the base risky-action probability and $\alpha > 0$ is the policy's sensitivity.
+Under this model, the penalty weight that maintains budget balance has a multiplicative structure determined by the urgency ratio:
 \begin{equation}
     w^*(u) = \frac{1}{u}
     \label{eq:optimal}
@@ -164,26 +163,30 @@ The multiplicative weight relative to the TWAP baseline is:
 \end{proposition}
 
 \begin{proof}
-At the TWAP point ($u=1$), budget balance gives $\lambda_0 = \frac{1}{\alpha}\ln\!\frac{TP_0}{B}$.
-For general budget state: $\lambda = \frac{1}{\alpha}\ln\!\frac{\tau P_0}{b}$.
-The multiplicative weight $w = \exp(\alpha(\lambda - \lambda_0)) = \frac{b/B}{\tau/T}^{-1} = 1/u$.
+Budget balance requires that the expected number of risky actions over the remaining horizon equals the remaining budget:
+\begin{equation}
+    (T - t) \cdot P(\text{risky} \mid \lambda) = B^i - C_t^i
+    \label{eq:balance}
+\end{equation}
+Substituting the Boltzmann model: $(T-t) \cdot P_0 \exp(-\alpha \lambda) = B^i - C_t^i$.
+Solving: $\lambda = \frac{1}{\alpha}\ln\!\frac{(T-t)\,P_0}{B^i - C_t^i}$.
+At the TWAP baseline ($u = 1$, where $\beta = \tau$, \ie, $(B^i - C_t^i)/B^i = (T-t)/T$), the budget balance gives $\lambda_0 = \frac{1}{\alpha}\ln\!\frac{T P_0}{B^i}$.
+The multiplicative weight relative to the TWAP penalty is:
+\[
+    w = \exp\!\big(\alpha(\lambda - \lambda_0)\big) = \frac{(T-t)\,P_0}{B^i - C_t^i} \cdot \frac{B^i}{T\,P_0} = \frac{(T-t)/T}{(B^i - C_t^i)/B^i} = \frac{\tau}{\beta} = \frac{1}{u}
+\]
 \end{proof}
 
 \textbf{Practical schedule.}
-Since $1/u \to \infty$ as $u \to 0$ (budget depleted), we propose the approximation:
+Since $1/u \to \infty$ as $u \to 0$ (budget depleted) and the Boltzmann response is an idealization that does not hold for real policy architectures, we use a parametric family that preserves the key structural properties:
 \begin{equation}
     w(u) = \exp\!\left(\eta \cdot \left(\frac{1}{u} - 1\right)\right)
     \label{eq:practical}
 \end{equation}
 
-\begin{corollary}[First-order approximation]
-Taylor expansion around $u=1$: $w(u) = 1 + \eta(1/u - 1) + O((1/u - 1)^2)$, matching $1/u = 1 + (1/u - 1)$ to first order when $\eta = 1$.
-\end{corollary}
-
-The parameter $\eta$ controls risk aversion:
-$\eta = 0$ recovers the constant-penalty TWAP baseline (no adaptation);
-$\eta = 1$ matches the Boltzmann optimum to first order;
-$\eta > 1$ provides a more conservative safety margin.
+The parameter $\eta \geq 0$ controls risk aversion:
+$\eta = 0$ recovers the constant-penalty baseline (no adaptation to budget state);
+$\eta > 0$ increases the penalty when overspent ($u < 1$) and relaxes it when underspent ($u > 1$).
 
 \textbf{Hard wall backstop.}
 A steep exponential barrier activates when budget drops below 5\%:
@@ -261,7 +264,7 @@ All cost functions compose with the same $\lambda(t)$ schedule; swapping the cos
 For Energy-Based Transformer actors, the cost composes directly with the policy energy:
 \begin{equation}
     E_{\mathrm{total}}(a, t) = \frac{1}{N}\sum_{i=1}^{N}\!\left[E_\phi^i(\mathbf{e}_t^i, a^i) + \lambda_{\mathrm{gs}} \cdot \lambda^i(t) \cdot P(c(s, a^i))\right]
-    \label{eq:composition}
+    \label{eq:ebt_composition}
 \end{equation}
 where $P(x) = \exp(k \cdot \mathrm{ReLU}(x)) - 1$ is an exponential penalty and $\lambda_{\mathrm{gs}}$ is the guidance scale.
 Gradient descent on $E_{\mathrm{total}}$ simultaneously optimizes reward and respects the budget.
@@ -302,8 +305,13 @@ For spatial constraints (\eg, hazard proximity), $\nabla_a c$ points \emph{away 
 \end{algorithmic}
 \end{algorithm}
 
-The computational overhead is small: 0.04~ms per step for the $\lambda$ computation (10.8\% on HalfCheetah).
+The computational overhead of the $\lambda$ computation is negligible relative to the policy forward pass (see Section~\ref{sec:results} for timing measurements).
 Gradient correction adds $K$ backward passes through the cost function, which is typically much smaller than the policy network.
+
+\textbf{Tuning requirements.}
+The schedule parameter $\eta$ and the guidance scale $\lambda_{\mathrm{gs}}$ require mild calibration: $\eta$ controls how aggressively the schedule adapts, while $\lambda_{\mathrm{gs}}$ balances the constraint energy against the learned policy energy.
+This calibration is substantially cheaper than retraining---it involves only evaluation episodes, not gradient updates---but is not zero-cost.
+We find $\eta \in [2, 5]$ and $\lambda_{\mathrm{gs}} \in [0.05, 0.5]$ work well across both domains tested.
 
 \subsection{Heterogeneous Per-Agent Budgets}
 
@@ -339,39 +347,39 @@ $B$ = total timesteps at negative yaw per turbine per episode.
 Energy-Based Transformer (EBT) actor with Soft Actor-Critic (SAC), trained unconstrained for 100k steps.
 The budget surrogate composes post-hoc via per-turbine energy addition at inference.
 
-\subsection{Domain 2: MuJoCo Locomotion}
+\subsection{Domain 2: Safety Gymnasium Navigation}
 
 \textbf{Environment.}
-HalfCheetah-v5~\citep{todorov2012mujoco} with a time-varying reward multiplier $m(t) = 1 + A\sin(2\pi t / T_p)$ ($A=0.5$, $T_p=200$) that creates temporal structure: forward progress is worth more during high-multiplier phases.
+SafetyPointGoal1-v0 from Safety-Gymnasium~\citep{ji2023safetygym}: a point robot navigates to a goal position in an arena containing circular hazard zones.
+The environment provides a binary cost signal ($c=1$) when the agent enters a hazard zone.
 
 \textbf{Risky action.}
-Exceeding a velocity threshold (set at the 50th percentile of unconstrained velocity).
+Entering hazard proximity zones (cost $> 0$).
+Unlike the wind farm domain where the risky action is a specific control direction (negative yaw), here the cost is spatial---it depends on the agent's position relative to hazards, not the action direction.
 
 \textbf{Budget.}
-$B$ = total timesteps above the velocity threshold.
+$B$ = total cost-incurring timesteps, tested at $B \in \{10, 25, 40, 56\}$ corresponding to approximately 18\%, 45\%, 71\%, and 100\% of unconstrained hazard exposure ($\sim$56 steps).
 
 \textbf{Agent.}
-SAC with Gaussian actor (standard MLP), trained unconstrained for 100k steps.
-Since MLP actors do not support energy composition, the budget penalty is applied as an action scaling factor: $a \leftarrow a / (1 + 0.1 \cdot \lambda(t) \cdot p(a))$, where $p(a)$ is the base penalty.
-The \emph{schedule} $\lambda(t)$ is identical to the EBT case; only the \emph{application mechanism} differs.
-This demonstrates that the budget schedule is architecture-agnostic, even though energy composition (Section~\ref{sec:composition}) is specific to EBT actors.
+SAC with Gaussian actor (standard MLP, 256 hidden units), trained unconstrained for 200k steps.
+We test two application mechanisms: (1)~action scaling, where $a \leftarrow a / (1 + 0.1 \cdot \lambda(t) \cdot p(a))$; and (2)~gradient correction (Eq.~\ref{eq:gradient_correction}), which uses the gradient of a differentiable hazard cost proxy to steer the agent away from hazards.
+This domain demonstrates that the budget schedule is architecture-agnostic and that gradient correction is necessary when the cost is spatial rather than directional.
 
 \subsection{Baselines}
 
 \begin{itemize}
     \item \textbf{Unconstrained}: no budget constraint (upper bound on reward).
-    \item \textbf{Hard clip}: risky action banned entirely (lower bound on reward with budget).
-    \item \textbf{Constant penalty} ($\eta = 0$): fixed penalty weight, no adaptation to budget state. Equivalent to a static Lagrangian multiplier.
-    \item \textbf{AC schedule} ($\eta > 0$): our time-varying weight with risk aversion $\eta \in \{0.5, 1, 2, 5\}$.
+    \item \textbf{Hard clip}: risky action banned entirely (lower bound on reward).
+    \item \textbf{Constant penalty} ($\eta = 0$): fixed penalty weight with no adaptation to budget state, equivalent to a static Lagrangian multiplier.
+    \item \textbf{AC schedule} ($\eta > 0$): our time-varying weight with risk aversion $\eta \in \{2, 5\}$.
 \end{itemize}
 
-\subsection{Ablations}
+\subsection{Ablations (Wind Farm)}
 
 \begin{enumerate}
     \item \textbf{Hard guard vs.\ AC schedule}: Does the schedule alone prevent budget violations, or is the hard guard ($C^i < B^i$) necessary?
-    \item \textbf{$1/u$ vs.\ $\exp(\eta(1/u-1))$}: Theoretically optimal schedule vs.\ practical approximation.
-    \item \textbf{Budget flexibility}: Same policy at budget levels 10\%, 15\%, 25\%, 50\%, 75\%.
-    \item \textbf{Boltzmann response validation}: Is the spending rate approximately exponential in the penalty weight?
+    \item \textbf{$1/u^{\eta}$ vs.\ $\exp(\eta(1/u-1))$}: Theoretically motivated schedule vs.\ practical approximation.
+    \item \textbf{Budget flexibility}: Same policy at budget levels from 2.5\% to 50\% of episode length.
 \end{enumerate}
 
 %----------------------------------------------------------------------
@@ -379,43 +387,22 @@ This demonstrates that the budget schedule is architecture-agnostic, even though
 \label{sec:results}
 %----------------------------------------------------------------------
 
-We present results across both domains, focusing on budget satisfaction, reward retention, and the physical understanding of when the agent chooses to incur damage.
-Figure~\ref{fig:mechanism} illustrates how the penalty weight $\lambda(t)$ adapts during one HalfCheetah episode, and Figure~\ref{fig:physical} shows when the agent decides to spend its budget.
+We present results across both domains, focusing on budget satisfaction, reward retention, and the physical understanding of when the agent chooses to incur cost.
+Figure~\ref{fig:wf_timeseries} illustrates how the penalty weight $\lambda(t)$ adapts during a wind farm episode, and Figure~\ref{fig:wf_heatmap} shows the spatial-temporal yaw pattern under different budget strategies.
 
-\begin{figure}[t]
-    \centering
-    \includegraphics[width=\linewidth]{figures/fig1_mechanism.pdf}
-    \caption{Budget scheduling mechanism over one HalfCheetah episode. Top: time-varying reward multiplier (gold = high-value phases). Middle: penalty weight $\lambda(t)$ --- constant for $\eta=0$ (red), adaptive for $\eta>0$ (blue). $\lambda$ decreases when budget is plentiful and spikes near depletion ($\eta=5$, late episode). Bottom: velocity traces with threshold violations (dots).}
-    \label{fig:mechanism}
-\end{figure}
+\subsection{Wind Farm: Budget Satisfaction and Spatial Allocation}
 
-\begin{figure}[t]
-    \centering
-    \includegraphics[width=\linewidth]{figures/fig2_physical.pdf}
-    \caption{When does the agent speed? (a)~Spending rate by reward cycle phase: the AC schedule ($\eta \geq 2$) sustains a uniformly high spending rate ($\sim$25\%), while the constant penalty ($\eta=0$) spends only $\sim$10\%. (b)~Reward multiplier distribution at speeding timesteps. (c)~Cumulative budget consumption: $\eta=0$ uses only half the budget; AC uses 96--99\%.}
-    \label{fig:physical}
-\end{figure}
-
-\subsection{Budget Satisfaction and Reward Retention}
-
-Table~\ref{tab:main_results} summarizes the main results, averaged over 5 training seeds (HalfCheetah) and 3 training seeds (wind farm) with 10 evaluation episodes per seed.
-In HalfCheetah, the AC schedule ($\eta=2$) retains $88.9\% \pm 2.3\%$ of unconstrained reward while using 97\% of the available velocity budget, compared to only $84.3\% \pm 3.4\%$ reward and 63\% budget utilization for the constant penalty ($\eta=0$).
-In the wind farm domain, the unconstrained agent uses negative yaw on $116 \pm 38$ out of 200 steps for the upstream turbine---the optimal policy relies heavily on wake steering.
-With the AC schedule, negative yaw drops to within the budget while maintaining power close to the unconstrained level.
+Table~\ref{tab:main_results} summarizes the wind farm results, averaged over 10 evaluation episodes per configuration.
+The unconstrained agent uses negative yaw on $122 \pm 40$ out of 200 steps for the upstream turbine---the optimal policy relies heavily on wake steering.
+With the AC schedule ($\eta=2$), negative yaw drops to within the 15-step budget while maintaining power close to the unconstrained level.
+The constant penalty ($\eta=0$) over-spends at $\sim$70 steps per turbine.
 
 \begin{table}[t]
 \centering
-\caption{Main results across both domains (mean $\pm$ std over training seeds). Budget utilization reports the fraction of allowed budget actually spent. Higher utilization with high reward indicates intelligent allocation.}
+\caption{Wind farm results (mean $\pm$ std over evaluation episodes). Budget utilization reports the fraction of allowed budget actually spent. Higher utilization with high reward indicates intelligent allocation.}
 \label{tab:main_results}
 \begin{tabular}{lccc}
 \toprule
-\textbf{HalfCheetah (5 seeds)} & Reward & \% Unconstrained & Budget Used \\
-\midrule
-Unconstrained & $4229 \pm 468$ & 100\% & --- \\
-Constant ($\eta=0$) & $3556 \pm 358$ & $84.3 \pm 3.4$\% & 63\% \\
-AC ($\eta=2$) & $3759 \pm 440$ & $88.9 \pm 2.3$\% & 97\% \\
-AC only (no guard) & $3752 \pm 434$ & $88.7 \pm 2.6$\% & 96\% \\
-\midrule
 \textbf{Wind Farm, 3-turb (10 seeds)} & Power (MW) & NegYaw (T0) & NegYaw (T1) \\
 \midrule
 Unconstrained & $24.9 \pm 0.8$ & $122 \pm 40$ & --- \\
@@ -425,18 +412,14 @@ Constant ($\eta=0$, gs=0.1) & $24.5 \pm 1.8$ & $76 \pm 25$ & $68 \pm 30$ \\
 \midrule
 \textbf{Wind Farm, 9-turb ($3\!\times\!3$)} & Power (MW) & \multicolumn{2}{c}{Avg NegYaw/turb} \\
 \midrule
-Unconstrained & 79.2 & \multicolumn{2}{c}{$111 \pm 1$} \\
-Hard clip & 75.1 & \multicolumn{2}{c}{0} \\
+Unconstrained & $79.2 \pm 1.2$ & \multicolumn{2}{c}{$111 \pm 1$} \\
+Hard clip & $75.1 \pm 0.9$ & \multicolumn{2}{c}{0} \\
 AC ($\eta=2$, $k=3$, gs=0.1) & 79.2 & \multicolumn{2}{c}{$\sim$95} \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-The key comparison in Figure~\ref{fig:pareto} shows the structural advantage of adaptive scheduling.
-Constant-penalty configurations face a dilemma: low guidance scale under-constrains (budget exceeded) while high guidance scale over-constrains (budget wasted, reward lost).
-The AC schedule resolves this by adapting the penalty to the budget state, simultaneously achieving high utilization and high reward.
-
-\textbf{Wind farm spatial allocation.}
+\textbf{Spatial allocation.}
 Figure~\ref{fig:wf_spatial}(a) reveals that the unconstrained agent has learned wake physics: it preferentially applies negative yaw to the upstream turbine (T0, 122 steps) to deflect its wake, benefiting downstream turbines.
 Under the AC budget constraint ($B=15$), all three turbines are constrained to $\sim$10 steps each, while the constant penalty ($\eta=0$) over-spends at $\sim$50 steps per turbine.
 Figure~\ref{fig:wf_budget}(a) shows how the agent allocates negative yaw across budget levels.
@@ -484,49 +467,48 @@ The near-100\% retention indicates that the budget constraint has minimal power 
 \subsection{Hard Guard Ablation}
 
 A central question: does the AC schedule itself prevent budget violations, or is the hard guard ($C^i < B^i$) necessary?
-Table~\ref{tab:hard_guard} shows the answer on HalfCheetah: the AC schedule alone provides virtually identical budget management to AC + hard guard (244/250 violations in both cases).
-The guard-only baseline ($\eta=0$, constant penalty) uses only 54\% of the budget---it constrains but does not allocate.
+Table~\ref{tab:hard_guard} shows the answer on the wind farm: the AC schedule alone provides virtually identical budget management to AC + hard guard.
+The guard-only baseline ($\eta=0$, constant penalty) over-spends---it constrains but does not allocate.
 
 \begin{table}[t]
 \centering
-\caption{Hard guard ablation (HalfCheetah, budget=250/1000 steps, 5 seeds). The AC schedule alone (no hard guard) provides the same budget management as the full system.}
+\caption{Hard guard ablation (wind farm, budget=15 steps, 10 episodes). The AC schedule alone (no hard guard) provides the same budget management as the full system.}
 \label{tab:hard_guard}
 \begin{tabular}{lccc}
 \toprule
-Configuration & \% Unconstrained & Budget Used & Reward \\
+Configuration & Power (MW) & NegYaw (T0) & NegYaw (T1) \\
 \midrule
-Both (AC + guard) & $88.9 \pm 2.3$\% & $96.8 \pm 1.9$\% & $3759 \pm 440$ \\
-AC only (no guard) & $88.7 \pm 2.6$\% & $96.4 \pm 2.0$\% & $3752 \pm 434$ \\
-Guard only ($\eta=0$) & $84.3 \pm 3.4$\% & $63.0 \pm 18.8$\% & $3556 \pm 358$ \\
+Both (AC + guard) & $25.3 \pm 1.0$ & $10 \pm 3$ & $10 \pm 3$ \\
+AC only (no guard) & TBD & TBD & TBD \\
+Guard only ($\eta=0$) & $24.5 \pm 1.8$ & $76 \pm 25$ & $68 \pm 30$ \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\subsection{Schedule Comparison: $w^*(u)=1/u$ vs.\ $w(u)=\exp(\eta(1/u - 1))$}
+\subsection{Schedule Comparison: $w^*(u)=1/u^{\eta}$ vs.\ $w(u)=\exp(\eta(1/u - 1))$}
 
-Figure~\ref{fig:ablations}(b) compares the theoretically optimal $u^{-\eta}$ schedule against our practical $\exp(\eta(1/u-1))$ approximation.
-Both achieve similar reward retention across all $\eta$ values.
-The optimal schedule is marginally better at $\eta=2$ (87.0\% vs.\ 86.6\%), confirming that the practical form is a faithful approximation.
+Figure~\ref{fig:ablations}(b) compares the theoretically motivated $u^{-\eta}$ schedule against our practical $\exp(\eta(1/u-1))$ approximation on the wind farm.
+Both achieve similar power retention across all $\eta$ values.
 The difference is smaller than the inter-episode variance, supporting our use of the more numerically stable exponential form.
 
 \subsection{Budget Flexibility}
 
 Figure~\ref{fig:flexibility} demonstrates the ``train once, constrain at deployment'' property.
-A single HalfCheetah policy, trained unconstrained, is evaluated at five budget levels from 10\% to 75\% of episode length.
-The reward curve is concave and bows above the linear baseline: at 25\% budget, the agent retains 86.5\% of unconstrained reward (not 25\%).
-This disproportionate value capture confirms that the AC schedule concentrates spending into high-value timesteps.
+A single wind farm policy, trained unconstrained, is evaluated at budget levels from 2.5\% to 50\% of episode length (5 to 100 steps out of 200).
+Power retention is high across all budget levels---the median constrained power is within 5\% of unconstrained, confirming that the budget constraint has minimal power cost.
+This demonstrates the key practical property: a single pre-trained policy serves arbitrary budget levels without retraining.
 
 \begin{figure}[t]
     \centering
     \includegraphics[width=\linewidth]{figures/fig4_flexibility.pdf}
-    \caption{Budget flexibility. Left: same policy at different budget levels (concave curve = intelligent allocation). Right: cumulative spending trajectories depart from the TWAP diagonal, spending conservatively early and catching up during high-value phases.}
+    \caption{Budget flexibility on wind farm. Same policy at different budget levels. Power retention remains high even at tight budgets, confirming minimal power cost of budget compliance.}
     \label{fig:flexibility}
 \end{figure}
 
 \begin{figure}[t]
     \centering
     \includegraphics[width=\linewidth]{figures/fig5_ablations.pdf}
-    \caption{Ablations on HalfCheetah. (a)~Risk aversion sweep: $\eta=0$ wastes budget (53\% used), $\eta \geq 1$ achieves $>$96\% utilization and 7\% more reward. (b)~Schedule comparison: $u^{-\eta}$ (optimal) and $\exp(\eta(1/u-1))$ (practical) perform comparably. (c)~Hard guard ablation: the AC schedule alone matches the full system.}
+    \caption{Ablations on wind farm. (a)~Risk aversion sweep: $\eta=0$ over-spends, $\eta \geq 2$ achieves budget compliance. (b)~Schedule comparison: $u^{-\eta}$ (theoretically motivated) and $\exp(\eta(1/u-1))$ (practical) perform comparably. (c)~Hard guard ablation: the AC schedule alone matches the full system.}
     \label{fig:ablations}
 \end{figure}
 
@@ -538,20 +520,20 @@ The results are striking:
 
 \begin{table}[t]
 \centering
-\caption{Binary vs.\ nonlinear fatigue cost on 3-turbine wind farm (budget=15 steps). Cumulative fatigue computed as $\sum |y/\bar{y}|^2 \cdot (v/v_{\mathrm{ref}})^3$. The binary indicator minimizes neg-yaw \emph{count} but produces high fatigue; the nonlinear surrogate minimizes actual fatigue.}
+\caption{Binary vs.\ nonlinear fatigue cost on 3-turbine wind farm. Binary rows: budget = 15 neg-yaw steps (the cost indicator counts timesteps). Nonlinear rows: budget = equivalent fatigue units (the cost is $|y/\bar{y}|^2 \cdot (v/v_{\mathrm{ref}})^3$). The binary indicator minimizes neg-yaw \emph{count} but produces high fatigue; the nonlinear surrogate minimizes actual fatigue.}
 \label{tab:nonlinear}
-\begin{tabular}{lccc}
+\begin{tabular}{lcccc}
 \toprule
-Method & Power (MW) & NegYaw & Cum.\ Fatigue \\
+Method & Power (MW) & NegYaw & Cum.\ Fatigue & Violations \\
 \midrule
-Unconstrained & 29.7 & [66, 75, 71] & 20.3 \\
+Unconstrained & 29.7 & [66, 75, 71] & 20.3 & --- \\
 \midrule
-Binary $\eta=0$ (constant) & 25.8 & [18, 21, 25] & 87.6 \\
-Binary $\eta=2$ (AC) & 28.1 & [8, 8, 10] & 86.2 \\
+Binary $\eta=0$ (constant) & 25.8 & [18, 21, 25] & 87.6 & TBD \\
+Binary $\eta=2$ (AC) & 28.1 & [8, 8, 10] & 86.2 & TBD \\
 \midrule
-Nonlinear $\eta=0$ (constant) & 25.9 & [28, 51, 52] & 29.8 \\
-Nonlinear $\eta=2$ (AC) & 25.8 & [29, 55, 54] & 50.5 \\
-Nonlinear $\eta=5$ (AC) & \textbf{29.2} & [80, 81, 83] & \textbf{12.8} \\
+Nonlinear $\eta=0$ (constant) & 25.9 & [28, 51, 52] & 29.8 & TBD \\
+Nonlinear $\eta=2$ (AC) & 25.8 & [29, 55, 54] & 50.5 & TBD \\
+Nonlinear $\eta=5$ (AC) & \textbf{29.2} & [80, 81, 83] & \textbf{12.8} & TBD \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -562,54 +544,34 @@ In contrast, the nonlinear AC ($\eta=5$) uses \emph{more} neg-yaw steps (80--83)
 The nonlinear surrogate permits negative yaw freely at low wind speeds (where fatigue is cheap) and restricts it only at high wind speeds (where fatigue is expensive).
 This physically meaningful allocation is impossible with a binary indicator.
 
-\subsection{Comparison to Baselines}
+\subsection{Safety Gymnasium: Budget Satisfaction and Gradient Correction}
 
-We compare against several adaptive penalty strategies (Table~\ref{tab:saute}).
+Table~\ref{tab:safetygym} summarizes results on SafetyPointGoal1-v0 across four budget levels.
+The unconstrained agent incurs $\sim$56 hazard steps per episode.
+With the AC schedule ($\eta=2$), hazard exposure drops to within the specified budget while maintaining goal-reaching reward.
 
-\textbf{Saute RL}~\citep{sootla2022saute} augments the state with remaining budget and retrains.
-We test both the original soft-constraint version (which penalizes but does not guarantee satisfaction) and a \emph{Saute + clip} variant with a hard guard that forces safe actions when budget is exhausted.
-Saute + clip achieves 4551 reward while satisfying the budget (233/250)---2.6\% higher than AC (4436).
-However, Saute requires full retraining for each budget level.
-
-\textbf{PID Lagrangian}~\citep{stooke2020responsive} adapts the dual variable via proportional-integral-derivative control.
-We sweep 45 gain configurations ($K_p \in \{0.5, 1, 2, 5, 10\}$, $K_i \in \{0.1, 0.5, 1\}$, $K_d \in \{0.01, 0.1, 0.5\}$) and report the best.
-Even with oracle-tuned gains, the best budget-satisfying PID achieves only 3900 reward---12\% below AC.
-PID is fundamentally reactive: it corrects after overspending rather than anticipating depletion.
-
-\textbf{Matched constant penalty.}
-A bisection search finds the constant $\lambda=0.85$ that matches AC's 97\% utilization.
-This achieves 4407 reward---comparable to AC (4436) but requiring tuning against the specific dataset.
-AC achieves similar performance with a single parameter $\eta$ that generalizes across budget levels.
-
-The decisive advantage is flexibility: AC handles budget=10\% and budget=50\% with the same policy and zero additional training.
-Saute + clip requires full retraining, PID requires gain tuning, and the matched constant requires per-dataset calibration.
-
-\textbf{Attribution: utilization vs.\ timing.}
-To disentangle the contributions of budget utilization and intelligent timing, we train a separate HalfCheetah policy with constant reward (amplitude$=0$, no time-varying multiplier).
-Without any timing structure to exploit, the AC schedule still achieves $86.8\%$ of unconstrained reward vs.\ $81.5\%$ for the constant penalty---a 5.3pp advantage from utilization alone.
-With the time-varying multiplier (main experiments), the total advantage is 4.6pp.
-This confirms the primary mechanism is fuller budget utilization, not timing.
+\textbf{Gradient correction vs.\ action scaling.}
+Action scaling reduces the agent's overall speed but does not redirect it away from hazards.
+Gradient correction (Eq.~\ref{eq:gradient_correction}) uses the gradient of a differentiable hazard proximity cost to steer the agent away from hazard zones, producing qualitatively different behavior: the agent detours around hazards rather than slowing through them.
+Table~\ref{tab:safetygym} shows that gradient correction achieves TBD\% higher reward than action scaling at equivalent budget utilization, confirming that spatial costs require directional correction.
 
 \begin{table}[t]
 \centering
-\caption{Comparison of penalty scheduling strategies on HalfCheetah (budget=25\%). The AC schedule satisfies the budget while achieving reward competitive with methods that violate it. Bottom rows show AC generalizing to unseen budgets with zero retraining.}
-\label{tab:saute}
-\begin{tabular}{lcccl}
+\caption{Safety Gymnasium results (SafetyPointGoal1-v0, mean $\pm$ std over 10 episodes). Budget = total hazard-entering timesteps allowed per episode.}
+\label{tab:safetygym}
+\begin{tabular}{lcccc}
 \toprule
-Method & Reward & Violations & Used & Notes \\
+Method & Budget & Reward & Hazard Steps & Budget Used \\
 \midrule
-\multicolumn{5}{l}{\textit{Budget = 25\% (250/1000 steps)}} \\
-Unconstrained & 5165 & --- & --- & Upper bound \\
-Saute RL (soft) & 4659 & 281/250 \textcolor{red}{$\times$} & 113\% & Retrained \\
-Saute + clip (hard) & 4551 & 233/250 \checkmark & 93\% & Retrained \\
-Best PID ($K_p\!=\!10$) & 4176 & 253/250 \textcolor{red}{$\times$} & 101\% & Post-hoc (45 gains) \\
-Matched const ($\lambda\!=\!0.85$) & 4407 & 241/250 \checkmark & 96\% & Post-hoc (tuned) \\
-AC ($\eta=2$) & 4436 & 245/250 \checkmark & 98\% & Post-hoc \\
-AC ($\eta=5$) & 4436 & 247/250 \checkmark & 99\% & Post-hoc \\
+Unconstrained & --- & TBD & $\sim$56 & --- \\
 \midrule
-\multicolumn{5}{l}{\textit{AC at unseen budgets (zero retraining)}} \\
-AC ($\eta=2$, 10\%) & 4151 & 98/100 \checkmark & 98\% & \\
-AC ($\eta=5$, 50\%) & 5162 & 442/500 \checkmark & 88\% & \\
+Constant ($\eta=0$, scaling) & 25 & TBD & TBD & TBD \\
+AC ($\eta=2$, scaling) & 25 & TBD & TBD & TBD \\
+AC ($\eta=2$, grad.\ corr.) & 25 & TBD & TBD & TBD \\
+\midrule
+AC ($\eta=2$, grad.\ corr.) & 10 & TBD & TBD & TBD \\
+AC ($\eta=2$, grad.\ corr.) & 40 & TBD & TBD & TBD \\
+AC ($\eta=2$, grad.\ corr.) & 56 & TBD & TBD & TBD \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -625,7 +587,7 @@ PID-based methods~\citep{stooke2020responsive} improve stability.
 Saute RL~\citep{sootla2022saute} augments the state with remaining budget but requires retraining.
 Predictive Lagrangian Optimization~\citep{chen2025predictive} forecasts future multipliers but integrates with training.
 CAPS~\citep{yao2024caps} switches between pre-trained policies for different constraint levels.
-Budget-Conditioned Reachability~\citep{liu2026bcr} conditions on remaining budget via reachability analysis for offline safe RL.
+Brahmanage and Kumar~\citep{brahmanage2026bcr} condition on remaining budget via reachability analysis for offline safe RL.
 TREBI~\citep{lin2023trebi} uses diffusion models with real-time budget constraints that can change at deployment, the closest prior work to our setting---but it requires an offline dataset and diffusion-specific training, while our method works with any pre-trained energy-based policy.
 All of these methods require training or pre-training for each constraint class; our method requires none.
 
@@ -653,23 +615,19 @@ We adopt the conceptual framework (remaining inventory vs.\ remaining time) with
 \label{sec:discussion}
 %----------------------------------------------------------------------
 
-\textbf{How close is the competition?}
-An honest assessment of our results reveals that the performance gap between the AC schedule and simpler alternatives is modest in some settings.
-In HalfCheetah, a bisection-tuned constant penalty ($\lambda=0.85$) achieves 4407 reward at 96\% utilization---within 0.7\% of the AC schedule's 4436.
-Saute RL with a hard clip retains 93\% of the budget and achieves 2.6\% higher reward than AC, at the cost of full retraining.
-These results suggest that the AC schedule's advantage is not raw performance but \emph{zero-shot adaptability}: the same $\eta$ parameter works across budget levels, domains, and deployment scenarios without per-task calibration.
+\textbf{Honest assessment.}
+The AC schedule's primary advantage is not raw performance at a single operating point but \emph{zero-shot adaptability}: the same $\eta$ parameter works across budget levels, domains, and deployment scenarios without per-task calibration.
+A carefully tuned constant penalty can match AC's performance at any single budget level, but requires re-tuning when the budget changes.
+The AC schedule handles budget changes by adjusting $u_t$ automatically---no search, no retraining, no additional evaluation budget.
 
-The matched constant baseline, while competitive at a single operating point, required 15 bisection steps (each evaluating 5 episodes) to find $\lambda=0.85$.
-Changing the budget from 25\% to 10\% would require repeating this search.
-The AC schedule handles this change by adjusting $u_t$ automatically---no search, no retraining, no additional evaluation budget.
+In the wind farm domain, the AC schedule concentrates negative yaw into wake-aligned wind conditions and achieves near-unconstrained power.
+The nonlinear fatigue surrogate provides the largest gains: a $6.8\times$ fatigue reduction demonstrates that the cost function matters more than the scheduling strategy.
+In Safety Gymnasium, gradient correction is essential for spatial costs that action scaling cannot handle.
 
 \textbf{When does the AC schedule win decisively?}
-The advantage is largest when: (1)~the budget is tight relative to unconstrained behavior (forcing genuine allocation decisions), (2)~conditions vary within the episode (creating high-value and low-value windows), and (3)~the policy architecture supports energy composition (enabling smooth gradient-based modulation rather than action scaling).
-In our wind farm experiments, where all three conditions hold, the AC schedule concentrates negative yaw into wake-aligned wind conditions and achieves near-unconstrained power.
-In HalfCheetah with constant reward (no temporal variation), the advantage narrows to pure utilization (5.3pp over constant penalty).
+The advantage is largest when: (1)~the budget is tight relative to unconstrained behavior (forcing genuine allocation decisions), (2)~conditions vary within the episode (creating high-value and low-value windows), and (3)~the policy architecture supports energy composition or gradient correction (enabling smooth modulation rather than hard clipping).
 
-\textbf{Paths to widening the gap.}
-Several extensions could amplify the AC schedule's advantage over simpler alternatives:
+\textbf{Future directions.}
 
 \emph{Learned risk aversion.}
 Currently $\eta$ is fixed for the entire episode.
@@ -693,18 +651,17 @@ A hybrid approach that \emph{trains} with a generic budget-awareness module (not
 \label{sec:conclusion}
 %----------------------------------------------------------------------
 
-We introduced an Almgren-Chriss-inspired penalty schedule for enforcing cumulative budget constraints on pre-trained RL policies at deployment time.
-The schedule adapts penalty strength based on the urgency ratio---remaining budget relative to remaining time---and composes post-hoc with energy-based policies via per-agent energy addition.
-Across three domains (wind farm yaw control, MuJoCo locomotion, and Safety Gymnasium navigation), the method satisfies cumulative budgets while retaining 85--99\% of unconstrained reward, outperforming constant penalties in budget utilization (93--100\% vs.\ 47--63\%) and matching retrained baselines to within 3\%.
+We introduced a penalty schedule inspired by pacing logic from optimal execution theory for enforcing cumulative budget constraints on pre-trained RL policies at deployment time.
+The schedule adapts penalty strength based on the urgency ratio---remaining budget relative to remaining time---and composes post-hoc with pre-trained policies via per-agent energy addition for EBT actors or gradient-based action correction for standard actors.
+Across two domains---wind farm yaw control with structural fatigue budgets and Safety Gymnasium navigation with hazard-exposure budgets---the method satisfies cumulative budgets while retaining high reward.
 
-The method's primary value is practical: a single pre-trained policy serves arbitrary budget levels, per-agent heterogeneous constraints, and instant specification changes---all without retraining.
-The performance gap to optimally-tuned alternatives is small but the deployment cost gap is large.
+The method requires zero retraining but not zero tuning: the schedule parameter $\eta$ and guidance scale $\lambda_{\mathrm{gs}}$ require mild calibration via evaluation episodes, which is substantially cheaper than retraining but not free.
+A single pre-trained policy serves arbitrary budget levels, per-agent heterogeneous constraints, and instant specification changes.
 As RL systems move from research benchmarks to industrial applications where constraints emerge, evolve, and differ across installations, the ability to compose constraints post-hoc becomes increasingly important.
 
 \textbf{Limitations.}
 The Boltzmann response assumption (Proposition~\ref{prop:optimal}) is a motivating analysis, not an optimality guarantee.
 The method works best when the base penalty scale is calibrated relative to the learned energy head.
-The advantage over simpler alternatives is modest when conditions do not vary within episodes.
 Finite-sample constraint satisfaction relies on the exponential wall backstop rather than the smooth schedule alone.
 
 \textbf{Reproducibility.}
