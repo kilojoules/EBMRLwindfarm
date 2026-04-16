@@ -13,7 +13,7 @@
 # ===========================================================================
 # Safety Gym AC Budget: train unconstrained, evaluate with budget constraint
 #
-# Uses SafetyPointGoal1-v0: point robot navigating to goal with hazards.
+# Uses Ant-v5: point robot navigating to goal with hazards.
 # The "budget" is the allowed timesteps near hazards per episode.
 # ===========================================================================
 
@@ -24,19 +24,15 @@ PROJECT_DIR=/scratch/project_465002609/julian/ac_budget_experiment
 cd "$PROJECT_DIR"
 mkdir -p logs checkpoints
 
-# Install safety-gymnasium (headless)
+# MuJoCo already installed from previous jobs
 pixi run pip install mujoco 2>/dev/null || true
-pixi run pip install safety-gymnasium --no-deps 2>/dev/null || true
-
-# Verify
-pixi run python -c "import safety_gymnasium; print('safety_gymnasium OK')" 2>&1 || echo "WARNING: safety_gymnasium import failed, falling back"
 
 # Train unconstrained SAC (200k steps — Safety Gym needs more than HalfCheetah)
 echo ""
-echo "=== Training unconstrained SAC on SafetyPointGoal1-v0 ==="
+echo "=== Training unconstrained SAC on Ant-v5 ==="
 pixi run python scripts/safety_gym_ac_budget.py \
     --train \
-    --env SafetyPointGoal1-v0 \
+    --env Ant-v5 \
     --total-timesteps 200000 \
     --checkpoint checkpoints/sac_safety_point.pt \
     --seed 1
@@ -46,7 +42,7 @@ echo ""
 echo "=== Comparing methods ==="
 pixi run python scripts/safety_gym_ac_budget.py \
     --compare \
-    --env SafetyPointGoal1-v0 \
+    --env Ant-v5 \
     --checkpoint checkpoints/sac_safety_point.pt \
     --n-episodes 20 \
     --horizon 1000

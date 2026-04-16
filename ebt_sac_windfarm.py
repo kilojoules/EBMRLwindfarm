@@ -1070,8 +1070,11 @@ def main():
             steps_data = []
 
             for t_step in range(horizon_steps):
-                lam_val = surr.compute_lambda() if (surr and hasattr(surr, 'compute_lambda')) else (
-                    float(surr._compute_lambda().squeeze().cpu()) if surr else 1.0)
+                if surr is not None:
+                    lam_raw = surr._compute_lambda()
+                    lam_val = float(lam_raw.mean().cpu()) if lam_raw.numel() > 1 else float(lam_raw.cpu())
+                else:
+                    lam_val = 1.0
 
                 with torch.no_grad():
                     act = agent.act(budget_eval_env, obs,
