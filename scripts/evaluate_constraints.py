@@ -51,6 +51,11 @@ from load_surrogates import (
     YawTravelBudgetSurrogate,
 )
 from helpers.agent import WindFarmAgent
+from helpers.surrogate_loads import (
+    SurrogateLoadModel,
+    make_rotor_template,
+    sector_averages_reordered,
+)
 from helpers.constraint_viz import (
     plot_yaw_trajectory,
     plot_local_energy_landscape,
@@ -73,6 +78,8 @@ class SweepConfig:
     steepness: float = 10.0
     threshold_deg: float = 15.0
     per_turbine_thresholds: Optional[List[float]] = None
+    del_threshold_pct: float = 0.10
+    del_penalty_type: str = "exponential"
     label: str = ""
 
     def __post_init__(self):
@@ -90,6 +97,9 @@ class SweepConfig:
         if self.constraint_type == "per_turbine" and self.per_turbine_thresholds:
             thresh_str = "_".join(f"{t:.0f}" for t in self.per_turbine_thresholds)
             parts.append(f"thresh{thresh_str}")
+        if self.constraint_type.startswith("del_"):
+            parts.append(f"{self.del_threshold_pct:.0%}")
+            parts.append(self.del_penalty_type[:3])
         return "_".join(parts)
 
 
@@ -243,6 +253,8 @@ def build_sweep_configs(
     steepness_values: List[float],
     threshold_values: List[float],
     n_turbines: int,
+    del_threshold_pct: float = 0.10,
+    del_penalty_type: str = "exponential",
 ) -> List[SweepConfig]:
     """Build the full list of configurations to sweep."""
     configs: List[SweepConfig] = []
@@ -317,6 +329,18 @@ def build_sweep_configs(
                     SweepConfig(constraint_type=ctype, lambda_val=lam)
                 )
 
+            elif ctype.startswith("del_"):
+                for steep in steepness_values:
+                    configs.append(
+                        SweepConfig(
+                            constraint_type=ctype,
+                            lambda_val=lam,
+                            steepness=steep,
+                            del_threshold_pct=del_threshold_pct,
+                            del_penalty_type=del_penalty_type,
+                        )
+                    )
+
     return configs
 
 
@@ -336,6 +360,21 @@ def create_surrogate_from_config(
         )
         return surrogate.to(device)
 
+    if config.constraint_type.startswith("del_"):
+        surrogate_dir = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            "surrogate",
+        )
+        surrogate = create_load_surrogate(
+            surrogate_type=config.constraint_type,
+            steepness=config.steepness,
+            yaw_max_deg=30.0,
+            del_model_dir=surrogate_dir,
+            del_threshold_pct=config.del_threshold_pct,
+            del_penalty_type=config.del_penalty_type,
+        )
+        return surrogate.to(device)
+
     surrogate = create_load_surrogate(
         surrogate_type=config.constraint_type,
         steepness=config.steepness,
@@ -348,6 +387,84 @@ def create_surrogate_from_config(
         ),
     )
     return surrogate.to(device)
+
+
+# =============================================================================
+# DEL CONTEXT UPDATER (side-channel for vectorized envs)
+# =============================================================================
+
+
+class DELContextUpdater:
+    """Computes sector averages + baseline DELs from the vectorized env state.
+
+    Builds its own probe PyWake farm model (matching the surrogate's training
+    setup) and rotor template. After each env step, reads the env's current
+    state via get_attr() and computes the frozen context that
+    DELConstraintSurrogate.set_context() needs.
+    """
+
+    def __init__(self, wind_turbine, keras_surrogate: SurrogateLoadModel):
+        from py_wake.deflection_models.jimenez import JimenezWakeDeflection
+        from py_wake.literature.gaussian_models import Blondel_Cathelain_2020
+        from py_wake.site import UniformSite
+        from py_wake.turbulence_models import STF2017TurbulenceModel
+
+        self._wfm = Blondel_Cathelain_2020(
+            UniformSite(),
+            windTurbines=wind_turbine,
+            turbulenceModel=STF2017TurbulenceModel(),
+            deflectionModel=JimenezWakeDeflection(),
+        )
+        self._template = make_rotor_template(wind_turbine.diameter() / 2)
+        self._hub_h = float(wind_turbine.hub_height())
+        self._keras_surr = keras_surrogate
+
+    def _get_env_state(self, envs):
+        """Read scalar env state from the first sub-env of a vectorized env."""
+        get = envs.env.get_attr
+        wd = float(get("wd")[0])
+        ws = float(get("ws")[0])
+        ti = float(get("ti")[0])
+        x = np.asarray(get("x_pos")[0], dtype=float)
+        y = np.asarray(get("y_pos")[0], dtype=float)
+        yaw = np.asarray(get("current_yaw")[0], dtype=float)
+        return wd, ws, ti, x, y, yaw
+
+    def compute_context(self, envs) -> tuple:
+        """Compute (sector_avgs, baseline_dels) from current env state.
+
+        Returns numpy arrays: sector_avgs (n_turb, 8), baseline_dels (n_turb,).
+        """
+        wd, ws, ti, x, y, current_yaw = self._get_env_state(envs)
+        hub_h = np.full(len(x), self._hub_h)
+
+        # Sector averages for the current state
+        WS_in, TI_in = sector_averages_reordered(
+            self._wfm, x, y, hub_h, wd, ws, ti,
+            yaw=current_yaw, template=self._template,
+        )
+        sector_avgs = np.hstack([WS_in, TI_in])  # (n_turb, 8)
+
+        # Baseline DELs using zero yaws
+        baseline_yaws = np.zeros_like(current_yaw)
+        WS_bl, TI_bl = sector_averages_reordered(
+            self._wfm, x, y, hub_h, wd, ws, ti,
+            yaw=baseline_yaws, template=self._template,
+        )
+        baseline_dels = self._keras_surr.predict(
+            WS_bl, TI_bl, yaws=baseline_yaws, pset=1.0,
+        )
+        return sector_avgs, baseline_dels
+
+    def update_constraint(self, surrogate, envs, device):
+        """Compute context and call set_context on the surrogate if applicable."""
+        if not hasattr(surrogate, "set_context"):
+            return
+        sector_avgs, baseline_dels = self.compute_context(envs)
+        surrogate.set_context(
+            sector_avgs=torch.tensor(sector_avgs, device=device, dtype=torch.float32),
+            baseline_dels=torch.tensor(baseline_dels, device=device, dtype=torch.float32),
+        )
 
 
 # =============================================================================
@@ -365,6 +482,7 @@ def run_constrained_episodes(
     device: torch.device,
     is_stateful: bool = False,
     steady_state_steps: int = 30,
+    del_context_updater: Optional["DELContextUpdater"] = None,
 ) -> List[EpisodeResult]:
     """Run multiple episodes with a given constraint configuration."""
     results = []
@@ -373,6 +491,10 @@ def run_constrained_episodes(
         obs, _ = envs.reset()
         if is_stateful and surrogate is not None:
             surrogate.reset()
+
+        # Initial DEL context update (uses env state right after reset)
+        if del_context_updater is not None and surrogate is not None:
+            del_context_updater.update_constraint(surrogate, envs, device)
 
         yaw_history: List[np.ndarray] = []
         power_history: List[float] = []
@@ -388,6 +510,10 @@ def run_constrained_episodes(
 
             obs, rew, _, _, info = envs.step(act)
             reward_history.append(float(np.mean(rew)))
+
+            # Update DEL constraint context after each env step
+            if del_context_updater is not None and surrogate is not None:
+                del_context_updater.update_constraint(surrogate, envs, device)
 
             if "yaw angles agent" in info:
                 yaw = np.array(info["yaw angles agent"])
@@ -966,6 +1092,19 @@ def parse_args() -> argparse.Namespace:
         default=80,
         help="Grid resolution for energy landscape heatmaps (default: 80)",
     )
+    parser.add_argument(
+        "--del-threshold-pct",
+        type=float,
+        default=0.10,
+        help="DEL increase threshold as fraction (0.10 = 10%%) (default: 0.10)",
+    )
+    parser.add_argument(
+        "--del-penalty-type",
+        type=str,
+        default="exponential",
+        choices=["exponential", "quadratic"],
+        help="DEL penalty shape (default: exponential)",
+    )
     return parser.parse_args()
 
 
@@ -994,10 +1133,26 @@ def main():
 
     # -- Build sweep configs ---------------------------------------------------
     configs = build_sweep_configs(
-        constraint_types, lambdas, steepness_values, threshold_values, n_turbines
+        constraint_types, lambdas, steepness_values, threshold_values, n_turbines,
+        del_threshold_pct=cli.del_threshold_pct,
+        del_penalty_type=cli.del_penalty_type,
     )
     print(f"\nSweep: {len(configs)} configurations "
           f"({len(constraint_types)} types x {len(lambdas)} lambdas)")
+
+    # -- Set up DEL context updater if any del_* types are in the sweep --------
+    has_del_constraints = any(ct.startswith("del_") for ct in constraint_types)
+    del_updater: Optional[DELContextUpdater] = None
+    if has_del_constraints:
+        print("Setting up DEL context updater (probe farm model + Keras surrogate)...")
+        repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        keras_surr = SurrogateLoadModel(
+            os.path.join(repo_root, "surrogate/models/ann_dlc12_out_wrot_Bl1Rad0FlpMnt_rank1.keras"),
+            os.path.join(repo_root, "surrogate/scalers/scaler_input_DLC12_wrot_Bl1Rad0FlpMnt.pkl"),
+            os.path.join(repo_root, "surrogate/scalers/scaler_output_DLC12_wrot_Bl1Rad0FlpMnt.pkl"),
+        )
+        del_updater = DELContextUpdater(env_info["wind_turbine"], keras_surr)
+        print("  DEL context updater ready.")
 
     # -- Run sweep -------------------------------------------------------------
     all_results: List[ConfigResult] = []
@@ -1009,6 +1164,7 @@ def main():
 
         surrogate = create_surrogate_from_config(config, device)
         is_stateful = config.constraint_type == "travel_budget"
+        use_del_updater = config.constraint_type.startswith("del_")
 
         episodes = run_constrained_episodes(
             agent,
@@ -1020,6 +1176,7 @@ def main():
             device,
             is_stateful=is_stateful,
             steady_state_steps=cli.steady_state_steps,
+            del_context_updater=del_updater if use_del_updater else None,
         )
 
         result = aggregate_episodes(config, episodes)
