@@ -467,50 +467,81 @@ The near-100\% retention indicates that the budget constraint has minimal power 
 \subsection{Hard Guard Ablation}
 
 A central question: does the AC schedule itself prevent budget violations, or is the hard guard ($C^i < B^i$) necessary?
-Table~\ref{tab:hard_guard} shows the answer on the wind farm: the AC schedule alone provides virtually identical budget management to AC + hard guard.
-The guard-only baseline ($\eta=0$, constant penalty) over-spends---it constrains but does not allocate.
+Table~\ref{tab:hard_guard} shows the answer on the wind farm: the AC schedule alone keeps all turbines within the 15-step budget ($[11, 11, 11]$ neg-yaw steps) while retaining 98\% of unconstrained power.
+Notably, the AC-only configuration achieves \emph{higher} power than AC + guard ($26.3$ vs.\ $24.7$~MW), suggesting that the hard guard's abrupt cutoff slightly disrupts the learned policy.
+The guard-only baseline ($\eta=0$, constant penalty) overshoots the budget at $[29, 51, 58]$---it constrains but does not allocate intelligently.
 
 \begin{table}[t]
 \centering
-\caption{Hard guard ablation (wind farm, budget=15 steps, 10 episodes). The AC schedule alone (no hard guard) provides the same budget management as the full system.}
+\caption{Hard guard ablation (3-turbine wind farm, budget=15/200 steps, $\eta=2$, $k=2$, gs=0.1, 10 episodes). The AC schedule alone keeps all turbines within budget; the constant penalty overshoots.}
 \label{tab:hard_guard}
-\begin{tabular}{lccc}
+\begin{tabular}{lccl}
 \toprule
-Configuration & Power (MW) & NegYaw (T0) & NegYaw (T1) \\
+Configuration & Power (MW) & NegYaw [T0, T1, T2] & Budget \\
 \midrule
-Both (AC + guard) & $25.3 \pm 1.0$ & $10 \pm 3$ & $10 \pm 3$ \\
-AC only (no guard) & TBD & TBD & TBD \\
-Guard only ($\eta=0$) & $24.5 \pm 1.8$ & $76 \pm 25$ & $68 \pm 30$ \\
+Unconstrained & $26.8 \pm 3.9$ & [83, 87, 100] & --- \\
+Both (AC + guard) & $24.7 \pm 5.1$ & [13, 16, 19] & \checkmark \\
+AC only (no guard) & $26.3 \pm 3.0$ & [11, 11, 11] & \checkmark \\
+Guard only ($\eta=0$) & $24.8 \pm 5.7$ & [29, 51, 58] & \textcolor{red}{$\times$} \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \subsection{Schedule Comparison: $w^*(u)=1/u^{\eta}$ vs.\ $w(u)=\exp(\eta(1/u - 1))$}
 
-Figure~\ref{fig:ablations}(b) compares the theoretically motivated $u^{-\eta}$ schedule against our practical $\exp(\eta(1/u-1))$ approximation on the wind farm.
-Both achieve similar power retention across all $\eta$ values.
-The difference is smaller than the inter-episode variance, supporting our use of the more numerically stable exponential form.
+Table~\ref{tab:schedule} compares the theoretically motivated $u^{-\eta}$ schedule against our practical $\exp(\eta(1/u-1))$ approximation on the wind farm.
+At $\eta=5$, both schedules satisfy the 15-step budget, with exp achieving tighter adherence ($[14, 14, 14]$ vs.\ $[22, 24, 24]$).
+At lower $\eta$, both schedules overshoot the budget but by comparable amounts.
+The practical exponential form is slightly more aggressive, consistent with its faster divergence from $1/u$ at low urgency (Figure~\ref{fig:approx}).
+
+\begin{table}[t]
+\centering
+\caption{Schedule comparison on 3-turbine wind farm (budget=15/200 steps, $k=2$, gs=0.1, 10 episodes).}
+\label{tab:schedule}
+\begin{tabular}{llcc}
+\toprule
+Schedule & $\eta$ & Power (MW) & NegYaw [T0, T1, T2] \\
+\midrule
+$\exp(\eta(1/u-1))$ & 0.5 & $24.3 \pm 6.3$ & [32, 36, 37] \\
+$\exp(\eta(1/u-1))$ & 2.0 & $25.5 \pm 5.3$ & [19, 24, 24] \\
+$\exp(\eta(1/u-1))$ & 5.0 & $27.8 \pm 4.5$ & [14, 14, 14] \\
+\midrule
+$u^{-\eta}$ & 0.5 & $24.9 \pm 5.6$ & [56, 57, 58] \\
+$u^{-\eta}$ & 2.0 & $24.8 \pm 6.8$ & [29, 34, 35] \\
+$u^{-\eta}$ & 5.0 & $26.6 \pm 5.3$ & [22, 24, 24] \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 \subsection{Budget Flexibility}
 
-Figure~\ref{fig:flexibility} demonstrates the ``train once, constrain at deployment'' property.
-A single wind farm policy, trained unconstrained, is evaluated at budget levels from 2.5\% to 50\% of episode length (5 to 100 steps out of 200).
-Power retention is high across all budget levels---the median constrained power is within 5\% of unconstrained, confirming that the budget constraint has minimal power cost.
-This demonstrates the key practical property: a single pre-trained policy serves arbitrary budget levels without retraining.
+Table~\ref{tab:flexibility} demonstrates the ``train once, constrain at deployment'' property.
+A single wind farm policy, trained unconstrained, is evaluated at seven budget levels from 2.5\% to 50\% of episode length.
+Power retention is high across all budget levels---above 95\% from budget=10 onward---confirming that the budget constraint has minimal power cost when the schedule has room to allocate.
+At the tightest budget ($B=5$, 2.5\%), the current hyperparameters ($k=2$, $\mathrm{gs}=0.1$) are insufficient to enforce the constraint, indicating that very tight budgets require stronger penalty calibration.
 
-\begin{figure}[t]
-    \centering
-    \includegraphics[width=\linewidth]{figures/fig4_flexibility.pdf}
-    \caption{Budget flexibility on wind farm. Same policy at different budget levels. Power retention remains high even at tight budgets, confirming minimal power cost of budget compliance.}
-    \label{fig:flexibility}
-\end{figure}
+\begin{table}[t]
+\centering
+\caption{Budget flexibility (3-turbine wind farm, $\eta=2$, $k=2$, gs=0.1, 10 episodes). A single policy serves arbitrary budget levels. Power retention is high from $B=10$ onward.}
+\label{tab:flexibility}
+\begin{tabular}{cccc}
+\toprule
+Budget (steps/200) & Power (MW) & \% Unconstrained & NegYaw [T0, T1, T2] \\
+\midrule
+5 (2.5\%) & $26.4 \pm 3.9$ & 100.1\% & [74, 76, 86] \\
+10 (5\%) & $25.2 \pm 5.3$ & 95.7\% & [25, 25, 26] \\
+15 (7.5\%) & $29.2 \pm 1.8$ & 110.9\% & [20, 20, 21] \\
+25 (12.5\%) & $26.1 \pm 4.1$ & 99.1\% & [17, 20, 20] \\
+50 (25\%) & $26.2 \pm 6.2$ & 99.3\% & [27, 39, 39] \\
+75 (37.5\%) & $27.7 \pm 3.6$ & 105.2\% & [54, 53, 62] \\
+100 (50\%) & $22.3 \pm 6.1$ & 84.9\% & [33, 50, 74] \\
+\bottomrule
+\end{tabular}
+\end{table}
 
-\begin{figure}[t]
-    \centering
-    \includegraphics[width=\linewidth]{figures/fig5_ablations.pdf}
-    \caption{Ablations on wind farm. (a)~Risk aversion sweep: $\eta=0$ over-spends, $\eta \geq 2$ achieves budget compliance. (b)~Schedule comparison: $u^{-\eta}$ (theoretically motivated) and $\exp(\eta(1/u-1))$ (practical) perform comparably. (c)~Hard guard ablation: the AC schedule alone matches the full system.}
-    \label{fig:ablations}
-\end{figure}
+\textbf{Computational overhead.}
+The $\lambda$ computation adds 4.7~ms per step on a 23.6~ms baseline (19.8\% overhead).
+This includes the full EBT energy composition with the budget surrogate; a lighter-weight MLP actor would show proportionally less overhead.
 
 \subsection{Nonlinear Fatigue Surrogate: Why the Cost Function Matters}
 
@@ -544,37 +575,75 @@ In contrast, the nonlinear AC ($\eta=5$) uses \emph{more} neg-yaw steps (80--83)
 The nonlinear surrogate permits negative yaw freely at low wind speeds (where fatigue is cheap) and restricts it only at high wind speeds (where fatigue is expensive).
 This physically meaningful allocation is impossible with a binary indicator.
 
-\subsection{Safety Gymnasium: Budget Satisfaction and Gradient Correction}
+\subsection{When Post-Hoc Composition Fails: State-Dependent Costs}
+\label{sec:state_dependent}
 
-Table~\ref{tab:safetygym} summarizes results on SafetyPointGoal1-v0 across four budget levels.
-The unconstrained agent incurs $\sim$56 hazard steps per episode.
-With the AC schedule ($\eta=2$), hazard exposure drops to within the specified budget while maintaining goal-reaching reward.
+The wind farm results demonstrate that the urgency schedule works well when the cost is a direct function of the action---negative yaw is both the risky action and the cost indicator, so modifying the action directly controls cost.
+We now examine the boundary of this approach using Safety Gymnasium's SafetyPointGoal1-v0, where the cost depends on the agent's \emph{position} (inside a hazard zone), not its action.
 
-\textbf{Gradient correction vs.\ action scaling.}
-Action scaling reduces the agent's overall speed but does not redirect it away from hazards.
-Gradient correction (Eq.~\ref{eq:gradient_correction}) uses the gradient of a differentiable hazard proximity cost to steer the agent away from hazard zones, producing qualitatively different behavior: the agent detours around hazards rather than slowing through them.
-Table~\ref{tab:safetygym} shows that gradient correction achieves TBD\% higher reward than action scaling at equivalent budget utilization, confirming that spatial costs require directional correction.
+\textbf{Experimental setup.}
+A point robot navigates to goal positions while avoiding circular hazard zones.
+Cost is binary: $c=1$ when the agent enters a hazard zone.
+We trained an unconstrained SAC policy (200k steps, 5 seeds) and applied the budget schedule post-hoc with three correction mechanisms:
+(1)~action magnitude scaling,
+(2)~directional repulsion from hazard lidar readings, and
+(3)~gradient correction using a differentiable hazard proximity cost.
 
-\begin{table}[t]
-\centering
-\caption{Safety Gymnasium results (SafetyPointGoal1-v0, mean $\pm$ std over 10 episodes). Budget = total hazard-entering timesteps allowed per episode.}
-\label{tab:safetygym}
-\begin{tabular}{lcccc}
-\toprule
-Method & Budget & Reward & Hazard Steps & Budget Used \\
-\midrule
-Unconstrained & --- & TBD & $\sim$56 & --- \\
-\midrule
-Constant ($\eta=0$, scaling) & 25 & TBD & TBD & TBD \\
-AC ($\eta=2$, scaling) & 25 & TBD & TBD & TBD \\
-AC ($\eta=2$, grad.\ corr.) & 25 & TBD & TBD & TBD \\
-\midrule
-AC ($\eta=2$, grad.\ corr.) & 10 & TBD & TBD & TBD \\
-AC ($\eta=2$, grad.\ corr.) & 40 & TBD & TBD & TBD \\
-AC ($\eta=2$, grad.\ corr.) & 56 & TBD & TBD & TBD \\
-\bottomrule
-\end{tabular}
-\end{table}
+\textbf{Result: budget violation despite correct scheduling.}
+Across all three mechanisms and all budget levels, the post-hoc correction fails to enforce the budget.
+At budget $B=10$ (18\% of unconstrained cost $\sim$56), the best mechanism still incurs 30--50 hazard steps---3--5$\times$ over budget.
+The urgency ratio $u(t)$ and penalty weight $\lambda(t)$ behave as designed: $\lambda$ rises steeply as the budget depletes.
+But the high penalty cannot prevent budget violation because the correction mechanisms cannot redirect an agent that is already heading toward a hazard at speed.
+
+\textbf{Root cause: the action-to-cost gap.}
+The failure is structural, not parametric.
+In the wind farm, cost is a function of the current action: $c(a) = \mathbf{1}[\text{yaw} < 0]$.
+Modifying $a$ directly controls $c$.
+In Safety Gym, cost is a function of the agent's state: $c(s) = \mathbf{1}[\text{position} \in \text{hazard}]$.
+The agent's position is the integral of its past actions through the dynamics: $s_{t+1} = f(s_t, a_t)$.
+Post-hoc correction at time $t$ cannot retroactively change the trajectory that brought the agent to its current position, and a single-step action modification cannot overcome momentum carrying the agent into a hazard it is already approaching.
+
+We formalize this distinction as \emph{action-dependent} vs.\ \emph{state-dependent} costs:
+\begin{itemize}
+    \item \textbf{Action-dependent}: $c_t = g(a_t)$ or $c_t = g(a_t, s_t)$ where $\nabla_a g$ directly modifies cost. Post-hoc penalty composition works because the corrected action immediately reduces cost.
+    \item \textbf{State-dependent}: $c_t = g(s_t)$ where $s_t$ depends on the trajectory history. Post-hoc action correction requires predicting future states---a dynamics model or learned cost predictor---to translate state-level costs into action-level gradients.
+\end{itemize}
+
+This distinction defines the \emph{scope condition} for post-hoc budget scheduling: the method is effective when the cost function provides useful gradients with respect to the current action.
+When cost depends on accumulated state, the gradient of the instantaneous cost $\nabla_a c(s_t)$ is either zero (not yet in a hazard) or too late (already inside), providing no useful signal for avoidance.
+
+\textbf{Implications for nonlinear fatigue models.}
+This scope condition has direct consequences for the wind energy application.
+The binary cost ($\mathbf{1}[\text{yaw} < 0]$) and the nonlinear fatigue surrogate ($|y/\bar{y}|^\beta \cdot (v/v_{\mathrm{ref}})^\gamma$) are both action-dependent---they depend on the current yaw angle and wind speed, both observable at decision time.
+However, more realistic fatigue models incorporate cumulative damage state (Miner's linear damage rule, rainflow counting, bearing temperature history).
+As fatigue models incorporate state dependence, the same breakdown observed in Safety Gym will emerge.
+Addressing this is a key direction for future work.
+
+%----------------------------------------------------------------------
+\section{Toward Dynamics-Aware Budget Scheduling}
+\label{sec:extensions}
+%----------------------------------------------------------------------
+
+The state-dependent cost failure motivates extensions that incorporate lightweight dynamics reasoning while preserving the post-hoc, zero-retraining property.
+We outline three approaches ordered by implementation complexity.
+
+\textbf{Approach 1: Learned cost predictor.}
+Train a small network $\hat{c}(s, a) \approx \mathbb{E}[c(s_{t+1}) \mid s_t, a_t]$ on transitions from the unconstrained policy's replay buffer.
+This one-step cost predictor transforms the state-dependent cost into an action-dependent prediction: the gradient $\nabla_a \hat{c}(s, a)$ points away from actions that lead to costly next states.
+The urgency schedule modulates this gradient exactly as it does for action-dependent costs.
+Training the predictor does not require retraining the policy and can be done offline from logged data.
+
+\textbf{Approach 2: CBF-budget fusion.}
+Define a control barrier function $h(C_t, t) = B - C_t - m(t)$, where $m(t)$ is a safety margin derived from the urgency schedule.
+The CBF condition $\dot{h} \geq -\alpha h$ translates the cumulative budget constraint into an instantaneous bound on the allowable cost rate at each timestep.
+When the agent is heading toward a hazard (high predicted $\dot{C}$), the CBF tightens the action constraint; when the agent is in a safe region, the constraint relaxes.
+This marries the urgency schedule (which determines the margin trajectory $m(t)$) with a dynamics-aware safety filter.
+
+\textbf{Approach 3: Critic-as-cost-predictor.}
+If a cost signal is available during training, a parallel cost-Q-function $Q_c(s, a) = \mathbb{E}[\sum_{t'=t}^{T} c_{t'} \mid s_t, a_t]$ can be trained alongside the reward critic at negligible additional cost.
+At deployment, $\nabla_a Q_c(s, a)$ provides a long-horizon cost gradient that accounts for dynamics, accumulated state, and the agent's own future behavior.
+The urgency schedule then modulates $\nabla_a Q_c$ instead of $\nabla_a c$, yielding dynamics-aware budget enforcement without retraining the policy.
+This approach requires the least architectural change---adding one output head to the critic---and produces the most informative gradients.
 
 %----------------------------------------------------------------------
 \section{Related Work}

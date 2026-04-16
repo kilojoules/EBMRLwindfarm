@@ -358,18 +358,19 @@ def eval_with_budget(env_name, checkpoint, budget_frac=0.10, risk_aversion=2.0,
             hx, hy, h_intensity = compute_hazard_repulsion(obs)
 
             if surr.cumulative_cost >= budget:
-                # Budget exhausted: maximum avoidance
-                if h_intensity > 0.01:
-                    action[0] -= 5.0 * correction_scale * hx
-                    action[1] -= 5.0 * correction_scale * hy
-                else:
-                    action = action * 0.1  # crawl when budget gone
-            elif h_intensity > 0.01:
-                # Directional correction: steer away from hazards
-                # Lambda scales the correction strength based on budget state
-                strength = min(lam, 100.0) * correction_scale
-                action[0] -= strength * hx
-                action[1] -= strength * hy
+                # Budget exhausted: stop completely (zero cost when stationary)
+                action = np.zeros_like(action)
+            else:
+                # Two-layer correction: magnitude scaling + directional push
+                # Layer 1: scale down speed proportional to lambda and proximity
+                speed_scale = 1.0 / (1.0 + min(lam, 200.0) * correction_scale * h_intensity)
+                action = action * speed_scale
+
+                # Layer 2: push away from hazards if very close
+                if h_intensity > 0.3:
+                    push = min(lam, 50.0) * correction_scale * h_intensity
+                    action[0] -= push * hx
+                    action[1] -= push * hy
 
             action = np.clip(action, -act_limit, act_limit)
 
