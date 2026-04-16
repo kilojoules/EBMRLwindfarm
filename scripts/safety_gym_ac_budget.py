@@ -45,39 +45,6 @@ import gymnasium as gym
 # HAZARD BUDGET SURROGATE
 # =============================================================================
 
-class VelocityCostWrapper(gym.Wrapper):
-    """
-    Adds a binary cost signal based on velocity threshold.
-    cost=1 when the agent exceeds v_threshold, 0 otherwise.
-    Uses the x-velocity from the Ant/HalfCheetah observation.
-    """
-    def __init__(self, env, v_threshold=None):
-        super().__init__(env)
-        self.v_threshold = v_threshold
-        self._velocities = []
-
-    def reset(self, **kwargs):
-        obs, info = self.env.reset(**kwargs)
-        if self.v_threshold is None:
-            self._velocities = []
-        return obs, info
-
-    def step(self, action):
-        obs, reward, term, trunc, info = self.env.step(action)
-        # x-velocity: obs[13] for Ant-v5, obs[8] for HalfCheetah-v5
-        xvel = abs(obs[13]) if len(obs) > 13 else abs(obs[8]) if len(obs) > 8 else 0
-
-        if self.v_threshold is None:
-            self._velocities.append(xvel)
-            if len(self._velocities) >= 1000:
-                self.v_threshold = np.percentile(self._velocities, 50)
-
-        cost = 1.0 if (self.v_threshold and xvel > self.v_threshold) else 0.0
-        info["cost"] = cost
-        info["velocity"] = xvel
-        return obs, reward, term, trunc, info
-
-
 class HazardBudgetSurrogate:
     """
     AC-inspired budget surrogate for Safety Gym hazard constraints.
@@ -218,11 +185,12 @@ class ReplayBuffer:
 def train_sac(env_name, total_timesteps=200000, save_path="checkpoints/sac_safety.pt",
               seed=1):
     """Train standard SAC (unconstrained) on Safety Gym environment."""
+    import safety_gymnasium  # registers Safety Gym envs
+
     torch.manual_seed(seed)
     np.random.seed(seed)
 
     env = gym.make(env_name)
-    env = VelocityCostWrapper(env)  # adds cost signal for high velocity
     obs_dim = env.observation_space.shape[0]
     act_dim = env.action_space.shape[0]
     act_limit = float(env.action_space.high[0])
@@ -322,6 +290,8 @@ def eval_with_budget(env_name, checkpoint, budget_frac=0.10, risk_aversion=2.0,
                      steepness=3.0, n_episodes=10, horizon=1000,
                      action_penalty_scale=0.1):
     """Evaluate with AC budget constraint on Safety Gym."""
+    import safety_gymnasium
+
     ckpt = torch.load(checkpoint, map_location="cpu", weights_only=False)
     actor = GaussianActor(ckpt["obs_dim"], ckpt["act_dim"])
     actor.load_state_dict(ckpt["actor"])
@@ -329,7 +299,6 @@ def eval_with_budget(env_name, checkpoint, budget_frac=0.10, risk_aversion=2.0,
     act_limit = ckpt["act_limit"]
 
     env = gym.make(env_name)
-    env = VelocityCostWrapper(env)
     budget = int(horizon * budget_frac)
 
     rewards, costs, goal_reached = [], [], []
@@ -391,7 +360,7 @@ def eval_with_budget(env_name, checkpoint, budget_frac=0.10, risk_aversion=2.0,
 def compare_methods(env_name, checkpoint, n_episodes=10, horizon=1000):
     """Full comparison: unconstrained vs constant vs AC at multiple budgets."""
     try:
-        import safety_gymnasium
+        import safety_gymnasium  # noqa: F401
     except ImportError:
         pass
 
@@ -434,7 +403,7 @@ def compare_methods(env_name, checkpoint, n_episodes=10, horizon=1000):
 
 def main():
     parser = argparse.ArgumentParser(description="Safety Gym AC Budget")
-    parser.add_argument("--env", default="Ant-v5")
+    parser.add_argument("--env", default="SafetyPointGoal1-v0")
     parser.add_argument("--train", action="store_true")
     parser.add_argument("--eval", action="store_true")
     parser.add_argument("--compare", action="store_true")
