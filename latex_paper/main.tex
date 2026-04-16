@@ -228,30 +228,59 @@ The derivation serves to identify the urgency ratio $u$ as the natural state var
 The specific functional form $\exp(\eta(1/u-1))$ is a parametric choice satisfying these properties; it is not claimed to be optimal for any particular policy architecture.
 
 %----------------------------------------------------------------------
-\section{Method: Composable Budget Constraints}
+\section{Method}
 \label{sec:method}
 %----------------------------------------------------------------------
 
-\subsection{Per-Agent Constraint Energy}
+The method has three components that compose independently:
+(1)~the \emph{budget schedule} $\lambda(t)$ from Section~\ref{sec:theory}, which determines \emph{how strictly} to enforce the constraint at each moment;
+(2)~the \emph{cost function} $c(s, a)$, which defines \emph{what} is costly;
+and (3)~the \emph{application mechanism}, which determines \emph{how} the penalty modifies actions.
+Any cost function composes with any mechanism and the same $\lambda(t)$ schedule.
+
+\subsection{Cost Functions: From Binary Indicators to Nonlinear Surrogates}
+\label{sec:cost}
+
+The simplest cost is a binary indicator: $c(a) = \mathbf{1}[a \in \mathcal{A}_{\mathrm{risky}}]$ (\eg, $\mathbf{1}[\text{yaw} < 0]$).
+This counts timesteps of risky behavior but ignores severity---10$^\circ$ of negative yaw is penalized the same as 30$^\circ$.
+
+For real applications, a \emph{nonlinear surrogate} captures the physics:
+\begin{equation}
+    c(s, a) = \left(\frac{|a|}{\bar{a}}\right)^\beta \cdot \left(\frac{v(s)}{v_{\mathrm{ref}}}\right)^\gamma
+    \label{eq:nonlinear_cost}
+\end{equation}
+where $v(s)$ is a state-dependent amplifier (\eg, wind speed), $\beta > 1$ captures superlinear damage from large actions, and $\gamma > 1$ captures environmental amplification.
+For wind turbine fatigue, $\beta = 2$ (quadratic yaw-fatigue) and $\gamma = 3$ (cubic wind-speed amplification) are physically motivated~\citep{dijk2025load}.
+
+The cost function must be differentiable for gradient-based application mechanisms (Section~\ref{sec:gradient}).
+All cost functions compose with the same $\lambda(t)$ schedule; swapping the cost requires no retraining.
+
+\subsection{Application Mechanism 1: Energy Composition (EBT Actors)}
 \label{sec:composition}
 
-The constraint energy for agent $i$ at time $t$ is:
+For Energy-Based Transformer actors, the cost composes directly with the policy energy:
 \begin{equation}
-    E_{\mathrm{budget}}^i(a^i, t) = \lambda^i(t) \cdot \left(\exp\!\left(k \cdot \mathrm{ReLU}(f_{\mathrm{cost}}(a^i))\right) - 1\right)
-    \label{eq:budget_energy}
+    E_{\mathrm{total}}(a, t) = \frac{1}{N}\sum_{i=1}^{N}\!\left[E_\phi^i(\mathbf{e}_t^i, a^i) + \lambda_{\mathrm{gs}} \cdot \lambda^i(t) \cdot P(c(s, a^i))\right]
+    \label{eq:composition}
 \end{equation}
-where $f_{\mathrm{cost}}$ maps actions to a scalar cost excess (\eg, $f_{\mathrm{cost}}(a) = -a - \theta$ for negative yaw, or $|a| - a_{\mathrm{thresh}}$ for velocity).
-The base penalty is zero when the action is ``safe'' and grows exponentially for ``risky'' actions.
-The time-varying weight $\lambda^i(t)$ modulates the penalty strength based on remaining budget.
+where $P(x) = \exp(k \cdot \mathrm{ReLU}(x)) - 1$ is an exponential penalty and $\lambda_{\mathrm{gs}}$ is the guidance scale.
+Gradient descent on $E_{\mathrm{total}}$ simultaneously optimizes reward and respects the budget.
+This is the native mechanism for EBT actors and produces the strongest results.
 
-\subsection{Composed Energy Landscape}
+\subsection{Application Mechanism 2: Gradient-Based Action Correction (Any Actor)}
+\label{sec:gradient}
 
-During inference, the total energy optimized by the EBT actor is:
+For standard MLP or Gaussian actors that do not support energy composition, we correct the actor's output using the cost function's gradient:
 \begin{equation}
-    E_{\mathrm{total}}(a, t) = \frac{1}{N}\sum_{i=1}^{N}\!\left[E_\phi^i(\mathbf{e}_t^i, a^i) + \lambda_{\mathrm{gs}} \cdot E_{\mathrm{budget}}^i(a^i, t)\right]
+    a_{\mathrm{corrected}} = a_{\mathrm{actor}} - \lambda_{\mathrm{gs}} \cdot \lambda(t) \cdot \alpha \cdot \nabla_a\, c(s, a_{\mathrm{actor}})
+    \label{eq:gradient_correction}
 \end{equation}
-No retraining is needed: $E_\phi$ is frozen from unconstrained training, and the budget term is added post-hoc.
-The guidance scale $\lambda_{\mathrm{gs}}$ controls overall constraint strength.
+iterated for $K$ steps (typically $K = 3$--$5$), where $\alpha$ is a step size.
+This is mathematically equivalent to one step of gradient descent on the composed energy $E_\phi + \lambda(t) \cdot c$, but applied to the frozen actor's output rather than optimized from scratch.
+
+The gradient naturally handles nonlinear and spatial costs that action scaling cannot.
+For velocity constraints, $\nabla_a c$ points toward lower action magnitude (equivalent to action scaling).
+For spatial constraints (\eg, hazard proximity), $\nabla_a c$ points \emph{away from hazards}---redirecting the agent's trajectory, not just slowing it down.
 
 \subsection{Algorithm}
 
@@ -259,32 +288,32 @@ The guidance scale $\lambda_{\mathrm{gs}}$ controls overall constraint strength.
 \caption{Post-Hoc Budget-Constrained Inference}
 \label{alg:budget}
 \begin{algorithmic}[1]
-\REQUIRE Trained actor $E_\phi$, budget $B^i$ per agent, horizon $T$, risk aversion $\eta$, guidance scale $\lambda_{\mathrm{gs}}$
+\REQUIRE Trained actor, budget $B^i$ per agent, horizon $T$, risk aversion $\eta$, cost function $c(s, a)$
 \STATE Initialize $C^i \leftarrow 0$ for all agents $i$
 \FOR{$t = 0, \ldots, T-1$}
-    \STATE Observe state $s_t$, compute embeddings $\mathbf{e}_t^i$
-    \STATE Compute urgency $u_t^i = \frac{(B^i - C^i)/B^i}{(T-t)/T}$ for each agent
-    \STATE Compute $\lambda^i(t) = \min(\exp(\eta(1/u_t^i - 1)) \cdot \lambda_{\mathrm{wall}}^i,\; \lambda_{\max})$
-    \STATE Generate action via gradient descent on $E_\phi + \lambda_{\mathrm{gs}} \cdot E_{\mathrm{budget}}$
-    \STATE Execute $a_t$, observe $r_t$
-    \STATE Update $C^i \leftarrow C^i + c^i(a_t)$ \hfill\COMMENT{budget tracking}
+    \STATE Observe state $s_t$
+    \STATE Compute urgency $u_t^i = \frac{(B^i - C^i)/B^i}{(T-t)/T}$ and $\lambda^i(t) = \min(\exp(\eta(1/u_t^i - 1)) \cdot \lambda_{\mathrm{wall}}^i,\; \lambda_{\max})$
+    \STATE Generate action: \hfill\COMMENT{choose one mechanism}
+    \STATE \quad \textit{EBT:} gradient descent on $E_\phi + \lambda_{\mathrm{gs}} \cdot \lambda^i(t) \cdot P(c(s, a))$
+    \STATE \quad \textit{MLP:} $a \leftarrow a_{\mathrm{actor}} - \lambda_{\mathrm{gs}} \cdot \lambda^i(t) \cdot \alpha \cdot \nabla_a c(s, a)$ for $K$ steps
+    \STATE Execute $a_t$, observe $r_t$, compute $c_t = c(s_t, a_t)$
+    \STATE Update $C^i \leftarrow C^i + c_t^i$ \hfill\COMMENT{budget tracking}
 \ENDFOR
 \end{algorithmic}
 \end{algorithm}
 
-The only additions to the standard EBT inference loop are lines 4--5 (urgency and weight computation, a few floating-point operations) and line 8 (one comparison per agent).
-On HalfCheetah, per-step wall-clock time is 0.371~ms without the budget schedule and 0.411~ms with it---an overhead of 0.04~ms (10.8\%), dominated by one \texttt{exp()} and one division.
+The computational overhead is small: 0.04~ms per step for the $\lambda$ computation (10.8\% on HalfCheetah).
+Gradient correction adds $K$ backward passes through the cost function, which is typically much smaller than the policy network.
 
 \subsection{Heterogeneous Per-Agent Budgets}
 
-The framework naturally supports per-agent budgets $B^i$ by computing $u_t^i$ independently for each agent.
-This enables scenarios where agents have different operational histories (\eg, a turbine with a recently replaced bearing can tolerate more aggressive yaw).
+The framework supports per-agent budgets $B^i$ by computing $u_t^i$ independently.
+This enables scenarios where agents have different structural health (\eg, a turbine with a recently replaced bearing tolerates more aggressive yaw).
 
 \subsection{Connection to CMDP Lagrangian Duality}
 
-The time-varying weight $\lambda^i(t)$ serves a similar functional role to the Lagrangian dual variable $\mu$ in~\eqref{eq:cmdp}: it penalizes constraint-violating actions proportionally to how scarce the remaining budget is.
-The key difference: $\mu$ is learned via dual gradient ascent (requiring retraining), while $\lambda^i(t)$ is computed in closed form from the current budget state.
-This enables instant adaptation to new budget specifications without any optimization.
+The time-varying $\lambda^i(t)$ serves a similar role to the Lagrangian dual variable $\mu$ in~\eqref{eq:cmdp}: it penalizes costly actions proportionally to budget scarcity.
+The key difference: $\mu$ is learned via dual gradient ascent (requiring retraining); $\lambda^i(t)$ is computed in closed form from the current budget state, enabling instant adaptation to new specifications.
 
 %----------------------------------------------------------------------
 \section{Experimental Setup}
@@ -500,6 +529,38 @@ This disproportionate value capture confirms that the AC schedule concentrates s
     \caption{Ablations on HalfCheetah. (a)~Risk aversion sweep: $\eta=0$ wastes budget (53\% used), $\eta \geq 1$ achieves $>$96\% utilization and 7\% more reward. (b)~Schedule comparison: $u^{-\eta}$ (optimal) and $\exp(\eta(1/u-1))$ (practical) perform comparably. (c)~Hard guard ablation: the AC schedule alone matches the full system.}
     \label{fig:ablations}
 \end{figure}
+
+\subsection{Nonlinear Fatigue Surrogate: Why the Cost Function Matters}
+
+Table~\ref{tab:nonlinear} compares a binary cost indicator ($\mathbf{1}[\text{yaw} < 0]$) against the nonlinear fatigue surrogate from Eq.~\ref{eq:nonlinear_cost} on the wind farm.
+The binary indicator treats all negative yaw equally---but real structural fatigue depends on both the yaw magnitude and wind speed.
+The results are striking:
+
+\begin{table}[t]
+\centering
+\caption{Binary vs.\ nonlinear fatigue cost on 3-turbine wind farm (budget=15 steps). Cumulative fatigue computed as $\sum |y/\bar{y}|^2 \cdot (v/v_{\mathrm{ref}})^3$. The binary indicator minimizes neg-yaw \emph{count} but produces high fatigue; the nonlinear surrogate minimizes actual fatigue.}
+\label{tab:nonlinear}
+\begin{tabular}{lccc}
+\toprule
+Method & Power (MW) & NegYaw & Cum.\ Fatigue \\
+\midrule
+Unconstrained & 29.7 & [66, 75, 71] & 20.3 \\
+\midrule
+Binary $\eta=0$ (constant) & 25.8 & [18, 21, 25] & 87.6 \\
+Binary $\eta=2$ (AC) & 28.1 & [8, 8, 10] & 86.2 \\
+\midrule
+Nonlinear $\eta=0$ (constant) & 25.9 & [28, 51, 52] & 29.8 \\
+Nonlinear $\eta=2$ (AC) & 25.8 & [29, 55, 54] & 50.5 \\
+Nonlinear $\eta=5$ (AC) & \textbf{29.2} & [80, 81, 83] & \textbf{12.8} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The binary AC ($\eta=2$) uses only 8--10 neg-yaw steps but accumulates fatigue of 86.2---\emph{worse} than unconstrained (20.3).
+This occurs because the binary constraint forces the agent to avoid negative yaw entirely, pushing it toward large \emph{positive} yaw angles that the fatigue model also penalizes.
+In contrast, the nonlinear AC ($\eta=5$) uses \emph{more} neg-yaw steps (80--83) but achieves fatigue of only 12.8---a 6.8$\times$ reduction---while retaining 98\% of unconstrained power.
+The nonlinear surrogate permits negative yaw freely at low wind speeds (where fatigue is cheap) and restricts it only at high wind speeds (where fatigue is expensive).
+This physically meaningful allocation is impossible with a binary indicator.
 
 \subsection{Comparison to Baselines}
 
