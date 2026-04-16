@@ -11,12 +11,7 @@
 #SBATCH --error=logs/safety_ac_%j.err
 
 # ===========================================================================
-# Safety Gym AC Budget — ISOLATED conda environment
-#
-# Uses Python 3.10 + gymnasium 0.29.1 + safety-gymnasium 1.0.0
-# Completely separate from the pixi env (which uses Python 3.11 / gymnasium 1.2)
-# Python 3.10 is required because safety-gymnasium uses mutable numpy defaults
-# in dataclasses, which Python 3.11+ rejects.
+# Safety Gym AC Budget — ISOLATED conda env (Python 3.10)
 # ===========================================================================
 
 set -euo pipefail
@@ -29,41 +24,37 @@ mkdir -p logs checkpoints
 
 module load rocm/6.0.3
 
-# --- Setup conda env (once) ---
-if [ ! -d "$CONDA_DIR" ]; then
-    echo "Installing miniconda..."
-    wget -q https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O /tmp/mc.sh
-    bash /tmp/mc.sh -b -p "$CONDA_DIR"
-    rm /tmp/mc.sh
-fi
-
 export PATH="$CONDA_DIR/bin:$PATH"
 eval "$($CONDA_DIR/bin/conda shell.bash hook)"
 
+# Create env with Python 3.10 + numpy 1.23 (if not exists)
 if ! conda env list | grep -q safety_env; then
-    echo "Creating Python 3.10 environment..."
-    conda config --add channels conda-forge
-    conda config --set channel_priority strict
-    conda config --remove channels defaults 2>/dev/null || true
-    conda create -y -n safety_env python=3.10 numpy=1.24 -c conda-forge
+    echo "Creating Python 3.10 env..."
+    conda create -y -n safety_env python=3.10 "numpy=1.23.5" --override-channels -c conda-forge
 fi
 
 conda activate safety_env
 
-# Install packages (idempotent)
-pip install --quiet "gymnasium==0.29.1" "mujoco==2.3.7" "safety-gymnasium==1.0.0" 2>&1 | tail -5
-pip install --quiet torch==2.5.1 --index-url https://download.pytorch.org/whl/rocm6.2 2>&1 | tail -3
-pip install --quiet pyyaml xmltodict scipy matplotlib 2>&1 | tail -3
+# Force numpy version (conda sometimes overrides)
+pip install "numpy==1.23.5" --force-reinstall --quiet 2>&1 | tail -1
+
+# Install all deps from requirements file
+pip install -r "$PROJECT_DIR/lumi/safety_requirements.txt" --quiet 2>&1 | tail -5
+
+# Torch ROCm separately (different index)
+pip install torch==2.5.1 --index-url https://download.pytorch.org/whl/rocm6.2 --quiet 2>&1 | tail -3
 
 # Verify
 python -c "
+import numpy; print(f'numpy={numpy.__version__}')
 import gymnasium; print(f'gymnasium={gymnasium.__version__}')
 import safety_gymnasium; print('safety_gymnasium OK')
 import torch; print(f'torch={torch.__version__}, gpu={torch.cuda.is_available()}')
 env = safety_gymnasium.make('SafetyPointGoal1-v0')
 obs, info = env.reset()
-print(f'SafetyPointGoal1-v0 OK, obs={obs.shape}')
+print(f'SafetyPointGoal1-v0: obs={obs.shape}')
 env.close()
+print('ALL OK')
 "
 
 echo ""

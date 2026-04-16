@@ -185,12 +185,12 @@ class ReplayBuffer:
 def train_sac(env_name, total_timesteps=200000, save_path="checkpoints/sac_safety.pt",
               seed=1):
     """Train standard SAC (unconstrained) on Safety Gym environment."""
-    import safety_gymnasium  # registers Safety Gym envs
+    import safety_gymnasium
 
     torch.manual_seed(seed)
     np.random.seed(seed)
 
-    env = gym.make(env_name)
+    env = safety_gymnasium.make(env_name)
     obs_dim = env.observation_space.shape[0]
     act_dim = env.action_space.shape[0]
     act_limit = float(env.action_space.high[0])
@@ -303,7 +303,7 @@ def eval_with_budget(env_name, checkpoint, budget_frac=0.10, risk_aversion=2.0,
     actor.eval()
     act_limit = ckpt["act_limit"]
 
-    env = gym.make(env_name)
+    env = safety_gymnasium.make(env_name)
     budget = int(horizon * budget_frac)
 
     rewards, costs, goal_reached = [], [], []
