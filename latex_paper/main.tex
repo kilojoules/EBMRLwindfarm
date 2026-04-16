@@ -431,6 +431,20 @@ The near-100\% retention indicates that the budget constraint has minimal power 
 
 \begin{figure}[t]
     \centering
+    \includegraphics[width=\linewidth]{figures/fig_windfarm_timeseries.pdf}
+    \caption{Wind farm yaw time series under different budget strategies (one episode, budget$=15$). Top two panels: per-turbine yaw angles---unconstrained (gray) swings $\pm$20$^\circ$, while budget-constrained methods stay near 0--5$^\circ$. Third panel: $\lambda(t)$ on log scale---constant $\eta=0$ (red) stays flat; AC $\eta=5$ (dashed) drops during surplus and spikes to $10^4$ near budget depletion. Bottom: cumulative negative yaw---AC $\eta=5$ uses the full budget by episode end; $\eta=2$ conserves heavily.}
+    \label{fig:wf_timeseries}
+\end{figure}
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=\linewidth]{figures/fig_windfarm_timeseries_heatmap.pdf}
+    \caption{Yaw angle heatmaps (turbine $\times$ timestep) showing the spatial-temporal pattern. Unconstrained (left): persistent positive/negative yaw steering across all turbines. AC $\eta=2$ (middle): nearly zero yaw---very conservative. AC $\eta=5$ (right): mostly zero with a concentrated burst of negative yaw (blue) near the end, representing strategic budget spending.}
+    \label{fig:wf_heatmap}
+\end{figure}
+
+\begin{figure}[t]
+    \centering
     \includegraphics[width=\linewidth]{figures/fig3_pareto.pdf}
     \caption{Budget utilization vs.\ reward retention.
     Constant penalty (squares, red) cannot simultaneously achieve high utilization and high reward.
