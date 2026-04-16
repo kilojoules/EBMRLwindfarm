@@ -225,9 +225,14 @@ def train_sac(env_name, total_timesteps=200000, save_path="checkpoints/sac_safet
                 a, _, _ = actor.sample(torch.FloatTensor(obs).unsqueeze(0))
                 action = a.squeeze(0).numpy() * act_limit
 
-        next_obs, reward, term, trunc, info = env.step(action)
+        step_result = env.step(action)
+        # safety-gymnasium returns 6 values: obs, reward, cost, term, trunc, info
+        if len(step_result) == 6:
+            next_obs, reward, cost, term, trunc, info = step_result
+        else:
+            next_obs, reward, term, trunc, info = step_result
+            cost = info.get("cost", 0.0)
         done = term or trunc
-        cost = info.get("cost", 0.0)
 
         buf.add(obs, action / act_limit, reward, next_obs, float(term))
         obs = next_obs
@@ -330,8 +335,12 @@ def eval_with_budget(env_name, checkpoint, budget_frac=0.10, risk_aversion=2.0,
                 scale = 1.0 / (1.0 + action_penalty_scale * lam * penalty)
                 action = action * scale
 
-            obs, reward, term, trunc, info = env.step(action)
-            cost = info.get("cost", 0.0)
+            step_result = env.step(action)
+            if len(step_result) == 6:
+                obs, reward, cost, term, trunc, info = step_result
+            else:
+                obs, reward, term, trunc, info = step_result
+                cost = info.get("cost", 0.0)
             surr.update(cost)
 
             ep_rew += reward
