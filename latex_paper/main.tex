@@ -61,13 +61,18 @@ Six months after deployment, a bearing inspection reveals that one turbine needs
 Retraining the controller is expensive and disruptive.
 The operator needs a way to impose this new cumulative constraint on the \emph{existing} policy, instantly and without retraining.
 
-This scenario is ubiquitous in deployed RL systems.
-Cumulative operational constraints arise whenever an agent must limit the total time spent in a high-reward but costly regime:
-wind turbines with load budgets~\citep{dijk2025load},
+This constraint has a subtle structure.
+Simple fatigue models treat yaw angle as an instantaneous cost---the load depends only on the current action.
+But realistic structural loading depends on \emph{partial wake interactions}: an upstream turbine's yaw deflects its wake, which propagates downstream over seconds to minutes, creating asymmetric inflow that drives fatigue on downstream rotors~\citep{dijk2025load}.
+The cost at one turbine is caused by another turbine's action in the past, mediated by wake dynamics---a \emph{state-dependent} cost that cannot be controlled by modifying the current action alone.
+This delayed, state-mediated cost structure is not unique to wind farms: it arises whenever cumulative constraints depend on propagation dynamics (thermal systems, chemical processes, multi-agent interactions).
+
+More broadly, cumulative operational constraints arise whenever an agent must limit total time in a high-reward but costly regime:
+wind turbines with load budgets,
 robots with joint-wear maintenance cycles,
 grid batteries with cycle-life limits,
 and advertisers with daily spending caps~\citep{balseiro2023budget}.
-Unlike instantaneous constraints (avoid obstacles, stay upright), these are \emph{lifetime budgets}: the agent must decide \emph{when} to spend its limited capacity for risky actions, allocating strategically across time.
+Unlike instantaneous constraints, these are \emph{lifetime budgets}: the agent must decide \emph{when} to spend its limited capacity for risky actions.
 
 This budget allocation problem shares a conceptual structure with optimal trade execution in quantitative finance~\citep{almgren2001optimal}: a trader must liquidate a position over a time horizon, deciding when to trade aggressively versus passively.
 While the full financial model involves market impact dynamics with no analog in our setting, a key insight transfers: the rate of resource consumption should depend on \emph{remaining inventory relative to remaining time}---the urgency ratio.
@@ -575,75 +580,108 @@ In contrast, the nonlinear AC ($\eta=5$) uses \emph{more} neg-yaw steps (80--83)
 The nonlinear surrogate permits negative yaw freely at low wind speeds (where fatigue is cheap) and restricts it only at high wind speeds (where fatigue is expensive).
 This physically meaningful allocation is impossible with a binary indicator.
 
-\subsection{When Post-Hoc Composition Fails: State-Dependent Costs}
+\subsection{The Action-to-Cost Gap: From Wind Farm to Safety Gym}
 \label{sec:state_dependent}
 
-The wind farm results demonstrate that the urgency schedule works well when the cost is a direct function of the action---negative yaw is both the risky action and the cost indicator, so modifying the action directly controls cost.
-We now examine the boundary of this approach using Safety Gymnasium's SafetyPointGoal1-v0, where the cost depends on the agent's \emph{position} (inside a hazard zone), not its action.
+The wind farm results demonstrate that the urgency schedule works well when cost is a direct function of the current action.
+But this success rests on a structural property of the simplified fatigue model: the cost $c = |y/\bar{y}|^\beta \cdot (v/v_{\mathrm{ref}})^\gamma$ depends on the current yaw angle and wind speed, both observable and controllable at decision time.
+Real structural fatigue has a different causal structure.
 
-\textbf{Experimental setup.}
-A point robot navigates to goal positions while avoiding circular hazard zones.
-Cost is binary: $c=1$ when the agent enters a hazard zone.
-We trained an unconstrained SAC policy (200k steps, 5 seeds) and applied the budget schedule post-hoc with three correction mechanisms:
-(1)~action magnitude scaling,
-(2)~directional repulsion from hazard lidar readings, and
-(3)~gradient correction using a differentiable hazard proximity cost.
+\textbf{The wake propagation problem.}
+In a real wind farm, fatigue on downstream turbines is driven by \emph{partial wake interactions}: an upstream turbine's yaw deflects its wake, which propagates downstream over 10--60 seconds (depending on spacing and wind speed), creating asymmetric inflow that drives cyclic loading on the downstream rotor.
+The cost at turbine $j$ at time $t$ is caused by turbine $i$'s action at time $t - \Delta t$, where $\Delta t$ is the wake advection delay:
+\begin{equation}
+    c_j(t) = h\!\left(\text{wake}(a_i(t - \Delta t),\, v(t),\, \mathbf{x}_i,\, \mathbf{x}_j)\right)
+    \label{eq:wake_delay}
+\end{equation}
+This is a \emph{state-dependent} cost: it depends on the wake state (position, intensity, turbulence), which is the result of past actions propagated through aerodynamic dynamics.
+Modifying the current action $a_i(t)$ cannot change the wake that is already in transit.
 
-\textbf{Result: budget violation despite correct scheduling.}
-Across all three mechanisms and all budget levels, the post-hoc correction fails to enforce the budget.
-At budget $B=10$ (18\% of unconstrained cost $\sim$56), the best mechanism still incurs 30--50 hazard steps---3--5$\times$ over budget.
-The urgency ratio $u(t)$ and penalty weight $\lambda(t)$ behave as designed: $\lambda$ rises steeply as the budget depletes.
-But the high penalty cannot prevent budget violation because the correction mechanisms cannot redirect an agent that is already heading toward a hazard at speed.
+\textbf{Safety Gym as a controlled diagnostic.}
+To study this structure in a reproducible setting, we use Safety Gymnasium's SafetyPointGoal1-v0~\citep{ji2023safetygym}, which exhibits the same causal gap.
+A point robot navigates to goals while avoiding circular hazard zones.
+The cost is binary ($c=1$ when the agent enters a hazard zone) and depends on the agent's \emph{position}---the integral of past actions through momentum dynamics---not on the current action.
+
+\begin{table}[t]
+\centering
+\caption{Safety Gymnasium diagnostic (SafetyPointGoal1-v0, 20 episodes, 5 seeds). Four correction mechanisms applied post-hoc; none satisfy tight budgets. The urgency schedule fires correctly but has no effective lever to pull. Risk-aware filtering satisfies budget only at $B=40$ ($\sim$70\% of unconstrained cost).}
+\label{tab:safetygym}
+\begin{tabular}{lcccc}
+\toprule
+Method & Budget & Reward & Cost & Satisfied \\
+\midrule
+Unconstrained & --- & $26.6 \pm 1.2$ & $\sim$37--56 & --- \\
+\midrule
+\multicolumn{5}{l}{\textit{Budget $B=10$ ($\sim$18\% of unconstrained cost)}} \\
+Action scaling ($\eta=2$) & 10 & 25.3 & 51 & \textcolor{red}{$\times$} \\
+Gradient corr.\ ($\eta=2$) & 10 & 23.7 & 59 & \textcolor{red}{$\times$} \\
+Risk filter ($\eta=2$) & 10 & 9.7 & 72 & \textcolor{red}{$\times$} \\
+\midrule
+\multicolumn{5}{l}{\textit{Budget $B=40$ ($\sim$70\% of unconstrained cost)}} \\
+Action scaling ($\eta=2$) & 40 & 21.8 & 48 & \textcolor{red}{$\times$} \\
+Gradient corr.\ ($\eta=2$) & 40 & 25.1 & 64 & \textcolor{red}{$\times$} \\
+Risk filter ($\eta=0$) & 40 & 22.8 & 41 & \checkmark \\
+Risk filter ($\eta=2$) & 40 & 19.6 & 35 & \checkmark \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+We tested four post-hoc correction mechanisms (Table~\ref{tab:safetygym}): action magnitude scaling, directional repulsion from hazard lidar, gradient correction via a learned cost predictor $\hat{c}(s,a)$ (binary classifier, 90\% balanced accuracy), and risk-aware filtering that scales action magnitude proportional to $P(\text{cost} \mid s, a) \times \lambda(t)$.
+None satisfy tight budgets.
+Risk-aware filtering achieves budget satisfaction only at $B=40$ ($\sim$70\% of unconstrained cost) at the expense of 26\% reward reduction.
 
 \textbf{Root cause: the action-to-cost gap.}
 The failure is structural, not parametric.
-In the wind farm, cost is a function of the current action: $c(a) = \mathbf{1}[\text{yaw} < 0]$.
-Modifying $a$ directly controls $c$.
-In Safety Gym, cost is a function of the agent's state: $c(s) = \mathbf{1}[\text{position} \in \text{hazard}]$.
-The agent's position is the integral of its past actions through the dynamics: $s_{t+1} = f(s_t, a_t)$.
-Post-hoc correction at time $t$ cannot retroactively change the trajectory that brought the agent to its current position, and a single-step action modification cannot overcome momentum carrying the agent into a hazard it is already approaching.
-
-We formalize this distinction as \emph{action-dependent} vs.\ \emph{state-dependent} costs:
+We formalize the distinction:
 \begin{itemize}
-    \item \textbf{Action-dependent}: $c_t = g(a_t)$ or $c_t = g(a_t, s_t)$ where $\nabla_a g$ directly modifies cost. Post-hoc penalty composition works because the corrected action immediately reduces cost.
-    \item \textbf{State-dependent}: $c_t = g(s_t)$ where $s_t$ depends on the trajectory history. Post-hoc action correction requires predicting future states---a dynamics model or learned cost predictor---to translate state-level costs into action-level gradients.
+    \item \textbf{Action-dependent costs}: $c_t = g(a_t, s_t)$ where $\nabla_a g \neq 0$. Post-hoc penalty composition works because the corrected action immediately reduces cost. \emph{Examples}: yaw angle $\to$ fatigue (simplified), velocity $\to$ energy cost.
+    \item \textbf{State-dependent costs}: $c_t = g(s_t)$ where $s_t = f(s_{t-1}, a_{t-1})$. The gradient $\nabla_a c \approx 0$ because cost depends on accumulated state, not the current action. \emph{Examples}: position $\to$ hazard entry (Safety Gym), wake state $\to$ downstream fatigue (real wind farm), thermal state $\to$ bearing damage.
 \end{itemize}
 
 This distinction defines the \emph{scope condition} for post-hoc budget scheduling: the method is effective when the cost function provides useful gradients with respect to the current action.
-When cost depends on accumulated state, the gradient of the instantaneous cost $\nabla_a c(s_t)$ is either zero (not yet in a hazard) or too late (already inside), providing no useful signal for avoidance.
+The analogy between Safety Gym and wake-propagation fatigue is precise: in both cases, the cost at time $t$ is determined by a state variable (position, wake field) that is the integral of past actions through dynamics that the post-hoc correction cannot retroactively change.
 
-\textbf{Implications for nonlinear fatigue models.}
-This scope condition has direct consequences for the wind energy application.
-The binary cost ($\mathbf{1}[\text{yaw} < 0]$) and the nonlinear fatigue surrogate ($|y/\bar{y}|^\beta \cdot (v/v_{\mathrm{ref}})^\gamma$) are both action-dependent---they depend on the current yaw angle and wind speed, both observable at decision time.
-However, more realistic fatigue models incorporate cumulative damage state (Miner's linear damage rule, rainflow counting, bearing temperature history).
-As fatigue models incorporate state dependence, the same breakdown observed in Safety Gym will emerge.
-Addressing this is a key direction for future work.
+\textbf{Implication.}
+The simplified fatigue model ($|y/\bar{y}|^\beta \cdot (v/v_{\mathrm{ref}})^\gamma$) used in our wind farm experiments is action-dependent and thus amenable to post-hoc composition.
+As fatigue models incorporate wake propagation, Miner's cumulative damage rule, or bearing thermal dynamics, they cross the boundary into state-dependent costs.
+Bridging this gap is the key challenge for deploying budget-scheduled constraint enforcement on real wind farms.
 
 %----------------------------------------------------------------------
 \section{Toward Dynamics-Aware Budget Scheduling}
 \label{sec:extensions}
 %----------------------------------------------------------------------
 
-The state-dependent cost failure motivates extensions that incorporate lightweight dynamics reasoning while preserving the post-hoc, zero-retraining property.
-We outline three approaches ordered by implementation complexity.
+The action-to-cost gap motivates extensions that incorporate dynamics reasoning while preserving the post-hoc, zero-policy-retraining property.
+The core insight: a one-step cost predictor $P(\text{cost} \mid s, a)$ can detect imminent hazards (90\% balanced accuracy in our experiments) but cannot \emph{prevent} them via gradient correction, because the action's marginal effect on next-step cost is too small relative to the state's effect (momentum, wake position).
+Bridging the gap requires predicting cost consequences over \emph{multiple} future steps.
 
-\textbf{Approach 1: Learned cost predictor.}
-Train a small network $\hat{c}(s, a) \approx \mathbb{E}[c(s_{t+1}) \mid s_t, a_t]$ on transitions from the unconstrained policy's replay buffer.
-This one-step cost predictor transforms the state-dependent cost into an action-dependent prediction: the gradient $\nabla_a \hat{c}(s, a)$ points away from actions that lead to costly next states.
-The urgency schedule modulates this gradient exactly as it does for action-dependent costs.
-Training the predictor does not require retraining the policy and can be done offline from logged data.
+\textbf{Cost critic $Q_c$ (most promising).}
+Train a cost-value function alongside the reward critic during the original SAC training:
+\begin{equation}
+    Q_c(s, a) = \mathbb{E}_\pi\!\left[\sum_{t'=t}^{T} \gamma_c^{t'-t} c(s_{t'}) \;\Big|\; s_t, a_t\right]
+    \label{eq:cost_critic}
+\end{equation}
+This requires adding one output head to the critic network and storing cost in the replay buffer---a minimal training change, with no modification to the policy or its objective.
+At deployment, $\nabla_a Q_c(s, a)$ provides a \emph{long-horizon} cost gradient that accounts for dynamics, momentum, and wake propagation, because Bellman bootstrapping propagates cost information backward through the learned dynamics.
+The urgency schedule then modulates $\nabla_a Q_c$ instead of $\nabla_a c$:
+\begin{equation}
+    a_{\mathrm{corr}} = a_{\mathrm{actor}} - \lambda_{\mathrm{gs}} \cdot \lambda(t) \cdot \alpha \cdot \nabla_a Q_c(s_t, a_t)
+\end{equation}
+For the wind farm application, $Q_c$ would learn that certain yaw angles at high wind speeds cause fatigue on downstream turbines \emph{after} the wake propagates---exactly the multi-step reasoning that one-step correction misses.
+The policy remains frozen; only the cost critic is trained, and it generalizes across budget levels because budget-specific adaptation is handled by $\lambda(t)$.
 
-\textbf{Approach 2: CBF-budget fusion.}
-Define a control barrier function $h(C_t, t) = B - C_t - m(t)$, where $m(t)$ is a safety margin derived from the urgency schedule.
-The CBF condition $\dot{h} \geq -\alpha h$ translates the cumulative budget constraint into an instantaneous bound on the allowable cost rate at each timestep.
-When the agent is heading toward a hazard (high predicted $\dot{C}$), the CBF tightens the action constraint; when the agent is in a safe region, the constraint relaxes.
-This marries the urgency schedule (which determines the margin trajectory $m(t)$) with a dynamics-aware safety filter.
+\textbf{CBF-budget fusion (strongest guarantee).}
+Define a control barrier function $h(C_t, t) = B - C_t - m(t)$, where $m(t)$ is a safety margin from the urgency schedule.
+The CBF condition $\dot{h} \geq -\alpha h$ translates the cumulative budget into an instantaneous constraint on the allowable cost rate, solved as a QP at each step.
+This provides formal budget satisfaction guarantees under accurate cost-rate prediction.
 
-\textbf{Approach 3: Critic-as-cost-predictor.}
-If a cost signal is available during training, a parallel cost-Q-function $Q_c(s, a) = \mathbb{E}[\sum_{t'=t}^{T} c_{t'} \mid s_t, a_t]$ can be trained alongside the reward critic at negligible additional cost.
-At deployment, $\nabla_a Q_c(s, a)$ provides a long-horizon cost gradient that accounts for dynamics, accumulated state, and the agent's own future behavior.
-The urgency schedule then modulates $\nabla_a Q_c$ instead of $\nabla_a c$, yielding dynamics-aware budget enforcement without retraining the policy.
-This approach requires the least architectural change---adding one output head to the critic---and produces the most informative gradients.
+\textbf{Predictive urgency (cheapest structural fix).}
+Replace the realized urgency $u = \beta/\tau$ with a predictive variant $\tilde{u}$ that subtracts $Q_c$-estimated future cost from the remaining budget:
+$\tilde{u}_t = (B - C_t - \hat{C}_{\mathrm{future}}) / (B \cdot \tau_t)$.
+This makes the schedule \emph{proactive}---it fires before the agent enters a costly region, not after---while requiring no change to the correction mechanism.
+
+All three approaches preserve the paper's key property: the \emph{policy} is never retrained.
+The cost critic requires a one-time offline training phase from logged transitions, analogous to how a fatigue engineer might calibrate a load model from SCADA data before deploying it alongside an existing controller.
 
 %----------------------------------------------------------------------
 \section{Related Work}
