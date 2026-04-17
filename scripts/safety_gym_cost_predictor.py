@@ -165,17 +165,15 @@ class PredictiveBudgetSurrogate:
     def correct_action(self, obs, action_np, act_limit):
         """Apply gradient correction using nabla_a c_hat."""
         obs_t = torch.FloatTensor(obs)
-        a_t = torch.FloatTensor(action_np / act_limit)  # normalize to [-1,1]
+        a_t = torch.FloatTensor(action_np / act_limit)
 
         lam = self.compute_lambda(obs_t, a_t)
 
         if self.cumulative_cost >= self.budget_steps:
-            # Budget exhausted: maximum correction
             effective_lam = 100.0
         else:
             effective_lam = min(lam, 100.0)
 
-        # Gradient descent on P(cost | s, a)
         a_corr = a_t.clone().detach()
         for _ in range(self.correction_steps):
             a_corr.requires_grad_(True)
@@ -186,6 +184,36 @@ class PredictiveBudgetSurrogate:
             a_corr = a_corr.clamp(-1.0, 1.0)
 
         return a_corr.detach().numpy() * act_limit
+
+    def filter_action(self, obs, action_np, act_limit):
+        """
+        Risk-aware throttle: brake when P(cost|s,a) is high and budget is tight.
+
+        No gradient computation. Uses the predictor as a binary risk signal:
+        if the agent is about to enter a hazard, scale down the action
+        proportional to risk × urgency. Preserves action direction.
+        """
+        obs_t = torch.FloatTensor(obs)
+        a_t = torch.FloatTensor(action_np / act_limit)
+
+        with torch.no_grad():
+            p_cost = self.cost_pred.predict_prob(
+                obs_t.unsqueeze(0), a_t.unsqueeze(0)).item()
+
+        lam = self.compute_lambda(obs_t, a_t)
+
+        if self.cumulative_cost >= self.budget_steps:
+            # Budget exhausted: stop if any risk
+            if p_cost > 0.1:
+                return np.zeros_like(action_np)
+            return action_np * 0.1
+
+        # Risk-aware scaling: throttle proportional to P(cost) × urgency
+        # At low risk or low urgency: scale ≈ 1 (no change)
+        # At high risk + high urgency: scale → 0 (full brake)
+        risk_pressure = p_cost * min(lam, 20.0) * self.correction_lr
+        scale = 1.0 / (1.0 + risk_pressure)
+        return action_np * scale
 
 
 # =============================================================================
@@ -370,7 +398,8 @@ def train_cost_predictor(data_path, save_path="checkpoints/cost_predictor.pt",
 def eval_with_predictor(env_name, actor_checkpoint, predictor_checkpoint,
                         budget_frac=0.10, risk_aversion=2.0,
                         n_episodes=20, horizon=1000,
-                        correction_lr=0.1, correction_steps=3):
+                        correction_lr=0.1, correction_steps=3,
+                        correction_mode="grad"):
     """Evaluate with cost predictor + predictive urgency."""
     import safety_gymnasium
 
@@ -409,7 +438,12 @@ def eval_with_predictor(env_name, actor_checkpoint, predictor_checkpoint,
                 a, _, _ = actor.sample(torch.FloatTensor(obs).unsqueeze(0))
             raw_action = a.squeeze(0).numpy() * act_limit
 
-            action = surr.correct_action(obs, raw_action, act_limit)
+            if correction_mode == "grad":
+                action = surr.correct_action(obs, raw_action, act_limit)
+            elif correction_mode == "filter":
+                action = surr.filter_action(obs, raw_action, act_limit)
+            else:
+                action = raw_action
 
             step_result = env.step(action)
             if len(step_result) == 6:
@@ -473,13 +507,14 @@ def compare_all(env_name, actor_checkpoint, predictor_checkpoint,
     for cost_budget in cost_budgets:
         budget_frac = cost_budget / horizon
         for ra in [0.0, 2.0, 5.0]:
-            for corr_steps, label_prefix in [(0, "No correction"),
-                                              (3, "Grad corr")]:
+            for mode, label_prefix in [("none", "No correction"),
+                                        ("grad", "Grad corr"),
+                                        ("filter", "Risk filter")]:
                 res = eval_with_predictor(
                     env_name, actor_checkpoint, predictor_checkpoint,
                     budget_frac=budget_frac, risk_aversion=ra,
                     n_episodes=n_episodes, horizon=horizon,
-                    correction_steps=corr_steps)
+                    correction_mode=mode)
 
                 pct = 100 * res["reward"] / uncon_reward if uncon_reward > 0 else 0
                 used = 100 * res["cost"] / cost_budget if cost_budget > 0 else 0
@@ -489,7 +524,7 @@ def compare_all(env_name, actor_checkpoint, predictor_checkpoint,
                       f"{res['cost']:>6.0f} {pct:>6.1f}% {used:>5.0f}% "
                       f"{res['goal_rate']:>4.0f}% {ok}")
 
-                key = f"B{cost_budget}_ra{ra}_corr{corr_steps}"
+                key = f"B{cost_budget}_ra{ra}_{mode}"
                 results[key] = {**res, "pct_unconstrained": pct,
                                 "budget_used_pct": used}
 
