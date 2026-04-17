@@ -61,18 +61,29 @@ class GaussianActor(nn.Module):
 
 
 class CostPredictor(nn.Module):
-    """Predicts soft cost of next state given current (obs, action)."""
+    """
+    Predicts probability of hazard cost at next step given (obs, action).
+
+    Trained as binary classifier with focal loss to handle class imbalance.
+    The sigmoid output P(cost|s,a) has non-zero gradient near decision
+    boundaries — exactly where the agent needs guidance.
+    """
 
     def __init__(self, obs_dim, act_dim, hidden=128):
         super().__init__()
         self.net = nn.Sequential(
             nn.Linear(obs_dim + act_dim, hidden), nn.ReLU(),
             nn.Linear(hidden, hidden), nn.ReLU(),
-            nn.Linear(hidden, 1), nn.Sigmoid(),
+            nn.Linear(hidden, 1),
         )
 
     def forward(self, obs, action):
+        """Returns logit (for training loss) and probability (for correction)."""
         return self.net(torch.cat([obs, action], dim=-1))
+
+    def predict_prob(self, obs, action):
+        """Returns P(cost=1 | s, a) — use this for gradient correction."""
+        return torch.sigmoid(self.forward(obs, action))
 
 
 # =============================================================================
@@ -115,15 +126,14 @@ class PredictiveBudgetSurrogate:
     def _predicted_future_cost(self, obs_tensor, action_tensor):
         """Estimate expected future cost if continuing current behavior."""
         with torch.no_grad():
-            c_hat = self.cost_pred(obs_tensor.unsqueeze(0),
-                                    action_tensor.unsqueeze(0)).item()
+            p_cost = self.cost_pred.predict_prob(
+                obs_tensor.unsqueeze(0), action_tensor.unsqueeze(0)).item()
         time_remaining = max(self.horizon_steps - self.current_step, 1)
-        # Geometric sum: c_hat * (1 + γ + γ² + ... + γ^(T-t-1))
         if self.lookahead_discount < 1.0:
             geo = (1 - self.lookahead_discount ** time_remaining) / (1 - self.lookahead_discount)
         else:
             geo = time_remaining
-        return c_hat * geo
+        return p_cost * geo
 
     def compute_lambda(self, obs_tensor=None, action_tensor=None):
         """Compute penalty weight with optional predictive urgency."""
@@ -165,12 +175,13 @@ class PredictiveBudgetSurrogate:
         else:
             effective_lam = min(lam, 100.0)
 
-        # Gradient descent on predicted cost
+        # Gradient descent on P(cost | s, a)
         a_corr = a_t.clone().detach()
         for _ in range(self.correction_steps):
             a_corr.requires_grad_(True)
-            c_pred = self.cost_pred(obs_t.unsqueeze(0), a_corr.unsqueeze(0))
-            grad = torch.autograd.grad(c_pred, a_corr)[0]
+            p_cost = self.cost_pred.predict_prob(
+                obs_t.unsqueeze(0), a_corr.unsqueeze(0))
+            grad = torch.autograd.grad(p_cost, a_corr)[0]
             a_corr = a_corr.detach() - effective_lam * self.correction_lr * grad
             a_corr = a_corr.clamp(-1.0, 1.0)
 
@@ -257,19 +268,33 @@ def collect_data(env_name, checkpoint, n_episodes=100, horizon=1000,
 # TRAINING
 # =============================================================================
 
+def focal_bce_loss(logits, targets, gamma=2.0, pos_weight=10.0):
+    """Focal loss for imbalanced binary classification."""
+    bce = F.binary_cross_entropy_with_logits(
+        logits, targets, pos_weight=torch.tensor(pos_weight), reduction='none')
+    probs = torch.sigmoid(logits)
+    pt = targets * probs + (1 - targets) * (1 - probs)
+    focal_weight = (1 - pt) ** gamma
+    return (focal_weight * bce).mean()
+
+
 def train_cost_predictor(data_path, save_path="checkpoints/cost_predictor.pt",
-                         epochs=200, batch_size=512, lr=3e-4, hidden=128):
-    """Train cost predictor MLP on collected transitions."""
+                         epochs=300, batch_size=512, lr=3e-4, hidden=128):
+    """Train cost predictor as binary classifier with focal loss."""
     data = np.load(data_path)
     obs = torch.FloatTensor(data["obs"])
     act = torch.FloatTensor(data["act"])
-    cost_soft = torch.FloatTensor(data["cost_soft"]).unsqueeze(1)
+    cost_binary = torch.FloatTensor(data["cost_binary"]).unsqueeze(1)
 
     obs_dim = obs.shape[1]
     act_dim = act.shape[1]
     n = len(obs)
 
-    # Train/val split
+    pos_rate = cost_binary.mean().item()
+    pos_weight = max((1 - pos_rate) / max(pos_rate, 1e-6), 1.0)
+    print(f"  Data: {n} transitions, {pos_rate*100:.1f}% positive, "
+          f"pos_weight={pos_weight:.1f}")
+
     perm = torch.randperm(n)
     n_val = max(n // 10, 1000)
     val_idx, train_idx = perm[:n_val], perm[n_val:]
@@ -277,7 +302,7 @@ def train_cost_predictor(data_path, save_path="checkpoints/cost_predictor.pt",
     model = CostPredictor(obs_dim, act_dim, hidden)
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
 
-    best_val_loss = float('inf')
+    best_val_auc = 0.0
     best_state = None
 
     for epoch in range(epochs):
@@ -288,8 +313,9 @@ def train_cost_predictor(data_path, save_path="checkpoints/cost_predictor.pt",
 
         for i in range(0, len(train_idx), batch_size):
             idx = train_idx[shuffle[i:i+batch_size]]
-            pred = model(obs[idx], act[idx])
-            loss = F.mse_loss(pred, cost_soft[idx])
+            logits = model(obs[idx], act[idx])
+            loss = focal_bce_loss(logits, cost_binary[idx],
+                                   pos_weight=pos_weight)
 
             optimizer.zero_grad()
             loss.backward()
@@ -297,37 +323,42 @@ def train_cost_predictor(data_path, save_path="checkpoints/cost_predictor.pt",
             epoch_loss += loss.item()
             n_batches += 1
 
-        # Validation
+        # Validation: use balanced accuracy (handles imbalance)
         model.eval()
         with torch.no_grad():
-            val_pred = model(obs[val_idx], act[val_idx])
-            val_loss = F.mse_loss(val_pred, cost_soft[val_idx]).item()
+            val_logits = model(obs[val_idx], act[val_idx])
+            val_probs = torch.sigmoid(val_logits).squeeze()
+            val_true = cost_binary[val_idx].squeeze()
+            val_pred = (val_probs > 0.5).float()
 
-        if val_loss < best_val_loss:
-            best_val_loss = val_loss
+            tp = ((val_pred == 1) & (val_true == 1)).float().sum()
+            fp = ((val_pred == 1) & (val_true == 0)).float().sum()
+            fn = ((val_pred == 0) & (val_true == 1)).float().sum()
+            tn = ((val_pred == 0) & (val_true == 0)).float().sum()
+
+            precision = tp / max(tp + fp, 1)
+            recall = tp / max(tp + fn, 1)
+            specificity = tn / max(tn + fp, 1)
+            balanced_acc = 0.5 * (recall + specificity)
+
+        if balanced_acc > best_val_auc:
+            best_val_auc = balanced_acc
             best_state = {k: v.clone() for k, v in model.state_dict().items()}
 
         if (epoch + 1) % 50 == 0:
-            print(f"  Epoch {epoch+1}/{epochs}: "
-                  f"train={epoch_loss/n_batches:.4f}, val={val_loss:.4f}")
+            print(f"  Epoch {epoch+1}/{epochs}: loss={epoch_loss/n_batches:.4f}, "
+                  f"bal_acc={balanced_acc:.3f}, prec={precision:.3f}, "
+                  f"recall={recall:.3f}")
 
     model.load_state_dict(best_state)
 
     os.makedirs(os.path.dirname(save_path) or ".", exist_ok=True)
     torch.save({
         "model": model.state_dict(), "obs_dim": obs_dim, "act_dim": act_dim,
-        "hidden": hidden, "val_loss": best_val_loss,
+        "hidden": hidden, "best_balanced_acc": float(best_val_auc),
     }, save_path)
-    print(f"Saved cost predictor to {save_path} (val_loss={best_val_loss:.4f})")
-
-    # Quick accuracy check
-    model.eval()
-    with torch.no_grad():
-        all_pred = model(obs, act).squeeze()
-        binary_pred = (all_pred > 0.3).float()
-        binary_true = torch.FloatTensor(data["cost_binary"])
-        acc = (binary_pred == binary_true).float().mean()
-        print(f"  Binary classification accuracy (threshold=0.3): {acc:.3f}")
+    print(f"Saved cost predictor to {save_path} "
+          f"(balanced_acc={best_val_auc:.3f})")
 
     return save_path
 
