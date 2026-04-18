@@ -48,7 +48,7 @@ We propose a closed-form, time-varying penalty weight that adapts constraint enf
 The schedule composes post-hoc with pre-trained policies---via per-agent energy addition for energy-based actors or gradient-based action correction for standard actors---requiring zero retraining.
 A single pre-trained policy thereby supports arbitrary budget levels, per-agent heterogeneous constraints, and instant adaptation to new specifications.
 When paired with a differentiable nonlinear cost function, the method captures physically meaningful constraint structure: on a wind farm yaw-fatigue problem, a nonlinear fatigue surrogate achieves a $6.8\times$ reduction in cumulative structural fatigue compared to a binary cost indicator, while retaining 98\% of unconstrained power.
-We validate across two domains---wind farm yaw control with structural loading budgets and Safety Gymnasium navigation with hazard-exposure budgets---demonstrating budget satisfaction with high reward retention across both.
+We validate on wind farm yaw control, demonstrating budget satisfaction with high reward retention, and use Safety Gymnasium navigation as a diagnostic for state-dependent costs where the method partially succeeds (20--36\% cost reduction via a learned cost critic) but cannot satisfy tight budgets due to weak action-to-cost coupling.
 \end{abstract}
 
 %----------------------------------------------------------------------
@@ -86,7 +86,7 @@ Our contributions are:
 \begin{enumerate}
     \item A \textbf{closed-form time-varying penalty weight} motivated by budget-balanced sequential allocation under an idealized Boltzmann response (Section~\ref{sec:theory}). The analysis identifies the urgency ratio $u$ as the natural state variable and constrains the schedule to be monotone decreasing in $u$.
     \item A \textbf{practical schedule} $w(u) = \exp(\eta(1/u - 1))$ that recovers uniform allocation at $\eta=0$ and provides tunable risk aversion via a single scalar parameter (Section~\ref{sec:method}).
-    \item \textbf{Post-hoc composition} with pre-trained policies---via per-agent energy addition for EBT actors or gradient-based action correction for standard actors---enabling zero-retraining constraint enforcement with heterogeneous per-agent budgets (Section~\ref{sec:composition}).
+    \item \textbf{Post-hoc composition} with pre-trained policies---via per-agent energy addition for EBT actors or gradient-based action correction for standard actors---enabling zero-retraining constraint enforcement with per-agent budgets (Section~\ref{sec:composition}).
     \item \textbf{Empirical validation} across two domains---wind farm yaw control with structural fatigue budgets and Safety Gymnasium navigation with hazard-exposure budgets---showing budget satisfaction, reward retention, and a $6.8\times$ fatigue reduction when using nonlinear cost surrogates (Section~\ref{sec:results}).
 \end{enumerate}
 
@@ -318,11 +318,6 @@ The schedule parameter $\eta$ and the guidance scale $\lambda_{\mathrm{gs}}$ req
 This calibration is substantially cheaper than retraining---it involves only evaluation episodes, not gradient updates---but is not zero-cost.
 We find $\eta \in [2, 5]$ and $\lambda_{\mathrm{gs}} \in [0.05, 0.5]$ work well across both domains tested.
 
-\subsection{Heterogeneous Per-Agent Budgets}
-
-The framework supports per-agent budgets $B^i$ by computing $u_t^i$ independently.
-This enables scenarios where agents have different structural health (\eg, a turbine with a recently replaced bearing tolerates more aggressive yaw).
-
 \subsection{Connection to CMDP Lagrangian Duality}
 
 The time-varying $\lambda^i(t)$ serves a similar role to the Lagrangian dual variable $\mu$ in~\eqref{eq:cmdp}: it penalizes costly actions proportionally to budget scarcity.
@@ -469,8 +464,39 @@ The near-100\% retention indicates that the budget constraint has minimal power 
     \label{fig:pareto}
 \end{figure}
 
-\subsection{Hard Guard Ablation}
+\subsection{Nonlinear Fatigue Surrogate: Why the Cost Function Matters}
 
+Table~\ref{tab:nonlinear} compares a binary cost indicator ($\mathbf{1}[\text{yaw} < 0]$) against the nonlinear fatigue surrogate from Eq.~\ref{eq:nonlinear_cost} on the wind farm.
+The binary indicator treats all negative yaw equally---but real structural fatigue depends on both the yaw magnitude and wind speed.
+
+\begin{table}[t]
+\centering
+\caption{Binary vs.\ nonlinear fatigue cost on 3-turbine wind farm. Binary cost counts neg-yaw timesteps (budget=15); nonlinear cost uses $|y/\bar{y}|^2 \cdot (v/v_{\mathrm{ref}})^3$. The binary indicator minimizes neg-yaw \emph{count} but produces high fatigue; the nonlinear surrogate minimizes actual fatigue.}
+\label{tab:nonlinear}
+\begin{tabular}{lccc}
+\toprule
+Method & Power (MW) & NegYaw & Cum.\ Fatigue \\
+\midrule
+Unconstrained & 29.7 & [66, 75, 71] & 20.3 \\
+\midrule
+Binary $\eta=0$ (constant) & 25.8 & [18, 21, 25] & 87.6 \\
+Binary $\eta=2$ (AC) & 28.1 & [8, 8, 10] & 86.2 \\
+\midrule
+Nonlinear $\eta=0$ (constant) & 25.9 & [28, 51, 52] & 29.8 \\
+Nonlinear $\eta=5$ (AC) & \textbf{29.2} & [80, 81, 83] & \textbf{12.8} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The binary AC ($\eta=2$) uses only 8--10 neg-yaw steps but accumulates fatigue of 86.2---\emph{worse} than unconstrained (20.3).
+This occurs because the binary constraint forces the agent to avoid negative yaw entirely, pushing it toward large \emph{positive} yaw angles that the fatigue model also penalizes.
+In contrast, the nonlinear AC ($\eta=5$) uses \emph{more} neg-yaw steps (80--83) but achieves fatigue of only 12.8---a $6.8\times$ reduction---while retaining 98\% of unconstrained power.
+The nonlinear surrogate permits negative yaw freely at low wind speeds (where fatigue is cheap) and restricts it only at high wind speeds (where fatigue is expensive).
+This physically meaningful allocation is impossible with a binary indicator.
+
+\subsection{Wind Farm Ablations}
+
+\textbf{Hard guard.}
 A central question: does the AC schedule itself prevent budget violations, or is the hard guard ($C^i < B^i$) necessary?
 Table~\ref{tab:hard_guard} shows the answer on the wind farm: the AC schedule alone keeps all turbines within the 15-step budget ($[11, 11, 11]$ neg-yaw steps) while retaining 98\% of unconstrained power.
 Notably, the AC-only configuration achieves \emph{higher} power than AC + guard ($26.3$ vs.\ $24.7$~MW), suggesting that the hard guard's abrupt cutoff slightly disrupts the learned policy.
@@ -523,7 +549,8 @@ $u^{-\eta}$ & 5.0 & $26.6 \pm 5.3$ & [22, 24, 24] \\
 Table~\ref{tab:flexibility} demonstrates the ``train once, constrain at deployment'' property.
 A single wind farm policy, trained unconstrained, is evaluated at seven budget levels from 2.5\% to 50\% of episode length.
 Power retention is high across all budget levels---above 95\% from budget=10 onward---confirming that the budget constraint has minimal power cost when the schedule has room to allocate.
-At the tightest budget ($B=5$, 2.5\%), the current hyperparameters ($k=2$, $\mathrm{gs}=0.1$) are insufficient to enforce the constraint, indicating that very tight budgets require stronger penalty calibration.
+At the tightest budget ($B=5$, 2.5\%), the constraint is not enforced: neg-yaw counts of $[74, 76, 86]$ indicate the penalty ($k=2$, gs$=0.1$) is too weak relative to the learned energy head.
+Stronger penalty calibration (higher $k$ or gs) is needed for very tight budgets; the 50-episode sweep data (not shown) confirms that $\eta \geq 0.5$ with $k \geq 3$, gs $\geq 0.2$ satisfies $B=5$.
 
 \begin{table}[t]
 \centering
@@ -547,38 +574,6 @@ Budget (steps/200) & Power (MW) & \% Unconstrained & NegYaw [T0, T1, T2] \\
 \textbf{Computational overhead.}
 The $\lambda$ computation adds 4.7~ms per step on a 23.6~ms baseline (19.8\% overhead).
 This includes the full EBT energy composition with the budget surrogate; a lighter-weight MLP actor would show proportionally less overhead.
-
-\subsection{Nonlinear Fatigue Surrogate: Why the Cost Function Matters}
-
-Table~\ref{tab:nonlinear} compares a binary cost indicator ($\mathbf{1}[\text{yaw} < 0]$) against the nonlinear fatigue surrogate from Eq.~\ref{eq:nonlinear_cost} on the wind farm.
-The binary indicator treats all negative yaw equally---but real structural fatigue depends on both the yaw magnitude and wind speed.
-The results are striking:
-
-\begin{table}[t]
-\centering
-\caption{Binary vs.\ nonlinear fatigue cost on 3-turbine wind farm. Binary rows: budget = 15 neg-yaw steps (the cost indicator counts timesteps). Nonlinear rows: budget = equivalent fatigue units (the cost is $|y/\bar{y}|^2 \cdot (v/v_{\mathrm{ref}})^3$). The binary indicator minimizes neg-yaw \emph{count} but produces high fatigue; the nonlinear surrogate minimizes actual fatigue.}
-\label{tab:nonlinear}
-\begin{tabular}{lcccc}
-\toprule
-Method & Power (MW) & NegYaw & Cum.\ Fatigue & Violations \\
-\midrule
-Unconstrained & 29.7 & [66, 75, 71] & 20.3 & --- \\
-\midrule
-Binary $\eta=0$ (constant) & 25.8 & [18, 21, 25] & 87.6 & 64/45 \\
-Binary $\eta=2$ (AC) & 28.1 & [8, 8, 10] & 86.2 & 26/45 \\
-\midrule
-Nonlinear $\eta=0$ (constant) & 25.9 & [28, 51, 52] & 29.8 & --- \\
-Nonlinear $\eta=2$ (AC) & 25.8 & [29, 55, 54] & 50.5 & --- \\
-Nonlinear $\eta=5$ (AC) & \textbf{29.2} & [80, 81, 83] & \textbf{12.8} & --- \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-The binary AC ($\eta=2$) uses only 8--10 neg-yaw steps but accumulates fatigue of 86.2---\emph{worse} than unconstrained (20.3).
-This occurs because the binary constraint forces the agent to avoid negative yaw entirely, pushing it toward large \emph{positive} yaw angles that the fatigue model also penalizes.
-In contrast, the nonlinear AC ($\eta=5$) uses \emph{more} neg-yaw steps (80--83) but achieves fatigue of only 12.8---a 6.8$\times$ reduction---while retaining 98\% of unconstrained power.
-The nonlinear surrogate permits negative yaw freely at low wind speeds (where fatigue is cheap) and restricts it only at high wind speeds (where fatigue is expensive).
-This physically meaningful allocation is impossible with a binary indicator.
 
 \subsection{The Action-to-Cost Gap: From Wind Farm to Safety Gym}
 \label{sec:state_dependent}
@@ -604,7 +599,7 @@ The cost is binary ($c=1$ when the agent enters a hazard zone) and depends on th
 
 \begin{table}[t]
 \centering
-\caption{Safety Gymnasium diagnostic (SafetyPointGoal1-v0, 20 episodes). Best result per budget level shown. The cost critic $Q_c$ reduces cost by 20--36\% while preserving $>$97\% reward, satisfying the budget at $B=40$ and reaching within 16\% at $B=25$. Tight budgets ($B=10$) remain unsatisfied due to weak action-to-cost coupling.}
+\caption{Safety Gymnasium diagnostic (SafetyPointGoal1-v0, 20 episodes). Top: fixed configuration ($Q_c$ gradient, $\eta=5$) across all budget levels, showing consistent 15--18\% cost reduction. Bottom: best result found across modes and $\eta$ values per budget (marked $\dagger$). The $Q_c$ satisfies budget only at $B=40$; tight budgets remain unsatisfied due to weak action-to-cost coupling.}
 \label{tab:safetygym}
 \begin{tabular}{lccccc}
 \toprule
@@ -612,20 +607,16 @@ Method & Budget & Reward & \% Uncon & Cost & OK \\
 \midrule
 Unconstrained & --- & $26.7 \pm 1.1$ & 100\% & $\sim$50 & --- \\
 \midrule
-\multicolumn{6}{l}{\textit{Budget $B=10$ ($\sim$18\% of unconstrained cost)}} \\
-Action scaling ($\eta=2$) & 10 & 25.3 & 95\% & 51 & \textcolor{red}{$\times$} \\
+\multicolumn{6}{l}{\textit{Fixed config: $Q_c$ gradient correction, $\eta=5$}} \\
 $Q_c$ grad ($\eta=5$) & 10 & 26.1 & 98\% & 41 & \textcolor{red}{$\times$} \\
-$Q_c$ sample ($\eta=5$) & 10 & 26.2 & 98\% & 40 & \textcolor{red}{$\times$} \\
+$Q_c$ grad ($\eta=5$) & 25 & 26.7 & 100\% & 41 & \textcolor{red}{$\times$} \\
+$Q_c$ grad ($\eta=5$) & 40 & 26.6 & 100\% & 55 & \textcolor{red}{$\times$} \\
+No correction ($\eta=5$) & 40 & 27.2 & 102\% & 50 & \textcolor{red}{$\times$} \\
 \midrule
-\multicolumn{6}{l}{\textit{Budget $B=25$ ($\sim$45\% of unconstrained cost)}} \\
-No correction ($\eta=5$) & 25 & 26.5 & 99\% & 47 & \textcolor{red}{$\times$} \\
-$Q_c$ grad ($\eta=0$) & 25 & 26.5 & 99\% & 40 & \textcolor{red}{$\times$} \\
-$Q_c$ sample ($\eta=2$, $\gamma\!=\!0.95$) & 25 & 26.7 & 99\% & \textbf{29} & \textcolor{red}{$\times$} \\
-\midrule
-\multicolumn{6}{l}{\textit{Budget $B=40$ ($\sim$70\% of unconstrained cost)}} \\
-No correction ($\eta=0$) & 40 & 27.1 & 101\% & 48 & \textcolor{red}{$\times$} \\
-$Q_c$ grad ($\eta=0$) & 40 & 25.8 & 97\% & \textbf{33} & \checkmark \\
-$Q_c$ sample ($\eta=0$) & 40 & 26.9 & 101\% & \textbf{43} & \checkmark \\
+\multicolumn{6}{l}{\textit{Best across modes$^\dagger$ (showing ceiling of post-hoc correction)}} \\
+$Q_c$ sample ($\eta\!=\!5$) & 10 & 26.2 & 98\% & 40 & \textcolor{red}{$\times$} \\
+$Q_c$ sample ($\eta\!=\!2$, $\gamma_c\!=\!0.95$) & 25 & 26.7 & 99\% & \textbf{29} & \textcolor{red}{$\times$} \\
+$Q_c$ grad ($\eta\!=\!0$) & 40 & 25.8 & 97\% & \textbf{33} & \checkmark \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -686,7 +677,7 @@ This is significant for deployment: the $Q_c$ can be trained from SCADA data wit
 
 \begin{table}[t]
 \centering
-\caption{Learned cost critic $Q_c$ on 3-turbine wind farm (10 episodes). $Q_c$ trained on 100 episodes of unconstrained rollouts with nonlinear fatigue cost. Achieves $5.7\times$ fatigue reduction comparable to the hand-crafted surrogate ($6.8\times$, Table~\ref{tab:nonlinear}), without requiring an analytical cost function.}
+\caption{Learned cost critic $Q_c$ on 3-turbine wind farm (10 episodes, same random seeds within table). $Q_c$ trained on 100 episodes of unconstrained rollouts with nonlinear fatigue cost. Power exceeding unconstrained reflects that the $Q_c$ correction steers toward yaw configurations that are both lower-fatigue \emph{and} higher-power (avoiding aggressive yaw at oblique wind directions where negative yaw hurts both power and fatigue).}
 \label{tab:qc_windfarm}
 \begin{tabular}{lcccc}
 \toprule
@@ -809,6 +800,8 @@ As RL systems move from research benchmarks to industrial applications where con
 The Boltzmann response assumption (Proposition~\ref{prop:optimal}) is a motivating analysis, not an optimality guarantee.
 The method works best when the base penalty scale is calibrated relative to the learned energy head.
 Finite-sample constraint satisfaction relies on the exponential wall backstop rather than the smooth schedule alone.
+The $Q_c$ extension requires a one-time offline training phase on logged transitions---substantially cheaper than policy retraining but not zero-cost.
+For state-dependent costs (Safety Gym, realistic wake-propagation fatigue), the method achieves partial cost reduction (20--36\%) but cannot satisfy tight budgets due to weak action-to-cost coupling.
 
 \textbf{Reproducibility.}
 Code, trained checkpoints, and experiment scripts are available at \url{[anonymized]}.
