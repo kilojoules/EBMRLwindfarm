@@ -184,8 +184,15 @@ def collect_safety_gym(env_name, checkpoint, n_episodes, horizon, buf):
 
 def eval_safety_gym_with_qc(env_name, checkpoint, qc_path,
                              budget_frac, risk_aversion, n_episodes, horizon,
-                             correction_lr=0.05, correction_steps=5):
-    """Evaluate Safety Gym with Q_c-based gradient correction."""
+                             correction_lr=0.05, correction_steps=5,
+                             mode="grad", n_candidates=64):
+    """Evaluate Safety Gym with Q_c-based action correction.
+
+    Modes:
+        grad: gradient descent on Q_c with clamped step size
+        sample: sample K candidates from policy, pick lowest Q_c
+        none: no correction (baseline)
+    """
     import safety_gymnasium
 
     ckpt = torch.load(checkpoint, map_location="cpu", weights_only=False)
@@ -210,7 +217,6 @@ def eval_safety_gym_with_qc(env_name, checkpoint, qc_path,
         reached_goal = False
 
         for t in range(horizon):
-            # Compute urgency-based lambda
             eps = 1e-6
             budget_remaining = max(budget - cum_cost, 0)
             time_remaining = max(horizon - t, 1)
@@ -218,31 +224,49 @@ def eval_safety_gym_with_qc(env_name, checkpoint, qc_path,
             tf = time_remaining / max(horizon, 1)
             u = bf / max(tf, eps)
             lam = min(np.exp(risk_aversion * (1.0 / max(u, eps) - 1.0)), 1e4)
-
-            # Budget exhausted: maximum correction
             if cum_cost >= budget:
                 lam = 100.0
 
-            with torch.no_grad():
-                a, _ = actor.sample(torch.FloatTensor(obs).unsqueeze(0))
-            a_corr = a.squeeze(0).clone().detach()
-
-            # Gradient correction via ∇_a Q_c
-            # Cap the per-step displacement to avoid slamming action to boundary
-            max_step = 0.1  # max action change per correction step
             obs_t = torch.FloatTensor(obs)
-            for _ in range(correction_steps):
-                a_corr.requires_grad_(True)
-                qc_val = qc.predict(obs_t.unsqueeze(0), a_corr.unsqueeze(0))
-                grad = torch.autograd.grad(qc_val, a_corr)[0]
-                step = lam * correction_lr * grad
-                # Clamp step magnitude to prevent overshooting
-                step_norm = step.norm()
-                if step_norm > max_step:
-                    step = step * (max_step / step_norm)
-                a_corr = (a_corr.detach() - step).clamp(-1.0, 1.0)
 
-            action = a_corr.detach().numpy() * act_limit
+            if mode == "sample" and lam > 1.0:
+                # Sample K candidates, score with Q_c, pick lowest cost
+                with torch.no_grad():
+                    obs_batch = obs_t.unsqueeze(0).expand(n_candidates, -1)
+                    candidates, _ = actor.sample(obs_batch)  # (K, act_dim)
+                    qc_scores = qc.predict(obs_batch, candidates).squeeze(-1)  # (K,)
+                    # Weighted selection: lower Q_c = better
+                    # Use softmin with temperature proportional to lambda
+                    temp = 1.0 / max(lam * 0.1, 0.1)
+                    weights = F.softmax(-qc_scores / temp, dim=0)
+                    # Select action with lowest Q_c (or weighted sample)
+                    best_idx = qc_scores.argmin()
+                    a_corr = candidates[best_idx]
+                action_np = a_corr.numpy() * act_limit
+
+            elif mode == "grad" and correction_steps > 0:
+                with torch.no_grad():
+                    a, _ = actor.sample(obs_t.unsqueeze(0))
+                a_corr = a.squeeze(0).clone().detach()
+
+                max_step = 0.15
+                for _ in range(correction_steps):
+                    a_corr.requires_grad_(True)
+                    qc_val = qc.predict(obs_t.unsqueeze(0), a_corr.unsqueeze(0))
+                    grad = torch.autograd.grad(qc_val, a_corr)[0]
+                    step = lam * correction_lr * grad
+                    step_norm = step.norm()
+                    if step_norm > max_step:
+                        step = step * (max_step / step_norm)
+                    a_corr = (a_corr.detach() - step).clamp(-1.0, 1.0)
+                action_np = a_corr.detach().numpy() * act_limit
+
+            else:
+                with torch.no_grad():
+                    a, _ = actor.sample(obs_t.unsqueeze(0))
+                action_np = a.squeeze(0).numpy() * act_limit
+
+            action = action_np
 
             step_result = env.step(action)
             if len(step_result) == 6:
@@ -406,22 +430,23 @@ def compare_safety_gym(env_name, checkpoint, qc_path,
     for cost_budget in cost_budgets:
         budget_frac = cost_budget / horizon
         for ra in [0.0, 2.0, 5.0]:
-            for steps, lr, label in [(0, 0.0, "No correction"),
-                                      (5, 0.05, "Q_c correction")]:
+            for m, label in [("none", "No correction"),
+                              ("grad", "Q_c grad"),
+                              ("sample", "Q_c sample K=64")]:
                 res = eval_safety_gym_with_qc(
                     env_name, checkpoint, qc_path,
                     budget_frac=budget_frac, risk_aversion=ra,
                     n_episodes=n_episodes, horizon=horizon,
-                    correction_steps=steps, correction_lr=lr)
+                    mode=m, n_candidates=64)
 
                 pct = 100 * res["reward"] / uncon_r if uncon_r > 0 else 0
                 used = 100 * res["cost"] / cost_budget if cost_budget > 0 else 0
                 ok = "✓" if res["cost"] <= cost_budget * 1.1 else "✗"
-                print(f"  {label} η={ra:<5.1f} {cost_budget:>4d} "
+                print(f"  {label:<20s} η={ra:<5.1f} {cost_budget:>4d} "
                       f"{res['reward']:>8.1f} {res['cost']:>6.0f} "
                       f"{pct:>6.1f}% {used:>5.0f}% {res['goal_rate']:>4.0f}% {ok}")
 
-                key = f"B{cost_budget}_ra{ra}_steps{steps}"
+                key = f"B{cost_budget}_ra{ra}_{m}"
                 results[key] = {**res, "pct_unconstrained": pct}
 
     if output_json:
