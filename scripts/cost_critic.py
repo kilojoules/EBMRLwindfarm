@@ -228,13 +228,19 @@ def eval_safety_gym_with_qc(env_name, checkpoint, qc_path,
             a_corr = a.squeeze(0).clone().detach()
 
             # Gradient correction via ∇_a Q_c
+            # Cap the per-step displacement to avoid slamming action to boundary
+            max_step = 0.1  # max action change per correction step
             obs_t = torch.FloatTensor(obs)
             for _ in range(correction_steps):
                 a_corr.requires_grad_(True)
                 qc_val = qc.predict(obs_t.unsqueeze(0), a_corr.unsqueeze(0))
                 grad = torch.autograd.grad(qc_val, a_corr)[0]
-                a_corr = a_corr.detach() - lam * correction_lr * grad
-                a_corr = a_corr.clamp(-1.0, 1.0)
+                step = lam * correction_lr * grad
+                # Clamp step magnitude to prevent overshooting
+                step_norm = step.norm()
+                if step_norm > max_step:
+                    step = step * (max_step / step_norm)
+                a_corr = (a_corr.detach() - step).clamp(-1.0, 1.0)
 
             action = a_corr.detach().numpy() * act_limit
 
