@@ -275,73 +275,97 @@ def eval_safety_gym_with_qc(env_name, checkpoint, qc_path,
 # TRAINING Q_c
 # =============================================================================
 
+def compute_mc_returns(costs, dones, gamma_c=0.99, horizon=1000):
+    """Compute Monte Carlo discounted cost returns from episode data.
+
+    Returns G_t = Σ_{k=0}^{T-t} γ^k c_{t+k} for each transition.
+    This is exact for the logged policy (no bootstrapping instability).
+    """
+    n = len(costs)
+    returns = np.zeros(n, dtype=np.float32)
+    g = 0.0
+    for i in reversed(range(n)):
+        if dones[i] > 0.5:
+            g = 0.0
+        g = costs[i] + gamma_c * g
+        returns[i] = g
+    return returns
+
+
 def train_cost_critic(buf, actor_ckpt, save_path,
                       gamma_c=0.99, epochs=200, batch_size=256,
                       lr=3e-4, hidden=256, tau=0.005):
-    """Train Q_c via offline Bellman updates."""
+    """Train Q_c via Monte Carlo returns (exact, no bootstrapping)."""
     obs_dim = buf.obs.shape[1]
     act_dim = buf.act.shape[1]
 
-    # Load actor for computing a' ~ π(s')
-    actor = SafetyGymActor(actor_ckpt["obs_dim"], actor_ckpt["act_dim"])
-    actor.load_state_dict(actor_ckpt["actor"])
-    actor.eval()
+    # Compute MC returns from the sequential episode data
+    mc_returns = compute_mc_returns(buf.cost[:buf.size],
+                                     buf.done[:buf.size], gamma_c)
+    returns_tensor = torch.FloatTensor(mc_returns).unsqueeze(1)
+
+    obs = torch.FloatTensor(buf.obs[:buf.size])
+    act = torch.FloatTensor(buf.act[:buf.size])
+
+    print(f"  MC returns: mean={mc_returns.mean():.2f}, "
+          f"max={mc_returns.max():.2f}, min={mc_returns.min():.2f}")
+
+    n = buf.size
+    perm = torch.randperm(n)
+    n_val = max(n // 10, 1000)
+    val_idx, train_idx = perm[:n_val], perm[n_val:]
 
     qc = CostCritic(obs_dim, act_dim, hidden)
-    qc_target = CostCritic(obs_dim, act_dim, hidden)
-    qc_target.load_state_dict(qc.state_dict())
-
     optimizer = torch.optim.Adam(qc.parameters(), lr=lr)
 
-    steps_per_epoch = max(buf.size // batch_size, 100)
-    best_loss = float('inf')
+    best_val_loss = float('inf')
     best_state = None
 
     for epoch in range(epochs):
+        qc.train()
+        shuffle = torch.randperm(len(train_idx))
         epoch_loss = 0.0
-        for _ in range(steps_per_epoch):
-            o, a, c, no, d = buf.sample(batch_size)
+        n_batches = 0
 
-            with torch.no_grad():
-                na, _ = actor.sample(no)
-                tq1, tq2 = qc_target(no, na)
-                target_q = torch.min(tq1, tq2)
-                target = c + gamma_c * (1 - d) * target_q
-
-            q1, q2 = qc(o, a)
+        for i in range(0, len(train_idx), batch_size):
+            idx = train_idx[shuffle[i:i+batch_size]]
+            q1, q2 = qc(obs[idx], act[idx])
+            target = returns_tensor[idx]
             loss = F.mse_loss(q1, target) + F.mse_loss(q2, target)
 
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
             epoch_loss += loss.item()
+            n_batches += 1
 
-            for p, pt in zip(qc.parameters(), qc_target.parameters()):
-                pt.data.lerp_(p.data, tau)
+        qc.eval()
+        with torch.no_grad():
+            vq1, vq2 = qc(obs[val_idx], act[val_idx])
+            val_loss = (F.mse_loss(vq1, returns_tensor[val_idx]) +
+                        F.mse_loss(vq2, returns_tensor[val_idx])).item()
 
-        avg_loss = epoch_loss / steps_per_epoch
-        if avg_loss < best_loss:
-            best_loss = avg_loss
+        if val_loss < best_val_loss:
+            best_val_loss = val_loss
             best_state = {k: v.clone() for k, v in qc.state_dict().items()}
 
         if (epoch + 1) % 25 == 0:
-            # Check Q_c predictions
             with torch.no_grad():
-                o, a, c, _, _ = buf.sample(1000)
-                q_pred = qc.predict(o, a).squeeze()
-                print(f"  Epoch {epoch+1}/{epochs}: loss={avg_loss:.4f}, "
-                      f"Q_c mean={q_pred.mean():.2f}, "
-                      f"Q_c max={q_pred.max():.2f}, "
-                      f"cost mean={c.mean():.3f}")
+                q_pred = qc.predict(obs[val_idx], act[val_idx]).squeeze()
+                true_ret = returns_tensor[val_idx].squeeze()
+                corr = np.corrcoef(q_pred.numpy(), true_ret.numpy())[0, 1]
+                print(f"  Epoch {epoch+1}/{epochs}: "
+                      f"train={epoch_loss/n_batches:.4f}, val={val_loss:.4f}, "
+                      f"Q_c mean={q_pred.mean():.2f}, corr={corr:.3f}")
 
     qc.load_state_dict(best_state)
 
     os.makedirs(os.path.dirname(save_path) or ".", exist_ok=True)
     torch.save({
         "model": qc.state_dict(), "obs_dim": obs_dim, "act_dim": act_dim,
-        "hidden": hidden, "gamma_c": gamma_c, "best_loss": best_loss,
+        "hidden": hidden, "gamma_c": gamma_c, "best_loss": best_val_loss,
     }, save_path)
-    print(f"Saved Q_c to {save_path} (loss={best_loss:.4f})")
+    print(f"Saved Q_c to {save_path} (val_loss={best_val_loss:.4f})")
 
 
 # =============================================================================
@@ -387,7 +411,7 @@ def compare_safety_gym(env_name, checkpoint, qc_path,
                 pct = 100 * res["reward"] / uncon_r if uncon_r > 0 else 0
                 used = 100 * res["cost"] / cost_budget if cost_budget > 0 else 0
                 ok = "✓" if res["cost"] <= cost_budget * 1.1 else "✗"
-                print(f"  {label} η={ra:<5s}  {cost_budget:>4d} "
+                print(f"  {label} η={ra:<5.1f} {cost_budget:>4d} "
                       f"{res['reward']:>8.1f} {res['cost']:>6.0f} "
                       f"{pct:>6.1f}% {used:>5.0f}% {res['goal_rate']:>4.0f}% {ok}")
 

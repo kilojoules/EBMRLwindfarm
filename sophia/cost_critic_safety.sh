@@ -1,8 +1,8 @@
 #!/bin/bash
-#SBATCH --partition=workq
+#SBATCH --partition=windq
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=16
-#SBATCH --time=06:00:00
+#SBATCH --time=12:00:00
 #SBATCH --array=1-5
 #SBATCH --job-name=sg_qc
 #SBATCH --output=/work/users/juqu/ac_budget/logs/sg_qc_%A_%a.out
@@ -29,13 +29,13 @@ RESULTS="$PROJECT_DIR/results/cost_critic_seed${SEED}.json"
 # Train SAC if no checkpoint
 if [ ! -f "$CKPT" ]; then
     echo "Training SAC (seed=$SEED)..."
-    python scripts/safety_gym_ac_budget.py \
+    PYTHONUNBUFFERED=1 python scripts/safety_gym_ac_budget.py \
         --train --env SafetyPointGoal1-v0 \
         --total-timesteps 200000 --checkpoint "$CKPT" --seed "$SEED"
 fi
 
 # Collect + train Q_c + compare
-python scripts/cost_critic.py \
+PYTHONUNBUFFERED=1 python scripts/cost_critic.py \
     --domain safety_gym \
     --checkpoint "$CKPT" \
     --collect --train --compare \
