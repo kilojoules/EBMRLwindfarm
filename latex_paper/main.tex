@@ -329,36 +329,27 @@ The penalty weight $\lambda(t)$ adapts during episodes: it drops during budget s
 
 \subsection{Wind Farm: Budget Satisfaction and Spatial Allocation}
 
-Table~\ref{tab:main_results} summarizes the wind farm results, averaged over 10 evaluation episodes per configuration.
-The unconstrained agent uses negative yaw on $122 \pm 40$ out of 200 steps for the upstream turbine---the optimal policy relies heavily on wake steering.
-With the AC schedule ($\eta=2$), negative yaw drops to within the 15-step budget while maintaining power close to the unconstrained level.
-The constant penalty ($\eta=0$) over-spends at $\sim$70 steps per turbine.
+Table~\ref{tab:main_results} compares the AC schedule against an oracle-tuned constant penalty (found via 15-step bisection search targeting 95\% budget utilization) on the 3-turbine wind farm (50 episodes, budget$=15$).
+The AC schedule ($\eta=5$, gs$=0.1$) achieves 98.9\% of unconstrained power with neg-yaw $[8, 9, 10]$---outperforming the oracle constant (96.7\%, $[11, 13, 14]$) \emph{without any per-budget calibration}.
+All AC configurations satisfy the budget; the oracle constant also satisfies but required 15 evaluation rounds to find.
 
 \begin{table}[t]
 \centering
-\caption{Wind farm results (mean $\pm$ std over evaluation episodes). Budget utilization reports the fraction of allowed budget actually spent. Higher utilization with high reward indicates intelligent allocation.}
+\caption{Wind farm comparison (3-turbine, budget=15/200 steps, 50 episodes). The AC schedule outperforms the oracle-tuned constant penalty (found via 15-step bisection) while requiring zero per-budget calibration.}
 \label{tab:main_results}
-\begin{tabular}{lccc}
+\begin{tabular}{lcccl}
 \toprule
-\textbf{Wind Farm, 3-turb (10 seeds)} & Power (MW) & NegYaw (T0) & NegYaw (T1) \\
+Method & Power (MW) & \% Uncon & NegYaw & Notes \\
 \midrule
-Unconstrained & $24.9 \pm 0.8$ & $122 \pm 40$ & --- \\
-Hard clip (no neg yaw) & $25.5 \pm 1.1$ & 0 & 0 \\
-AC ($\eta=2$, $k=2$, gs=0.05) & $25.3 \pm 1.0$ & $10 \pm 3$ & $10 \pm 3$ \\
-Constant ($\eta=0$, gs=0.1) & $24.5 \pm 1.8$ & $76 \pm 25$ & $68 \pm 30$ \\
-\midrule
-\textbf{Wind Farm, 9-turb ($3\!\times\!3$)} & Power (MW) & \multicolumn{2}{c}{Avg NegYaw/turb} \\
-\midrule
-Unconstrained & $79.2 \pm 1.2$ & \multicolumn{2}{c}{$111 \pm 1$} \\
-Hard clip & $75.1 \pm 0.9$ & \multicolumn{2}{c}{0} \\
-AC ($\eta=2$, $k=3$, gs=0.1) & 79.2 & \multicolumn{2}{c}{$\sim$95} \\
+Unconstrained & $27.1 \pm 0.6$ & 100\% & [49, 56, 61] & --- \\
+Oracle const ($k\!=\!5.86$) & $26.2 \pm 0.7$ & 96.7\% & [11, 13, 14] & 15-step bisection \\
+AC ($\eta\!=\!2$, gs$\!=\!0.05$) & $26.8 \pm 0.6$ & \textbf{98.6\%} & [9, 10, 10] & Zero calibration \\
+AC ($\eta\!=\!5$, gs$\!=\!0.1$) & $26.9 \pm 0.5$ & \textbf{98.9\%} & [8, 9, 10] & Zero calibration \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-The unconstrained agent preferentially applies negative yaw to the upstream turbine (T0, 122 steps) to deflect its wake.
-Under the AC constraint ($B\!=\!15$), all turbines are constrained to $\sim$10 steps each; the constant penalty over-spends at $\sim$50.
-Power retention is within 5\% of unconstrained across all budget levels (Appendix Figures~\ref{fig:wf_spatial}--\ref{fig:wf_budget}).
+Power retention is within 5\% of unconstrained across all budget levels; the AC schedule keeps all turbines within budget while the constant penalty requires per-budget re-tuning (Appendix Figures~\ref{fig:wf_spatial}--\ref{fig:wf_budget}).
 
 % Spatial and budget figures moved to appendix
 

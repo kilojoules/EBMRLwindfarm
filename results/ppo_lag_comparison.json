@@ -1,0 +1,73 @@
+{
+  "unconstrained": {
+    "power_mean": 27144905.298399523,
+    "power_std": 4261811.591970314,
+    "power_se": 602711.1753643289,
+    "neg_yaw_mean": [
+      49.9,
+      56.22,
+      61.8
+    ]
+  },
+  "matched_constant": {
+    "power_mean": 26239698.063619647,
+    "power_std": 4754791.081463325,
+    "power_se": 672429.003365607,
+    "neg_yaw_mean": [
+      11.06,
+      13.74,
+      14.08
+    ],
+    "budget_satisfied": true,
+    "lambda": 5.862060546875
+  },
+  "AC_ra2.0_gs0.05": {
+    "power_mean": 26752102.80680593,
+    "power_std": 4335227.7793632075,
+    "power_se": 613093.7921552043,
+    "neg_yaw_mean": [
+      9.48,
+      10.94,
+      10.72
+    ],
+    "budget_satisfied": true
+  },
+  "AC_ra2.0_gs0.1": {
+    "power_mean": 26218752.046516135,
+    "power_std": 5054659.473481646,
+    "power_se": 714836.7980575392,
+    "neg_yaw_mean": [
+      9.96,
+      12.18,
+      12.9
+    ],
+    "budget_satisfied": true
+  },
+  "AC_ra5.0_gs0.05": {
+    "power_mean": 25984755.68502853,
+    "power_std": 4983233.887237331,
+    "power_se": 704735.6947808232,
+    "neg_yaw_mean": [
+      10.52,
+      11.62,
+      11.58
+    ],
+    "budget_satisfied": true
+  },
+  "AC_ra5.0_gs0.1": {
+    "power_mean": 26852731.61894443,
+    "power_std": 3805082.822342895,
+    "power_se": 538119.9733310216,
+    "neg_yaw_mean": [
+      8.84,
+      9.9,
+      10.28
+    ],
+    "budget_satisfied": true
+  },
+  "meta": {
+    "budget": 15,
+    "horizon": 200,
+    "n_episodes": 50
+  }
+}
