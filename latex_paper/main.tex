@@ -42,13 +42,11 @@
 \maketitle
 
 \begin{abstract}
-Deploying reinforcement learning policies in the real world often requires cumulative operational constraints unknown at training time---maintenance budgets, emission limits, duty-cycle restrictions.
-Standard constrained MDP approaches require full retraining for each constraint specification, making them impractical when constraints change post-deployment.
-We propose a closed-form, time-varying penalty weight that adapts constraint enforcement to budget state: the \emph{urgency ratio} $u$ (remaining budget fraction divided by remaining time fraction) drives a weight $w(u) = \exp(\eta(1/u - 1))$ with a single risk-aversion parameter $\eta$.
-The schedule composes post-hoc with pre-trained policies---via per-agent energy addition for energy-based actors or gradient-based action correction for standard actors---requiring zero retraining.
-A single pre-trained policy thereby supports arbitrary budget levels, per-agent heterogeneous constraints, and instant adaptation to new specifications.
-When paired with a differentiable nonlinear cost function, the method captures physically meaningful constraint structure: on a wind farm yaw-fatigue problem, a nonlinear fatigue surrogate achieves a $6.8\times$ reduction in cumulative structural fatigue compared to a binary cost indicator, while retaining 98\% of unconstrained power.
-We validate on wind farm yaw control, demonstrating budget satisfaction with high reward retention, and use Safety Gymnasium navigation as a diagnostic for state-dependent costs where the method partially succeeds (20--36\% cost reduction via a learned cost critic) but cannot satisfy tight budgets due to weak action-to-cost coupling.
+Deploying RL policies under cumulative operational constraints (maintenance budgets, duty-cycle limits) typically requires retraining for each constraint specification.
+We propose a closed-form penalty weight based on the \emph{urgency ratio}---remaining budget divided by remaining time---that composes post-hoc with pre-trained policies via energy addition or gradient correction, requiring zero retraining.
+A single parameter $\eta$ controls risk aversion; a single policy serves arbitrary budget levels instantly.
+On wind farm yaw control, the schedule outperforms an oracle-tuned constant penalty (98.9\% vs.\ 96.7\% power retention) and a nonlinear fatigue surrogate achieves $6.8\times$ structural fatigue reduction.
+We identify the \emph{action-to-cost coupling strength} as the scope condition: post-hoc correction works for action-dependent costs (wind farm) but partially fails for state-dependent costs (Safety Gym), where a learned cost critic $Q_c$ reduces cost by 20--36\% but cannot satisfy tight budgets.
 \end{abstract}
 
 %----------------------------------------------------------------------
@@ -64,21 +62,16 @@ The operator needs a way to impose this new cumulative constraint on the \emph{e
 This scenario is ubiquitous: cumulative operational constraints arise whenever an agent must limit total time in a costly regime---wind turbines with load budgets~\citep{dijk2025load}, robots with joint-wear cycles, grid batteries with cycle-life limits, and advertisers with spending caps~\citep{balseiro2023budget}.
 Unlike instantaneous constraints, these are \emph{lifetime budgets}: the agent must decide \emph{when} to spend its limited capacity for risky actions.
 
-This budget allocation problem shares a conceptual structure with optimal trade execution in quantitative finance~\citep{almgren2001optimal}: a trader must liquidate a position over a time horizon, deciding when to trade aggressively versus passively.
-While the full financial model involves market impact dynamics with no analog in our setting, a key insight transfers: the rate of resource consumption should depend on \emph{remaining inventory relative to remaining time}---the urgency ratio.
+Inspired by optimal trade execution~\citep{almgren2001optimal}, where a trader paces liquidation based on remaining inventory vs.\ remaining time, we propose an \emph{urgency ratio} that adapts constraint strength to budget state.
 
-Existing approaches to constrained RL fall into two categories, neither of which solves this problem:
-(1)~\textbf{Constrained MDP methods}~\citep{altman1999constrained, stooke2020responsive, sootla2022saute, chen2025predictive} learn a Lagrangian dual variable during training, requiring full retraining for each new constraint specification.
-(2)~\textbf{Post-hoc constraint composition}~\citep{urain2023composable, zhang2025constrained, xiao2023safediffuser} adds constraints at inference time via energy composition or classifier guidance, but handles only \emph{instantaneous} constraints (barrier functions, geometric limits)---not cumulative budgets that span an episode.
+Existing approaches do not solve this:
+\textbf{CMDP methods}~\citep{altman1999constrained, stooke2020responsive, sootla2022saute} require retraining for each budget specification.
+\textbf{Post-hoc composition}~\citep{urain2023composable, zhang2025constrained, xiao2023safediffuser} handles only instantaneous constraints, not cumulative budgets spanning an episode.
 
-We fill this gap.
-Our contributions are:
-\begin{enumerate}
-    \item A \textbf{closed-form time-varying penalty weight} motivated by budget-balanced sequential allocation under an idealized Boltzmann response (Section~\ref{sec:theory}). The analysis identifies the urgency ratio $u$ as the natural state variable and constrains the schedule to be monotone decreasing in $u$.
-    \item A \textbf{practical schedule} $w(u) = \exp(\eta(1/u - 1))$ that recovers uniform allocation at $\eta=0$ and provides tunable risk aversion via a single scalar parameter (Section~\ref{sec:method}).
-    \item \textbf{Post-hoc composition} with pre-trained policies---via per-agent energy addition for EBT actors or gradient-based action correction for standard actors---enabling zero-retraining constraint enforcement with per-agent budgets (Section~\ref{sec:composition}).
-    \item \textbf{Empirical validation} across two domains---wind farm yaw control with structural fatigue budgets and Safety Gymnasium navigation with hazard-exposure budgets---showing budget satisfaction, reward retention, and a $6.8\times$ fatigue reduction when using nonlinear cost surrogates (Section~\ref{sec:results}).
-\end{enumerate}
+We fill this gap with three contributions:
+(1)~a \textbf{closed-form penalty schedule} $w(u) = \exp(\eta(1/u - 1))$ derived from budget-balanced allocation, parameterized by a single risk-aversion scalar $\eta$;
+(2)~\textbf{post-hoc composition} with pre-trained policies via energy addition (EBT actors) or gradient correction (MLP actors), enabling zero-retraining budget enforcement;
+(3)~\textbf{empirical validation} on wind farm yaw control ($6.8\times$ fatigue reduction, 98.9\% power) and Safety Gymnasium (diagnostic of state-dependent cost limitations).
 
 %----------------------------------------------------------------------
 \section{Background}
@@ -106,17 +99,9 @@ We extend this from instantaneous constraints to \emph{cumulative budget constra
 \label{sec:theory}
 %----------------------------------------------------------------------
 
-We motivate the penalty weight schedule from a sequential budget allocation problem.
-The derivation identifies the urgency ratio as the natural state variable and constrains the design space; the specific functional form is a principled choice justified by its analytical properties rather than exact optimality for any particular policy class.
-
-\textbf{Setup.}
-An agent must allocate $B$ ``risky'' actions over $T$ time steps.
-At each step $t$, the agent observes conditions and decides whether to spend one unit of budget.
-Spending yields a time-dependent benefit; the goal is to maximize total benefit subject to the budget constraint.
-
-\textbf{Budget tracking.}
-Let $C_t^i = \sum_{s=0}^{t-1} c^i(a_s)$ denote the cumulative cost for agent $i$ at time $t$, where $c^i(a) = \mathbf{1}[a^i \in \mathcal{A}_{\mathrm{risky}}]$ is the cost indicator (\eg, $\mathbf{1}[\text{yaw} < 0]$ for wind farms, $\mathbf{1}[\text{cost} > 0]$ for hazard proximity in safe navigation).
-Define the \emph{urgency ratio}:
+An agent allocates $B$ risky actions over $T$ steps.
+Let $C_t^i = \sum_{s<t} c^i(a_s)$ be the cumulative cost for agent $i$, where $c^i(a) = \mathbf{1}[a^i \in \mathcal{A}_{\mathrm{risky}}]$.
+The \emph{urgency ratio} captures the budget--time state:
 \begin{equation}
     u_t^i = \frac{\beta_t^i}{\tau_t}, \qquad
     \beta_t^i = \frac{B^i - C_t^i}{B^i}, \qquad
@@ -183,49 +168,33 @@ The method has three components that compose independently:
 and (3)~the \emph{application mechanism}, which determines \emph{how} the penalty modifies actions.
 Any cost function composes with any mechanism and the same $\lambda(t)$ schedule.
 
-\subsection{Cost Functions: From Binary Indicators to Nonlinear Surrogates}
+\subsection{Cost Functions}
 \label{sec:cost}
 
-The simplest cost is a binary indicator: $c(a) = \mathbf{1}[a \in \mathcal{A}_{\mathrm{risky}}]$ (\eg, $\mathbf{1}[\text{yaw} < 0]$).
-This counts timesteps of risky behavior but ignores severity---10$^\circ$ of negative yaw is penalized the same as 30$^\circ$.
-
-For real applications, a \emph{nonlinear surrogate} captures the physics:
-\begin{equation}
-    c(s, a) = \left(\frac{|a|}{\bar{a}}\right)^\beta \cdot \left(\frac{v(s)}{v_{\mathrm{ref}}}\right)^\gamma
-    \label{eq:nonlinear_cost}
-\end{equation}
-where $v(s)$ is a state-dependent amplifier (\eg, wind speed), $\beta > 1$ captures superlinear damage from large actions, and $\gamma > 1$ captures environmental amplification.
-For wind turbine fatigue, $\beta = 2$ (quadratic yaw-fatigue) and $\gamma = 3$ (cubic wind-speed amplification) are physically motivated~\citep{dijk2025load}.
-
-The cost function must be differentiable for gradient-based application mechanisms (Section~\ref{sec:gradient}).
+The simplest cost is a binary indicator $c(a) = \mathbf{1}[\text{yaw} < 0]$, but this ignores severity.
+A nonlinear surrogate captures the physics:
+$c(s, a) = (|a|/\bar{a})^\beta \cdot (v(s)/v_{\mathrm{ref}})^\gamma$,
+\label{eq:nonlinear_cost}
+where $\beta\!=\!2$ (quadratic yaw-fatigue) and $\gamma\!=\!3$ (cubic wind-speed amplification) are physically motivated~\citep{dijk2025load}.
 All cost functions compose with the same $\lambda(t)$ schedule; swapping the cost requires no retraining.
 
-\subsection{Application Mechanism 1: Energy Composition (EBT Actors)}
+\subsection{Application Mechanisms}
 \label{sec:composition}
 
-For Energy-Based Transformer actors, the cost composes directly with the policy energy:
-\begin{equation}
-    E_{\mathrm{total}}(a, t) = \frac{1}{N}\sum_{i=1}^{N}\!\left[E_\phi^i(\mathbf{e}_t^i, a^i) + \lambda_{\mathrm{gs}} \cdot \lambda^i(t) \cdot P(c(s, a^i))\right]
-    \label{eq:ebt_composition}
-\end{equation}
-where $P(x) = \exp(k \cdot \mathrm{ReLU}(x)) - 1$ is an exponential penalty and $\lambda_{\mathrm{gs}}$ is the guidance scale.
-Gradient descent on $E_{\mathrm{total}}$ simultaneously optimizes reward and respects the budget.
-This is the native mechanism for EBT actors and produces the strongest results.
+\textbf{Energy composition (EBT actors).}
+The cost composes directly with the policy energy before action optimization:
+$E_{\mathrm{total}} = \frac{1}{N}\sum_i [E_\phi^i + \lambda_{\mathrm{gs}} \lambda^i(t) P(c(s, a^i))]$,
+where $P(x) = \exp(k \cdot \mathrm{ReLU}(x)) - 1$.
 
-\subsection{Application Mechanism 2: Gradient-Based Action Correction (Any Actor)}
+\textbf{Gradient correction (any actor).}
 \label{sec:gradient}
-
-For standard MLP or Gaussian actors that do not support energy composition, we correct the actor's output using the cost function's gradient:
+For standard actors, we correct the output via:
 \begin{equation}
     a_{\mathrm{corrected}} = a_{\mathrm{actor}} - \lambda_{\mathrm{gs}} \cdot \lambda(t) \cdot \alpha \cdot \nabla_a\, c(s, a_{\mathrm{actor}})
     \label{eq:gradient_correction}
 \end{equation}
-iterated for $K$ steps (typically $K = 3$--$5$), where $\alpha$ is a step size.
-This is mathematically equivalent to one step of gradient descent on the composed energy $E_\phi + \lambda(t) \cdot c$, but applied to the frozen actor's output rather than optimized from scratch.
-
-The gradient naturally handles nonlinear and spatial costs that action scaling cannot.
-For velocity constraints, $\nabla_a c$ points toward lower action magnitude (equivalent to action scaling).
-For spatial constraints (\eg, hazard proximity), $\nabla_a c$ points \emph{away from hazards}---redirecting the agent's trajectory, not just slowing it down.
+iterated for $K$ steps.
+The gradient handles nonlinear costs that action scaling cannot: $\nabla_a c$ points away from costly regions, not just toward lower magnitude.
 
 \subsection{Algorithm}
 
@@ -247,18 +216,9 @@ For spatial constraints (\eg, hazard proximity), $\nabla_a c$ points \emph{away 
 \end{algorithmic}
 \end{algorithm}
 
-The computational overhead of the $\lambda$ computation is negligible relative to the policy forward pass (see Section~\ref{sec:results} for timing measurements).
-Gradient correction adds $K$ backward passes through the cost function, which is typically much smaller than the policy network.
-
-\textbf{Tuning requirements.}
-The schedule parameter $\eta$ and the guidance scale $\lambda_{\mathrm{gs}}$ require mild calibration: $\eta$ controls how aggressively the schedule adapts, while $\lambda_{\mathrm{gs}}$ balances the constraint energy against the learned policy energy.
-This calibration is substantially cheaper than retraining---it involves only evaluation episodes, not gradient updates---but is not zero-cost.
-We find $\eta \in [2, 5]$ and $\lambda_{\mathrm{gs}} \in [0.05, 0.5]$ work well across both domains tested.
-
-\subsection{Connection to CMDP Lagrangian Duality}
-
-The time-varying $\lambda^i(t)$ serves a similar role to the Lagrangian dual variable $\mu$ in CMDPs: it penalizes costly actions proportionally to budget scarcity.
-The key difference: $\mu$ is learned via dual gradient ascent (requiring retraining); $\lambda^i(t)$ is computed in closed form from the current budget state, enabling instant adaptation to new specifications.
+The $\lambda$ computation adds 4.7~ms overhead (19.8\%) on the wind farm EBT actor.
+The parameters $\eta \in [2, 5]$ and $\lambda_{\mathrm{gs}} \in [0.05, 0.5]$ require mild calibration via evaluation episodes---cheaper than retraining but not zero-cost.
+Unlike the Lagrangian dual $\mu$ in CMDPs (learned via gradient ascent, requiring retraining), $\lambda^i(t)$ is computed in closed form, enabling instant adaptation to new budget specifications.
 
 %----------------------------------------------------------------------
 \section{Experimental Setup}
@@ -286,52 +246,26 @@ The budget surrogate composes post-hoc via per-turbine energy addition at infere
 
 \subsection{Domain 2: Safety Gymnasium Navigation}
 
-\textbf{Environment.}
-SafetyPointGoal1-v0 from Safety-Gymnasium~\citep{ji2023safetygym}: a point robot navigates to a goal position in an arena containing circular hazard zones.
-The environment provides a binary cost signal ($c=1$) when the agent enters a hazard zone.
+SafetyPointGoal1-v0~\citep{ji2023safetygym}: a point robot navigates to goals while avoiding hazard zones ($c\!=\!1$ on entry).
+Unlike the wind farm, cost is \emph{spatial}---it depends on position, not action direction.
+SAC with MLP actor, trained unconstrained for 200k steps.
+This domain serves as a diagnostic for state-dependent costs where the action-to-cost coupling is weak.
 
-\textbf{Risky action.}
-Entering hazard proximity zones (cost $> 0$).
-Unlike the wind farm domain where the risky action is a specific control direction (negative yaw), here the cost is spatial---it depends on the agent's position relative to hazards, not the action direction.
+\subsection{Baselines and Ablations}
 
-\textbf{Budget.}
-$B$ = total cost-incurring timesteps, tested at $B \in \{10, 25, 40, 56\}$ corresponding to approximately 18\%, 45\%, 71\%, and 100\% of unconstrained hazard exposure ($\sim$56 steps).
-
-\textbf{Agent.}
-SAC with Gaussian actor (standard MLP, 256 hidden units), trained unconstrained for 200k steps.
-We test two application mechanisms: (1)~action scaling, where $a \leftarrow a / (1 + 0.1 \cdot \lambda(t) \cdot p(a))$; and (2)~gradient correction (Eq.~\ref{eq:gradient_correction}), which uses the gradient of a differentiable hazard cost proxy to steer the agent away from hazards.
-This domain demonstrates that the budget schedule is architecture-agnostic and that gradient correction is necessary when the cost is spatial rather than directional.
-
-\subsection{Baselines}
-
-\begin{itemize}
-    \item \textbf{Unconstrained}: no budget constraint (upper bound on reward).
-    \item \textbf{Hard clip}: risky action banned entirely (lower bound on reward).
-    \item \textbf{Constant penalty} ($\eta = 0$): fixed penalty weight with no adaptation to budget state, equivalent to a static Lagrangian multiplier.
-    \item \textbf{AC schedule} ($\eta > 0$): our time-varying weight with risk aversion $\eta \in \{2, 5\}$.
-\end{itemize}
-
-\subsection{Ablations (Wind Farm)}
-
-\begin{enumerate}
-    \item \textbf{Hard guard vs.\ AC schedule}: Does the schedule alone prevent budget violations, or is the hard guard ($C^i < B^i$) necessary?
-    \item \textbf{$1/u^{\eta}$ vs.\ $\exp(\eta(1/u-1))$}: Theoretically motivated schedule vs.\ practical approximation.
-    \item \textbf{Budget flexibility}: Same policy at budget levels from 2.5\% to 50\% of episode length.
-\end{enumerate}
+Baselines: unconstrained (upper bound), hard clip (lower bound), constant penalty ($\eta\!=\!0$, static Lagrangian), and our AC schedule ($\eta \in \{2, 5\}$).
+Additionally, we compare against an oracle-tuned constant penalty found via 15-step bisection search.
+Ablations on the wind farm test the hard guard, schedule form ($1/u^\eta$ vs.\ $\exp$), and budget flexibility (Appendix).
 
 %----------------------------------------------------------------------
 \section{Results}
 \label{sec:results}
 %----------------------------------------------------------------------
 
-We present results across both domains, focusing on budget satisfaction, reward retention, and the physical understanding of when the agent chooses to incur cost.
-The penalty weight $\lambda(t)$ adapts during episodes: it drops during budget surplus and spikes near depletion (Appendix Figure~\ref{fig:wf_timeseries}).
+\subsection{Wind Farm: AC Schedule vs.\ Oracle Baseline}
 
-\subsection{Wind Farm: Budget Satisfaction and Spatial Allocation}
-
-Table~\ref{tab:main_results} compares the AC schedule against an oracle-tuned constant penalty (found via 15-step bisection search targeting 95\% budget utilization) on the 3-turbine wind farm (50 episodes, budget$=15$).
-The AC schedule ($\eta=5$, gs$=0.1$) achieves 98.9\% of unconstrained power with neg-yaw $[8, 9, 10]$---outperforming the oracle constant (96.7\%, $[11, 13, 14]$) \emph{without any per-budget calibration}.
-All AC configurations satisfy the budget; the oracle constant also satisfies but required 15 evaluation rounds to find.
+Table~\ref{tab:main_results} compares the AC schedule against an oracle-tuned constant penalty (15-step bisection) on the 3-turbine wind farm (50 episodes, budget$\!=\!15$).
+The AC schedule achieves 98.9\% power retention with neg-yaw $[8, 9, 10]$, outperforming the oracle constant (96.7\%, $[11, 13, 14]$) without any per-budget calibration.
 
 \begin{table}[t]
 \centering
@@ -356,64 +290,44 @@ Power retention is within 5\% of unconstrained across all budget levels; the AC 
 % Timeseries, heatmap, and Pareto figures moved to appendix
 % See Appendix Figures~\ref{fig:wf_timeseries}, \ref{fig:wf_heatmap}, \ref{fig:pareto}
 
-\subsection{Nonlinear Fatigue Surrogate: Why the Cost Function Matters}
+\subsection{Nonlinear Fatigue: Why the Cost Function Matters}
 
-Table~\ref{tab:nonlinear} compares a binary cost indicator ($\mathbf{1}[\text{yaw} < 0]$) against the nonlinear fatigue surrogate from Eq.~\ref{eq:nonlinear_cost} on the wind farm.
-The binary indicator treats all negative yaw equally---but real structural fatigue depends on both the yaw magnitude and wind speed.
+Table~\ref{tab:nonlinear} compares binary vs.\ nonlinear fatigue costs.
+The binary AC ($\eta\!=\!2$) avoids negative yaw entirely but accumulates fatigue of 86.2---\emph{worse} than unconstrained (20.3)---because it pushes the agent toward large positive yaw angles.
+The nonlinear AC ($\eta\!=\!5$) uses \emph{more} neg-yaw steps (80--83) but achieves fatigue of only 12.8 ($6.8\times$ reduction, 98\% power) by permitting mild yaw at low wind speeds and restricting it at high speeds.
 
 \begin{table}[t]
 \centering
-\caption{Binary vs.\ nonlinear fatigue cost on 3-turbine wind farm. Binary cost counts neg-yaw timesteps (budget=15); nonlinear cost uses $|y/\bar{y}|^2 \cdot (v/v_{\mathrm{ref}})^3$. The binary indicator minimizes neg-yaw \emph{count} but produces high fatigue; the nonlinear surrogate minimizes actual fatigue.}
+\caption{Binary vs.\ nonlinear fatigue cost (3-turbine wind farm). Nonlinear: $|y/\bar{y}|^2 \cdot (v/v_{\mathrm{ref}})^3$.}
 \label{tab:nonlinear}
 \begin{tabular}{lccc}
 \toprule
-Method & Power (MW) & NegYaw & Cum.\ Fatigue \\
+Method & Power (MW) & NegYaw & Fatigue \\
 \midrule
 Unconstrained & 29.7 & [66, 75, 71] & 20.3 \\
-\midrule
-Binary $\eta=0$ (constant) & 25.8 & [18, 21, 25] & 87.6 \\
-Binary $\eta=2$ (AC) & 28.1 & [8, 8, 10] & 86.2 \\
-\midrule
-Nonlinear $\eta=0$ (constant) & 25.9 & [28, 51, 52] & 29.8 \\
-Nonlinear $\eta=5$ (AC) & \textbf{29.2} & [80, 81, 83] & \textbf{12.8} \\
+Binary $\eta\!=\!2$ (AC) & 28.1 & [8, 8, 10] & 86.2 \\
+Nonlinear $\eta\!=\!5$ (AC) & \textbf{29.2} & [80, 81, 83] & \textbf{12.8} \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-The binary AC ($\eta=2$) uses only 8--10 neg-yaw steps but accumulates fatigue of 86.2---\emph{worse} than unconstrained (20.3).
-This occurs because the binary constraint forces the agent to avoid negative yaw entirely, pushing it toward large \emph{positive} yaw angles that the fatigue model also penalizes.
-In contrast, the nonlinear AC ($\eta=5$) uses \emph{more} neg-yaw steps (80--83) but achieves fatigue of only 12.8---a $6.8\times$ reduction---while retaining 98\% of unconstrained power.
-The nonlinear surrogate permits negative yaw freely at low wind speeds (where fatigue is cheap) and restricts it only at high wind speeds (where fatigue is expensive).
-This physically meaningful allocation is impossible with a binary indicator.
-
 \subsection{Ablations}
 
-\textbf{Hard guard.}
-The AC schedule alone keeps all turbines within budget ($[11, 11, 11]$ neg-yaw steps at $B\!=\!15$, 98\% power retention), while the constant penalty ($\eta=0$) overshoots at $[29, 51, 58]$ (Appendix Table~\ref{tab:hard_guard}).
-\textbf{Schedule.} The $1/u^{\eta}$ and $\exp(\eta(1/u\!-\!1))$ schedules perform comparably (Appendix Table~\ref{tab:schedule}).
-\textbf{Budget flexibility.}
+The AC schedule alone keeps all turbines within budget ($[11, 11, 11]$ at $B\!=\!15$) without the hard guard; the constant penalty overshoots at $[29, 51, 58]$.
+The $1/u^{\eta}$ and $\exp(\eta(1/u\!-\!1))$ schedules perform comparably.
+A single policy serves budgets from 2.5\% to 50\% with $>$95\% power retention from $B\!=\!10$ onward.
+Full ablation tables are in the Appendix.
 
-A single policy serves budget levels from 2.5\% to 50\% with $>$95\% power retention from $B=10$ onward (Appendix Table~\ref{tab:flexibility}).
-
-\textbf{Computational overhead.}
-The $\lambda$ computation adds 4.7~ms per step on a 23.6~ms baseline (19.8\% overhead).
-This includes the full EBT energy composition with the budget surrogate; a lighter-weight MLP actor would show proportionally less overhead.
-
-\subsection{Scope Condition: Action-Dependent vs.\ State-Dependent Costs}
+\subsection{Scope: Action-Dependent vs.\ State-Dependent Costs}
 \label{sec:state_dependent}
 
-The wind farm results succeed because the cost depends directly on the current action.
-Realistic fatigue models involve \emph{state-dependent} costs where wake propagation delays decouple actions from consequences: the cost at downstream turbine $j$ depends on upstream turbine $i$'s action at time $t - \Delta t$, mediated by wake dynamics~\citep{dijk2025load}.
-We use Safety Gymnasium's SafetyPointGoal1-v0~\citep{ji2023safetygym} as a controlled diagnostic---position-dependent cost with momentum dynamics exhibits the same causal gap.
+The method succeeds when cost depends on the current action ($\nabla_a c \neq 0$).
+Realistic fatigue involves \emph{state-dependent} costs---wake propagation delays decouple upstream yaw from downstream loading~\citep{dijk2025load}.
+Safety Gym~\citep{ji2023safetygym} exhibits the same structure: position-dependent cost with momentum dynamics.
 
-We define the \emph{scope condition}: post-hoc budget scheduling is effective when $\nabla_a c \neq 0$ (action-dependent costs).
-When $c_t = g(s_t)$ and $s_t$ depends on trajectory history, $\nabla_a c \approx 0$ and correction fails.
-To bridge this gap, we train a cost critic $Q_c(s,a) = \mathbb{E}_\pi[\sum \gamma_c^k c_{t+k} \mid s_t, a_t]$ offline from logged rollouts (Monte Carlo returns, $\gamma_c\!=\!0.99$, correlation 0.965).
-The urgency schedule modulates $\nabla_a Q_c$ instead of $\nabla_a c$:
-$a_{\mathrm{corr}} = a_{\mathrm{actor}} - \lambda_{\mathrm{gs}} \lambda(t) \alpha \nabla_a Q_c$.
-
-Results: on the wind farm (strong coupling), $Q_c$ achieves $5.7\times$ fatigue reduction; on Safety Gym (weak coupling), $Q_c$ reduces cost by 20--36\% at $>$97\% reward, satisfying budget at $B\!=\!40$ but not at tighter levels (Appendix Tables~\ref{tab:qc_windfarm},~\ref{tab:safetygym}).
-The coupling strength---how much $\nabla_a Q_c$ influences the trajectory---determines the correction ceiling.
+To bridge this gap, we train a cost critic $Q_c(s,a) = \mathbb{E}_\pi[\sum \gamma_c^k c_{t+k}]$ offline (MC returns, $\gamma_c\!=\!0.99$, correlation 0.965) and modulate $\nabla_a Q_c$ via the urgency schedule.
+On the wind farm (strong coupling), $Q_c$ achieves $5.7\times$ fatigue reduction; on Safety Gym (weak coupling), 20--36\% cost reduction at $>$97\% reward, satisfying budget at $B\!=\!40$ but not tighter (Appendix Tables~\ref{tab:qc_windfarm},~\ref{tab:safetygym}).
+The \emph{coupling strength}---$\|\nabla_a Q_c\|$ relative to $\|\nabla_s Q_c\|$---determines the correction ceiling.
 
 %----------------------------------------------------------------------
 \section{Related Work}
