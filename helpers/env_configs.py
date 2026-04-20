@@ -78,6 +78,13 @@ ENV_CONFIGS: Dict[str, Dict[str, Any]] = {
             "TI_min": 0.07, "TI_max": 0.07,
         },
     },
+    "simple": {
+        "wind": {
+            "ws_min": 10, "ws_max": 10,
+            "wd_min": 270, "wd_max": 270,
+            "TI_min": 0.07, "TI_max": 0.07,
+        },
+    },
     "big": {
         "BaseController": "PyWake",
         "wind": {

@@ -12,11 +12,112 @@ Interface:
 """
 
 from collections import deque
-from typing import Optional, List
+from itertools import product
+from typing import Callable, List, Optional, Tuple
 
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
+
+# =============================================================================
+# N-DIM LINEAR INTERPOLATION (for precomputed DEL grids)
+# =============================================================================
+
+def ndim_linear_interp(
+    grid: torch.Tensor,
+    yaw_norm: torch.Tensor,
+    grid_yaw_min_deg: float,
+    grid_yaw_max_deg: float,
+    yaw_max_deg: float,
+) -> torch.Tensor:
+    """Differentiable N-dim linear interpolation of a per-turbine DEL grid.
+
+    Every turbine's DEL depends on every turbine's yaw through wake interactions,
+    so the grid is fully joint: ``grid[t, i_0, i_1, ..., i_{N-1}]`` is the DEL of
+    turbine ``t`` when the farm-wide yaw vector is at grid indices ``i_0..i_{N-1}``.
+
+    Args:
+        grid: ``(n_turb, G, G, ..., G)`` — one grid axis per turbine. Dtype float32.
+        yaw_norm: ``(batch, n_turb)`` — normalised actions in ``[-1, 1]``.
+        grid_yaw_min_deg, grid_yaw_max_deg: extent of each grid axis, in degrees.
+        yaw_max_deg: action normalisation (``yaw_deg = yaw_norm * yaw_max_deg``).
+
+    Returns:
+        ``(batch, n_turb)`` per-turbine DELs, differentiable w.r.t. ``yaw_norm``.
+    """
+    device = yaw_norm.device
+    n_turb = yaw_norm.shape[-1]
+    G = grid.shape[1]
+    assert grid.shape[0] == n_turb and grid.ndim == n_turb + 1, (
+        f"grid shape {tuple(grid.shape)} incompatible with n_turb={n_turb}"
+    )
+
+    yaw_deg = yaw_norm * yaw_max_deg  # (batch, n_turb)
+    span = grid_yaw_max_deg - grid_yaw_min_deg
+    u = (yaw_deg - grid_yaw_min_deg) / span * (G - 1)
+    # Clamp to stay strictly inside [0, G-1) so hi = lo + 1 is always valid
+    u = u.clamp(0.0, float(G - 1) - 1e-6)
+    lo = u.floor().long()           # (batch, n_turb)
+    hi = lo + 1                      # (batch, n_turb)
+    alpha = u - lo.to(u.dtype)       # (batch, n_turb), in [0, 1)
+
+    grid_flat = grid.reshape(n_turb, -1)  # (n_turb, G**n_turb)
+
+    total = torch.zeros(yaw_norm.shape, device=device, dtype=grid_flat.dtype)
+    for corner in range(2 ** n_turb):
+        # For each turbine, pick lo or hi based on the corner bitmask
+        flat_idx = None
+        weight = None
+        for i in range(n_turb):
+            bit = (corner >> i) & 1
+            idx_i = hi[..., i] if bit else lo[..., i]
+            w_i = alpha[..., i] if bit else (1.0 - alpha[..., i])
+            flat_idx = idx_i if flat_idx is None else flat_idx * G + idx_i
+            weight = w_i if weight is None else weight * w_i
+        # flat_idx: (batch,); pick corresponding DEL per turbine
+        # grid_flat[:, flat_idx] → (n_turb, batch); transpose to (batch, n_turb)
+        corner_val = grid_flat[:, flat_idx].transpose(-1, -2)
+        total = total + weight.unsqueeze(-1) * corner_val
+
+    return total
+
+
+def build_del_grid(
+    wfm_fn: Callable[[np.ndarray], np.ndarray],
+    n_turbines: int,
+    grid_size: int = 21,
+    yaw_range_deg: Tuple[float, float] = (-30.0, 30.0),
+    verbose: bool = False,
+) -> np.ndarray:
+    """Sweep a full N-dim yaw grid and return per-turbine DEL predictions.
+
+    Cost is ``grid_size ** n_turbines`` calls to ``wfm_fn``. Scales catastrophically
+    with ``n_turbines`` — feasible for small farms (N≤5 at G=21), not beyond.
+
+    Args:
+        wfm_fn: ``yaw_deg (n_turb,) -> del (n_turb,)``. Usually wraps PyWake +
+            sector_averages_reordered + TorchDELSurrogate.
+        n_turbines: farm size.
+        grid_size: grid points per dimension.
+        yaw_range_deg: ``(min, max)`` inclusive.
+        verbose: print progress every 10% of sims.
+
+    Returns:
+        ``np.ndarray`` of shape ``(n_turbines,) + (grid_size,) * n_turbines``.
+    """
+    axis = np.linspace(yaw_range_deg[0], yaw_range_deg[1], grid_size)
+    shape = (n_turbines,) + (grid_size,) * n_turbines
+    total_sims = grid_size ** n_turbines
+    out = np.zeros(shape, dtype=np.float32)
+    step = max(1, total_sims // 10)
+    for k, idx in enumerate(product(range(grid_size), repeat=n_turbines)):
+        yaw = np.array([axis[i] for i in idx], dtype=np.float64)
+        out[(slice(None),) + idx] = wfm_fn(yaw)
+        if verbose and (k + 1) % step == 0:
+            print(f"  precompute: {k+1}/{total_sims} ({100*(k+1)/total_sims:.0f}%)")
+    return out
 
 
 # =============================================================================
@@ -458,10 +559,13 @@ class DELConstraintSurrogate(nn.Module):
         penalty_type: str = "exponential",
         yaw_max_deg: float = 30.0,
         pset: float = 1.0,
+        context_mode: str = "frozen",
+        grid_size: int = 21,
     ):
         super().__init__()
         assert mode in ("per_turbine", "farm_max"), f"Unknown mode: {mode}"
         assert penalty_type in ("exponential", "quadratic"), f"Unknown penalty_type: {penalty_type}"
+        assert context_mode in ("frozen", "precomputed"), f"Unknown context_mode: {context_mode}"
 
         self.torch_del_model = torch_del_model
         self.mode = mode
@@ -470,25 +574,85 @@ class DELConstraintSurrogate(nn.Module):
         self.penalty_type = penalty_type
         self.yaw_max_deg = yaw_max_deg
         self.pset = pset
+        self.context_mode = context_mode
+        self.grid_size = grid_size
 
         # Frozen context (set per env step, no gradient)
         self._frozen_sector_avgs: Optional[torch.Tensor] = None   # (n_turb, 8)
         self._frozen_baseline_dels: Optional[torch.Tensor] = None  # (n_turb,)
+
+        # Precomputed-grid context (set once per episode, no gradient)
+        self._del_grid: Optional[torch.Tensor] = None   # (n_turb, G, G, ..., G)
+        self._grid_yaw_min_deg: float = -yaw_max_deg
+        self._grid_yaw_max_deg: float = +yaw_max_deg
 
     def set_context(
         self,
         sector_avgs: torch.Tensor,
         baseline_dels: torch.Tensor,
     ) -> None:
-        """Update frozen context after each env step.
+        """Update FROZEN-mode context after each env step.
 
         Args:
             sector_avgs: (n_turbines, 8) — [saws_L, saws_R, saws_U, saws_D,
                          sati_L, sati_R, sati_U, sati_D] in physical units.
             baseline_dels: (n_turbines,) — DEL under baseline yaws.
         """
+        if self.context_mode != "frozen":
+            raise RuntimeError(
+                f"set_context() requires context_mode='frozen' "
+                f"(got {self.context_mode!r}); use set_context_precomputed()."
+            )
         self._frozen_sector_avgs = sector_avgs.detach()
         self._frozen_baseline_dels = baseline_dels.detach()
+
+    def set_context_precomputed(
+        self,
+        del_grid: torch.Tensor,
+        baseline_dels: torch.Tensor,
+        yaw_range_deg: Optional[Tuple[float, float]] = None,
+    ) -> None:
+        """Install a full precomputed DEL grid as the inference context.
+
+        This enables gradient flow through the true (PyWake-derived) DEL surface
+        via N-dim linear interpolation, at the cost of a one-off ``G**n_turbines``
+        precompute sweep (see ``build_del_grid``).
+
+        Args:
+            del_grid: ``(n_turbines,) + (G,) * n_turbines``. Entry
+                ``del_grid[t, i_0, ..., i_{N-1}]`` is turbine ``t``'s DEL at
+                the yaw vector ``(axis[i_0], ..., axis[i_{N-1}])``.
+            baseline_dels: ``(n_turbines,)`` — denominator for the DEL ratio.
+            yaw_range_deg: ``(min, max)`` of each grid axis. Defaults to
+                ``(-yaw_max_deg, +yaw_max_deg)``.
+        """
+        if self.context_mode != "precomputed":
+            raise RuntimeError(
+                f"set_context_precomputed() requires context_mode='precomputed' "
+                f"(got {self.context_mode!r})."
+            )
+        if yaw_range_deg is None:
+            yaw_range_deg = (-self.yaw_max_deg, +self.yaw_max_deg)
+
+        n_turb = int(del_grid.shape[0])
+        assert del_grid.ndim == n_turb + 1, (
+            f"del_grid should have 1 + n_turb axes; got {del_grid.ndim} "
+            f"for n_turb={n_turb}"
+        )
+        G = int(del_grid.shape[1])
+        assert all(int(s) == G for s in del_grid.shape[1:]), (
+            f"all grid axes must equal G={G}; got {tuple(del_grid.shape)}"
+        )
+        assert int(baseline_dels.shape[0]) == n_turb, (
+            f"baseline_dels shape {tuple(baseline_dels.shape)} does not match "
+            f"del_grid's n_turb={n_turb}"
+        )
+
+        self._del_grid = del_grid.detach().to(torch.float32)
+        self._frozen_baseline_dels = baseline_dels.detach()
+        self._grid_yaw_min_deg = float(yaw_range_deg[0])
+        self._grid_yaw_max_deg = float(yaw_range_deg[1])
+        self.grid_size = G
 
     def per_turbine_energy(
         self,
@@ -504,39 +668,25 @@ class DELConstraintSurrogate(nn.Module):
         Returns:
             (batch, n_turbines, 1) penalty energy per turbine
         """
-        if self._frozen_sector_avgs is None or self._frozen_baseline_dels is None:
+        if self.context_mode == "precomputed":
+            del_agent = self._del_from_grid(action)
+        else:
+            del_agent = self._del_from_frozen_context(action)
+
+        if del_agent is None:
+            # Context not yet set — return zero energy (no gradient signal)
             return torch.zeros_like(action)
 
-        batch, n_turb, _ = action.shape
+        # Reference DEL. Both _del_from_* helpers guarantee baseline is set
+        # whenever they return non-None.
+        assert self._frozen_baseline_dels is not None
         device = action.device
-
-        # Convert normalised action to yaw degrees (only this carries gradient)
-        yaw_deg = action * self.yaw_max_deg  # (batch, n_turb, 1)
-
-        # Frozen context: broadcast to batch dimension
-        sector = self._frozen_sector_avgs.to(device)  # (n_turb, 8)
-        sector_batch = sector.unsqueeze(0).expand(batch, -1, -1)  # (batch, n_turb, 8)
-
-        pset_batch = torch.full(
-            (batch, n_turb, 1), self.pset, device=device, dtype=action.dtype
-        )
-
-        # Build 10-d input: [saws(4), sati(4), pset, yaw]
-        model_input = torch.cat([sector_batch, pset_batch, yaw_deg], dim=-1)
-
-        # Predict DEL — reshape to (batch*n_turb, 10) for the model
-        flat_input = model_input.reshape(-1, 10)
-        flat_del = self.torch_del_model(flat_input)  # (batch*n_turb, 1)
-        del_agent = flat_del.reshape(batch, n_turb, 1)
-
-        # Reference DEL
         baseline = self._frozen_baseline_dels.to(device)
         if self.mode == "per_turbine":
-            del_ref = baseline.unsqueeze(0).unsqueeze(-1)  # (1, n_turb, 1)
+            del_ref = baseline.unsqueeze(0).unsqueeze(-1)   # (1, n_turb, 1)
         else:  # farm_max
             del_ref = baseline.max().view(1, 1, 1)
 
-        # Ratio and penalty
         ratio = del_agent / del_ref.clamp(min=1e-6)
         excess = F.relu(ratio - (1.0 + self.threshold_pct))
 
@@ -550,6 +700,49 @@ class DELConstraintSurrogate(nn.Module):
             penalty = penalty * mask
 
         return penalty
+
+    def _del_from_frozen_context(
+        self, action: torch.Tensor
+    ) -> Optional[torch.Tensor]:
+        """Frozen-mode DEL prediction. Gradient flows via the yaw input only."""
+        if self._frozen_sector_avgs is None or self._frozen_baseline_dels is None:
+            return None
+
+        batch, n_turb, _ = action.shape
+        device = action.device
+
+        yaw_deg = action * self.yaw_max_deg                          # (batch, n_turb, 1)
+        sector = self._frozen_sector_avgs.to(device)                  # (n_turb, 8)
+        sector_batch = sector.unsqueeze(0).expand(batch, -1, -1)      # (batch, n_turb, 8)
+        pset_batch = torch.full(
+            (batch, n_turb, 1), self.pset, device=device, dtype=action.dtype
+        )
+        model_input = torch.cat([sector_batch, pset_batch, yaw_deg], dim=-1)
+        flat_del = self.torch_del_model(model_input.reshape(-1, 10))
+        return flat_del.reshape(batch, n_turb, 1)
+
+    def _del_from_grid(self, action: torch.Tensor) -> Optional[torch.Tensor]:
+        """Precomputed-mode DEL prediction via N-dim linear interpolation.
+
+        Gradient flows through the interpolation weights w.r.t. every turbine's
+        yaw — so turbine i's DEL picks up signal from turbine j's action, which
+        is the wake-coupling the frozen mode is blind to.
+        """
+        if self._del_grid is None or self._frozen_baseline_dels is None:
+            return None
+
+        device = action.device
+        grid = self._del_grid.to(device)
+        yaw_norm = action.squeeze(-1)  # (batch, n_turb)
+
+        del_agent = ndim_linear_interp(
+            grid=grid,
+            yaw_norm=yaw_norm,
+            grid_yaw_min_deg=self._grid_yaw_min_deg,
+            grid_yaw_max_deg=self._grid_yaw_max_deg,
+            yaw_max_deg=self.yaw_max_deg,
+        )  # (batch, n_turb)
+        return del_agent.unsqueeze(-1)  # (batch, n_turb, 1)
 
     def forward(
         self,
@@ -587,6 +780,8 @@ def create_load_surrogate(
     del_model_dir: str = "",
     del_threshold_pct: float = 0.10,
     del_penalty_type: str = "exponential",
+    del_context_mode: str = "frozen",
+    del_grid_size: int = 21,
 ) -> nn.Module:
     """Factory function for load surrogates.
 
@@ -599,6 +794,9 @@ def create_load_surrogate(
         del_model_dir: Path to surrogate/ directory (for del_* types).
         del_threshold_pct: DEL increase threshold as fraction (e.g. 0.10 = 10%).
         del_penalty_type: "exponential" or "quadratic" (for del_* types).
+        del_context_mode: "frozen" (default, per-step sector avgs) or
+            "precomputed" (one-off full DEL grid + N-dim interpolation).
+        del_grid_size: Grid points per turbine in precomputed mode.
     """
     if surrogate_type not in VALID_LOAD_SURROGATE_TYPES:
         raise ValueError(
@@ -623,6 +821,8 @@ def create_load_surrogate(
             steepness=steepness,
             penalty_type=del_penalty_type,
             yaw_max_deg=yaw_max_deg,
+            context_mode=del_context_mode,
+            grid_size=del_grid_size,
         )
 
     if surrogate_type == "exponential":

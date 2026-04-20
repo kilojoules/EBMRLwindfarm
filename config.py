@@ -155,6 +155,8 @@ class Args:
     load_surrogate_type: str = "exponential"  # Load surrogate type (exponential, threshold, per_turbine, t1_positive_only, relu, del_per_turbine, del_farm_max)
     load_del_threshold_pct: float = 0.10      # DEL increase threshold (0.10 = 10% max increase over baseline)
     load_del_penalty_type: str = "exponential" # DEL penalty shape: "exponential" or "quadratic"
+    load_del_context_mode: str = "frozen"      # DEL context: "frozen" (per-step sector avgs) or "precomputed" (full N-dim yaw grid, interpolated)
+    load_del_grid_size: int = 21               # Grid points per turbine for precomputed mode (cost: grid_size ** n_turbines sims)
 
     # === Action Regularization (for delta actions) ===
     action_reg_weight: float = 0.0        # L2 penalty on action magnitude (encourages staying put)

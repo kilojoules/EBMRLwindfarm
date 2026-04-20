@@ -80,6 +80,8 @@ class SweepConfig:
     per_turbine_thresholds: Optional[List[float]] = None
     del_threshold_pct: float = 0.10
     del_penalty_type: str = "exponential"
+    del_context_mode: str = "frozen"
+    del_grid_size: int = 21
     label: str = ""
 
     def __post_init__(self):
@@ -100,6 +102,8 @@ class SweepConfig:
         if self.constraint_type.startswith("del_"):
             parts.append(f"{self.del_threshold_pct:.0%}")
             parts.append(self.del_penalty_type[:3])
+            if self.del_context_mode == "precomputed":
+                parts.append(f"pc{self.del_grid_size}")
         return "_".join(parts)
 
 
@@ -147,6 +151,9 @@ def load_ebt_checkpoint(
     path: str,
     device: torch.device,
     yaw_init: str = "zeros",
+    ebt_opt_steps_eval_override: Optional[int] = None,
+    ebt_langevin_noise_override: Optional[float] = None,
+    ebt_num_candidates_override: Optional[int] = None,
 ) -> Tuple[Any, WindFarmAgent, nn.Module, Args, dict]:
     """
     Load an EBT checkpoint, reconstruct environment and actor.
@@ -157,6 +164,10 @@ def load_ebt_checkpoint(
         path: Path to .pt checkpoint
         device: Torch device
         yaw_init: "zeros" for deterministic zero init, "random" for random init
+        ebt_opt_steps_eval_override: If set, override the checkpoint's
+            eval-time EBT optimization step count (default uses checkpoint value).
+        ebt_langevin_noise_override: If set, override eval-time Langevin noise.
+        ebt_num_candidates_override: If set, override eval-time candidate count.
 
     Returns:
         (envs, agent, actor, args, env_info)
@@ -164,6 +175,22 @@ def load_ebt_checkpoint(
     ckpt = torch.load(path, map_location=device, weights_only=False)
     args_dict = ckpt["args"]
     args = Args(**{k: v for k, v in args_dict.items() if hasattr(Args, k)})
+
+    # Inference-time overrides for exploration knobs (Option 1 diagnostics).
+    # These mutate the reconstructed args before the actor is built, so the
+    # TransformerEBTActor picks them up in the constructor below.
+    if ebt_opt_steps_eval_override is not None:
+        print(f"  [override] ebt_opt_steps_eval: {args.ebt_opt_steps_eval} → "
+              f"{ebt_opt_steps_eval_override}")
+        args.ebt_opt_steps_eval = ebt_opt_steps_eval_override
+    if ebt_langevin_noise_override is not None:
+        print(f"  [override] ebt_langevin_noise: {args.ebt_langevin_noise} → "
+              f"{ebt_langevin_noise_override}")
+        args.ebt_langevin_noise = ebt_langevin_noise_override
+    if ebt_num_candidates_override is not None:
+        print(f"  [override] ebt_num_candidates: {args.ebt_num_candidates} → "
+              f"{ebt_num_candidates_override}")
+        args.ebt_num_candidates = ebt_num_candidates_override
 
     # Verify this is an EBT checkpoint
     if "ebt_opt_steps_train" not in args_dict:
@@ -255,6 +282,8 @@ def build_sweep_configs(
     n_turbines: int,
     del_threshold_pct: float = 0.10,
     del_penalty_type: str = "exponential",
+    del_context_mode: str = "frozen",
+    del_grid_size: int = 21,
 ) -> List[SweepConfig]:
     """Build the full list of configurations to sweep."""
     configs: List[SweepConfig] = []
@@ -338,6 +367,8 @@ def build_sweep_configs(
                             steepness=steep,
                             del_threshold_pct=del_threshold_pct,
                             del_penalty_type=del_penalty_type,
+                            del_context_mode=del_context_mode,
+                            del_grid_size=del_grid_size,
                         )
                     )
 
@@ -372,6 +403,8 @@ def create_surrogate_from_config(
             del_model_dir=surrogate_dir,
             del_threshold_pct=config.del_threshold_pct,
             del_penalty_type=config.del_penalty_type,
+            del_context_mode=config.del_context_mode,
+            del_grid_size=config.del_grid_size,
         )
         return surrogate.to(device)
 
@@ -395,12 +428,16 @@ def create_surrogate_from_config(
 
 
 class DELContextUpdater:
-    """Computes sector averages + baseline DELs from the vectorized env state.
+    """Computes DEL constraint context from the vectorized env state.
 
     Builds its own probe PyWake farm model (matching the surrogate's training
-    setup) and rotor template. After each env step, reads the env's current
-    state via get_attr() and computes the frozen context that
-    DELConstraintSurrogate.set_context() needs.
+    setup) and rotor template. Supports both DELConstraintSurrogate context
+    modes:
+
+    - ``frozen``  → refreshes (sector_avgs, baseline_dels) every step.
+    - ``precomputed`` → builds a full ``grid_size**n_turbines`` DEL grid once
+      per episode reset and installs it via ``set_context_precomputed``.
+      Step-time updates are no-ops in this mode.
     """
 
     def __init__(self, wind_turbine, keras_surrogate: SurrogateLoadModel):
@@ -418,6 +455,10 @@ class DELContextUpdater:
         self._template = make_rotor_template(wind_turbine.diameter() / 2)
         self._hub_h = float(wind_turbine.hub_height())
         self._keras_surr = keras_surrogate
+        # In-memory cache of the precomputed DEL grid. Key = (wd, ws, ti,
+        # x_pos, y_pos, G, yaw_range). Reused across episodes and configs
+        # whenever the wind state and layout are unchanged.
+        self._grid_cache: Optional[Tuple[Any, np.ndarray, np.ndarray]] = None
 
     def _get_env_state(self, envs):
         """Read scalar env state from the first sub-env of a vectorized env."""
@@ -456,8 +497,71 @@ class DELContextUpdater:
         )
         return sector_avgs, baseline_dels
 
+    def _build_wfm_fn(self, wd: float, ws: float, ti: float,
+                      x: np.ndarray, y: np.ndarray, hub_h: np.ndarray):
+        """Closure that maps ``yaw_deg (n_turb,) -> DEL (n_turb,)``."""
+        def wfm_fn(yaw_deg: np.ndarray) -> np.ndarray:
+            WS_in, TI_in = sector_averages_reordered(
+                self._wfm, x, y, hub_h, wd, ws, ti,
+                yaw=yaw_deg, template=self._template,
+            )
+            return self._keras_surr.predict(
+                WS_in, TI_in, yaws=yaw_deg, pset=1.0,
+            )
+        return wfm_fn
+
+    def rebuild_precomputed_grid(self, surrogate, envs, device, verbose: bool = False):
+        """Build the full N-dim DEL grid for the current wind state and install it.
+
+        Called at episode reset. The cost is ``grid_size ** n_turbines`` PyWake
+        sims — small farms only.
+
+        Cached: re-uses the previous grid if wind state, layout, grid size and
+        yaw range are all identical to the last rebuild. The cache survives
+        across episodes and across sweep configs.
+        """
+        from load_surrogates import build_del_grid
+
+        wd, ws, ti, x, y, _ = self._get_env_state(envs)
+        hub_h = np.full(len(x), self._hub_h)
+        n_turb = int(len(x))
+        yaw_max = float(getattr(surrogate, "yaw_max_deg", 30.0))
+        G = int(getattr(surrogate, "grid_size", 21))
+        yaw_range = (-yaw_max, +yaw_max)
+
+        cache_key = (
+            round(wd, 3), round(ws, 3), round(ti, 4),
+            tuple(np.round(x, 3).tolist()), tuple(np.round(y, 3).tolist()),
+            G, yaw_range,
+        )
+
+        if self._grid_cache is not None and self._grid_cache[0] == cache_key:
+            _, grid_np, baseline_dels_np = self._grid_cache
+            print(f"  [DEL grid cache HIT] skipping {G}^{n_turb} sim rebuild")
+        else:
+            wfm_fn = self._build_wfm_fn(wd, ws, ti, x, y, hub_h)
+            print(f"  [DEL grid cache MISS] building {G}^{n_turb} = "
+                  f"{G**n_turb} PyWake sims...")
+            grid_np = build_del_grid(
+                wfm_fn=wfm_fn,
+                n_turbines=n_turb,
+                grid_size=G,
+                yaw_range_deg=yaw_range,
+                verbose=verbose,
+            )
+            baseline_dels_np = wfm_fn(np.zeros(n_turb, dtype=float))
+            self._grid_cache = (cache_key, grid_np, baseline_dels_np)
+
+        surrogate.set_context_precomputed(
+            del_grid=torch.tensor(grid_np, device=device, dtype=torch.float32),
+            baseline_dels=torch.tensor(baseline_dels_np, device=device, dtype=torch.float32),
+            yaw_range_deg=yaw_range,
+        )
+
     def update_constraint(self, surrogate, envs, device):
-        """Compute context and call set_context on the surrogate if applicable."""
+        """Update surrogate context. Frozen: every step. Precomputed: no-op."""
+        if getattr(surrogate, "context_mode", "frozen") == "precomputed":
+            return  # grid is refreshed via rebuild_precomputed_grid at reset
         if not hasattr(surrogate, "set_context"):
             return
         sector_avgs, baseline_dels = self.compute_context(envs)
@@ -465,6 +569,13 @@ class DELContextUpdater:
             sector_avgs=torch.tensor(sector_avgs, device=device, dtype=torch.float32),
             baseline_dels=torch.tensor(baseline_dels, device=device, dtype=torch.float32),
         )
+
+    def update_on_reset(self, surrogate, envs, device, verbose: bool = False):
+        """Refresh context at episode reset. Rebuilds precomputed grid if needed."""
+        if getattr(surrogate, "context_mode", "frozen") == "precomputed":
+            self.rebuild_precomputed_grid(surrogate, envs, device, verbose=verbose)
+        else:
+            self.update_constraint(surrogate, envs, device)
 
 
 # =============================================================================
@@ -492,9 +603,11 @@ def run_constrained_episodes(
         if is_stateful and surrogate is not None:
             surrogate.reset()
 
-        # Initial DEL context update (uses env state right after reset)
+        # Initial DEL context update (uses env state right after reset).
+        # In precomputed mode, this rebuilds the full N-dim DEL grid for the
+        # new episode's wind conditions — potentially minutes of PyWake work.
         if del_context_updater is not None and surrogate is not None:
-            del_context_updater.update_constraint(surrogate, envs, device)
+            del_context_updater.update_on_reset(surrogate, envs, device)
 
         yaw_history: List[np.ndarray] = []
         power_history: List[float] = []
@@ -1105,6 +1218,54 @@ def parse_args() -> argparse.Namespace:
         choices=["exponential", "quadratic"],
         help="DEL penalty shape (default: exponential)",
     )
+    parser.add_argument(
+        "--del-context-mode",
+        type=str,
+        default="frozen",
+        choices=["frozen", "precomputed"],
+        help=(
+            "DEL context: 'frozen' (per-step sector avgs, fast, default) or "
+            "'precomputed' (one-off full N-dim DEL grid built at episode "
+            "reset, interpolated at inference for a true-surface gradient). "
+            "Precomputed cost scales as grid_size**n_turbines."
+        ),
+    )
+    parser.add_argument(
+        "--del-grid-size",
+        type=int,
+        default=21,
+        help=(
+            "Grid points per turbine for precomputed mode (default: 21). "
+            "Total PyWake sims per episode = grid_size**n_turbines."
+        ),
+    )
+    parser.add_argument(
+        "--ebt-opt-steps-eval",
+        type=int,
+        default=None,
+        help=(
+            "Override checkpoint's eval-time EBT optimization steps. More "
+            "steps = better chance to escape the actor's learned basin."
+        ),
+    )
+    parser.add_argument(
+        "--ebt-langevin-noise",
+        type=float,
+        default=None,
+        help=(
+            "Override checkpoint's eval-time Langevin noise. Higher noise = "
+            "more exploration, better at escaping local minima."
+        ),
+    )
+    parser.add_argument(
+        "--ebt-num-candidates",
+        type=int,
+        default=None,
+        help=(
+            "Override checkpoint's eval-time candidate count. More candidates "
+            "= broader sampling of the initial action distribution."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -1124,7 +1285,10 @@ def main():
     print(f"Loading checkpoint: {cli.checkpoint}")
     print(f"Yaw init: {cli.yaw_init} | Steady-state steps: {cli.steady_state_steps}")
     envs, agent, actor, args, env_info = load_ebt_checkpoint(
-        cli.checkpoint, device, yaw_init=cli.yaw_init
+        cli.checkpoint, device, yaw_init=cli.yaw_init,
+        ebt_opt_steps_eval_override=cli.ebt_opt_steps_eval,
+        ebt_langevin_noise_override=cli.ebt_langevin_noise,
+        ebt_num_candidates_override=cli.ebt_num_candidates,
     )
     n_turbines = env_info["n_turbines_max"]
     print(f"Actor type: EBT | Turbines: {n_turbines}")
@@ -1136,6 +1300,8 @@ def main():
         constraint_types, lambdas, steepness_values, threshold_values, n_turbines,
         del_threshold_pct=cli.del_threshold_pct,
         del_penalty_type=cli.del_penalty_type,
+        del_context_mode=cli.del_context_mode,
+        del_grid_size=cli.del_grid_size,
     )
     print(f"\nSweep: {len(configs)} configurations "
           f"({len(constraint_types)} types x {len(lambdas)} lambdas)")
