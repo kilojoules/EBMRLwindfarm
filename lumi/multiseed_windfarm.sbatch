@@ -23,10 +23,11 @@ cd "$PROJECT_DIR"
 mkdir -p logs
 
 pixi run pip install torch==2.5.1 --index-url https://download.pytorch.org/whl/rocm6.2 2>/dev/null || true
-pixi run pip install /scratch/project_465002609/julian/windgym 2>/dev/null || true
-# Force sync of WindGym package in case install is incomplete
+pixi run pip install --force-reinstall --no-deps /scratch/project_465002609/julian/windgym 2>/dev/null || true
 SITE=$(pixi run python -c "import sys; print([p for p in sys.path if 'site-packages' in p][0])")
-cp -r /scratch/project_465002609/julian/windgym/WindGym/* "$SITE/WindGym/" 2>/dev/null || true
+mkdir -p "$SITE/WindGym"
+cp -rv /scratch/project_465002609/julian/windgym/WindGym/* "$SITE/WindGym/" 2>&1 | tail -3 || true
+pixi run python -c "from WindGym import WindFarmEnv; print('WindGym OK:', WindFarmEnv)"
 
 pixi run python ebt_sac_windfarm.py \
     --layouts 3turb \

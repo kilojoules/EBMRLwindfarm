@@ -23,6 +23,10 @@ eval "$($CONDA_DIR/bin/conda shell.bash hook)"
 conda activate safety_env
 pip install imageio imageio-ffmpeg 2>/dev/null || true
 
+# Offscreen MuJoCo rendering (no display on LUMI compute nodes)
+export MUJOCO_GL=egl
+export PYOPENGL_PLATFORM=egl
+
 echo "=== Safety Gym animation ==="
 python scripts/animate_safety_gym.py --budget 40 --seed 1 \
     --out results/safety_gym_ep_B40.mp4 --horizon 500
@@ -30,6 +34,11 @@ python scripts/animate_safety_gym.py --budget 40 --seed 1 \
 conda deactivate
 
 # Wind farm (pixi env)
+pixi run pip install --force-reinstall --no-deps /scratch/project_465002609/julian/windgym 2>/dev/null || true
+SITE=$(pixi run python -c "import sys; print([p for p in sys.path if 'site-packages' in p][0])")
+mkdir -p "$SITE/WindGym"
+cp -r /scratch/project_465002609/julian/windgym/WindGym/* "$SITE/WindGym/" 2>/dev/null || true
+
 echo "=== Wind farm animation ==="
 pixi run python scripts/animate_windfarm.py \
     --budget 15 --eta 5.0 --gs 0.1 \

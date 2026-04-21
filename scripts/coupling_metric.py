@@ -30,17 +30,17 @@ def measure_coupling(qc, obs_batch, act_batch, device):
 
 
 class CostCritic(nn.Module):
-    def __init__(self, obs_dim, act_dim, hidden=256):
+    def __init__(self, obs_dim, act_dim, hidden=256, out_dim=1):
         super().__init__()
         self.q1 = nn.Sequential(
             nn.Linear(obs_dim + act_dim, hidden), nn.ReLU(),
             nn.Linear(hidden, hidden), nn.ReLU(),
-            nn.Linear(hidden, 1),
+            nn.Linear(hidden, out_dim),
         )
         self.q2 = nn.Sequential(
             nn.Linear(obs_dim + act_dim, hidden), nn.ReLU(),
             nn.Linear(hidden, hidden), nn.ReLU(),
-            nn.Linear(hidden, 1),
+            nn.Linear(hidden, out_dim),
         )
 
     def forward(self, s, a):
@@ -104,7 +104,15 @@ def run_wind_farm(n_samples=2000, seed=1):
     if not qc_path.exists():
         raise FileNotFoundError(f"{qc_path} missing — sync from LUMI first")
     ckpt = torch.load(qc_path, map_location=device, weights_only=False)
-    qc = CostCritic(ckpt["obs_dim"], ckpt["act_dim"], ckpt["hidden"]).to(device)
+    # Infer out_dim from checkpoint (wind farm uses per-turbine output)
+    out_dim = ckpt["model"].get("q1.4.weight",
+                                 ckpt["model"].get("q1.0.weight")).shape[0]
+    if "q1.4.weight" not in ckpt["model"]:
+        # might be smaller net
+        out_keys = [k for k in ckpt["model"] if k.startswith("q1.") and "weight" in k]
+        out_dim = ckpt["model"][sorted(out_keys)[-1]].shape[0]
+    qc = CostCritic(ckpt["obs_dim"], ckpt["act_dim"], ckpt["hidden"],
+                    out_dim=out_dim).to(device)
     qc.load_state_dict(ckpt["model"])
     qc.eval()
 

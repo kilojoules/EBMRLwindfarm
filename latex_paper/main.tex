@@ -336,7 +336,9 @@ To bridge this gap, we train a cost critic $Q_c(s,a) = \mathbb{E}_\pi[\sum \gamm
     \label{fig:qc_pipeline}
 \end{figure}
 On the wind farm (strong coupling), $Q_c$ achieves $5.7\times$ fatigue reduction; on Safety Gym (weak coupling), 20--36\% cost reduction at $>$97\% reward, satisfying budget at $d\!=\!40$ but not tighter (Appendix Tables~\ref{tab:qc_windfarm},~\ref{tab:safetygym}).
-The \emph{coupling strength}---$\|\nabla_a Q_c\|$ relative to $\|\nabla_s Q_c\|$---determines the correction ceiling.
+The \emph{coupling strength}---measured as $\kappa = \mathbb{E}\|\nabla_a Q_c\| / \mathbb{E}\|\nabla_s Q_c\|$---determines the correction ceiling.
+We measure $\kappa_{\mathrm{windfarm}}$ and $\kappa_{\mathrm{SG}}$ from 2000 state--action samples per domain (Appendix~\ref{app:coupling}).
+% TODO: fill in kappa values from LUMI job 17705401 results
 
 %----------------------------------------------------------------------
 \section{Related Work}
@@ -557,6 +559,17 @@ Limit $d$ (steps/200) & Power (MW) & \% Unconstrained & NegYaw [T0, T1, T2] \\
 \bottomrule
 \end{tabular}
 \end{table}
+
+\subsection{Coupling Strength Measurement}
+\label{app:coupling}
+
+Formalizing the scope condition from Section~\ref{sec:state_dependent}, we measure
+\[
+    \kappa := \frac{\mathbb{E}_{(s,a)\sim\pi}\,\|\nabla_a Q_c(s,a)\|_2}{\mathbb{E}_{(s,a)\sim\pi}\,\|\nabla_s Q_c(s,a)\|_2}
+\]
+on 2000 on-policy state--action samples per domain.
+Large $\kappa$ means the current action has strong leverage over future cost (expect post-hoc correction to work); small $\kappa$ means cost is dominated by accumulated state, and the correction gradient is weak (expect tight budgets to fail).
+% TODO: populate table with kappa_windfarm and kappa_safetygym from LUMI 17705401
 
 \subsection{Uncertainty Diagnostic for $Q_c$ Failure}
 \label{app:uncertainty}
