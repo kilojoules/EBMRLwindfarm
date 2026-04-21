@@ -118,10 +118,9 @@ def run_episode(checkpoint, budget, seed, horizon=200, eta=2.0, gs=0.1):
             turb_xy = tp[0] if tp.ndim == 3 else tp
 
     if turb_xy is None:
-        # fallback layout from helpers.layouts
-        from helpers.layouts import get_layout
-        xs, ys = get_layout("3turb")
-        turb_xy = np.stack([xs, ys], axis=-1)
+        # fallback: 3-turbine row, 5D spacing
+        D = env_info["rotor_diameter"]
+        turb_xy = np.array([[0.0, 0.0], [5 * D, 0.0], [10 * D, 0.0]])
 
     envs.close()
     return dict(yaws=yaws, powers=powers, cum_neg=cum_neg,
@@ -216,7 +215,15 @@ def make_animation(data, out_path):
         return [*sum(turb_patches, ()), *pts_c, pt_p, title]
 
     ani = animation.FuncAnimation(fig, update, frames=T, interval=100, blit=False)
-    ani.save(out_path, writer="ffmpeg", fps=10, dpi=100, bitrate=2000)
+    try:
+        import imageio_ffmpeg
+        plt.rcParams["animation.ffmpeg_path"] = imageio_ffmpeg.get_ffmpeg_exe()
+        ani.save(out_path, writer="ffmpeg", fps=10, dpi=100, bitrate=2000)
+    except Exception as e:
+        print(f"ffmpeg failed ({e}); saving as gif")
+        gif_path = str(out_path).replace(".mp4", ".gif")
+        ani.save(gif_path, writer="pillow", fps=10, dpi=80)
+        out_path = gif_path
     print(f"wrote {out_path}")
 
 

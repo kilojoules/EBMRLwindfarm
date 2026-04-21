@@ -37,9 +37,17 @@ def run(budget, seed, horizon=500, kappa=0.0):
     qc.load_state_dict(ckpt["model"])
     qc.eval()
 
-    env = safety_gymnasium.make(actor_ck["env_name"], render_mode="rgb_array")
+    env = safety_gymnasium.make(actor_ck["env_name"])
     obs, _ = env.reset(seed=seed * 13 + 7)
-    frames, costs, rewards, lambdas = [], [], [], []
+
+    # Extract static task geometry (hazards, goal) once
+    task = env.task
+    hazards_pos = np.array([h[:2] for h in task.hazards.pos])
+    hazards_size = float(task.hazards.size) if hasattr(task.hazards, 'size') else 0.2
+    goal_pos = np.array(task.goal.pos[:2])
+    goal_size = float(task.goal.size) if hasattr(task.goal, 'size') else 0.3
+
+    agent_xy, costs, rewards, lambdas = [], [], [], []
     C, R = 0.0, 0.0
 
     for t in range(horizon):
@@ -65,33 +73,63 @@ def run(budget, seed, horizon=500, kappa=0.0):
             obs, r, term, trunc, info = step_ret
             c = info.get("cost", 0.0)
         R += float(r); C += float(c)
-        frames.append(env.render())
+        try:
+            xy = np.array(task.agent.pos[:2])
+        except Exception:
+            xy = np.array([0.0, 0.0])
+        agent_xy.append(xy)
         rewards.append(R); costs.append(C); lambdas.append(lam)
         if term or trunc:
             break
     env.close()
-    return frames, np.array(costs), np.array(rewards), np.array(lambdas)
+    return {
+        "agent_xy": np.array(agent_xy),
+        "hazards_pos": hazards_pos,
+        "hazards_size": hazards_size,
+        "goal_pos": goal_pos,
+        "goal_size": goal_size,
+        "costs": np.array(costs),
+        "rewards": np.array(rewards),
+        "lambdas": np.array(lambdas),
+    }
 
 
-def make_animation(frames, costs, rewards, lambdas, budget, out_path):
+def make_animation(data, budget, out_path):
+    from matplotlib.patches import Circle
+    agent_xy = data["agent_xy"]
+    haz = data["hazards_pos"]; hsize = data["hazards_size"]
+    goal = data["goal_pos"]; gsize = data["goal_size"]
+    costs = data["costs"]; rewards = data["rewards"]; lambdas = data["lambdas"]
+    T = len(agent_xy)
+
     fig = plt.figure(figsize=(10, 5))
     gs = fig.add_gridspec(2, 2, width_ratios=[1.3, 1], hspace=0.35, wspace=0.25)
-    ax_img = fig.add_subplot(gs[:, 0])
+    ax_xy = fig.add_subplot(gs[:, 0])
     ax_c = fig.add_subplot(gs[0, 1])
     ax_r = fig.add_subplot(gs[1, 1])
 
-    ax_img.axis("off")
-    img = ax_img.imshow(frames[0])
-    title = ax_img.set_title("t=0")
+    # Birds-eye layout
+    all_xy = np.vstack([agent_xy, haz, goal.reshape(1, 2)])
+    pad = 0.5
+    xmin, xmax = all_xy[:, 0].min() - pad, all_xy[:, 0].max() + pad
+    ymin, ymax = all_xy[:, 1].min() - pad, all_xy[:, 1].max() + pad
+    ax_xy.set_aspect("equal"); ax_xy.set_xlim(xmin, xmax); ax_xy.set_ylim(ymin, ymax)
+    ax_xy.grid(alpha=0.3); ax_xy.set_xlabel("x [m]"); ax_xy.set_ylabel("y [m]")
 
-    T = len(frames)
+    for hx, hy in haz:
+        ax_xy.add_patch(Circle((hx, hy), hsize, color="C3", alpha=0.35))
+    ax_xy.add_patch(Circle(goal, gsize, color="C2", alpha=0.5, label="goal"))
+    trail, = ax_xy.plot([], [], "C0-", lw=1, alpha=0.6)
+    agent = Circle(agent_xy[0], 0.1, color="C0", zorder=5)
+    ax_xy.add_patch(agent)
+    title = ax_xy.set_title("t=0")
+
     ts = np.arange(T)
     ax_c.plot(ts, costs, "C3-", lw=1.5, alpha=0.4)
     ax_c.axhline(budget, color="k", ls="--", lw=1, label=f"budget d={budget}")
     pt_c, = ax_c.plot([0], [costs[0]], "C3o", ms=7)
-    ax_c.set_ylabel("cumulative cost")
-    ax_c.set_xlim(0, T); ax_c.legend(fontsize=8, loc="upper left")
-    ax_c.grid(alpha=0.3)
+    ax_c.set_ylabel("cumulative cost"); ax_c.set_xlim(0, T)
+    ax_c.legend(fontsize=8, loc="upper left"); ax_c.grid(alpha=0.3)
 
     ax_r.plot(ts, rewards, "C0-", lw=1.5, alpha=0.4)
     pt_r, = ax_r.plot([0], [rewards[0]], "C0o", ms=7)
@@ -99,14 +137,23 @@ def make_animation(frames, costs, rewards, lambdas, budget, out_path):
     ax_r.set_xlim(0, T); ax_r.grid(alpha=0.3)
 
     def update(t):
-        img.set_data(frames[t])
+        agent.center = agent_xy[t]
+        trail.set_data(agent_xy[:t + 1, 0], agent_xy[:t + 1, 1])
         title.set_text(f"t={t}  λ={lambdas[t]:.1f}  C={costs[t]:.1f}/{budget}  R={rewards[t]:.1f}")
         pt_c.set_data([t], [costs[t]])
         pt_r.set_data([t], [rewards[t]])
-        return img, pt_c, pt_r, title
+        return agent, trail, pt_c, pt_r, title
 
     ani = animation.FuncAnimation(fig, update, frames=T, interval=33, blit=False)
-    ani.save(out_path, writer="ffmpeg", fps=30, dpi=100, bitrate=2000)
+    try:
+        import imageio_ffmpeg
+        plt.rcParams["animation.ffmpeg_path"] = imageio_ffmpeg.get_ffmpeg_exe()
+        ani.save(out_path, writer="ffmpeg", fps=30, dpi=100, bitrate=2000)
+    except Exception as e:
+        print(f"ffmpeg failed ({e}); saving as gif")
+        gif_path = str(out_path).replace(".mp4", ".gif")
+        ani.save(gif_path, writer="pillow", fps=15, dpi=80)
+        out_path = gif_path
     print(f"wrote {out_path}")
 
 
@@ -119,11 +166,11 @@ def main():
     p.add_argument("--out", default="results/safety_gym_ep.mp4")
     args = p.parse_args()
 
-    frames, costs, rewards, lambdas = run(args.budget, args.seed,
-                                           args.horizon, args.kappa)
-    print(f"episode len={len(frames)}, final C={costs[-1]:.1f}, R={rewards[-1]:.1f}")
+    data = run(args.budget, args.seed, args.horizon, args.kappa)
+    print(f"episode len={len(data['agent_xy'])}, "
+          f"final C={data['costs'][-1]:.1f}, R={data['rewards'][-1]:.1f}")
     Path(args.out).parent.mkdir(exist_ok=True)
-    make_animation(frames, costs, rewards, lambdas, args.budget, args.out)
+    make_animation(data, args.budget, args.out)
 
 
 if __name__ == "__main__":
