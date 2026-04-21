@@ -542,19 +542,18 @@ $u^{-\eta}$ & 5.0 & $26.6 \pm 5.3$ & [22, 24, 24] \\
 
 \begin{table}[h]
 \centering
-\caption{Budget flexibility (3-turbine wind farm, $\eta=2$, $k=2$, gs=0.1, 10 episodes). A single policy serves arbitrary budget levels. Power retention is high from $d=10$ onward.}
+\caption{Budget flexibility (3-turbine wind farm, $\eta=2$, $k=2$, gs=0.1, 50 episodes). A single policy serves arbitrary cost limits; all levels satisfy the budget.}
 \label{tab:flexibility}
 \begin{tabular}{cccc}
 \toprule
-Budget (steps/200) & Power (MW) & \% Unconstrained & NegYaw [T0, T1, T2] \\
+Limit $d$ (steps/200) & Power (MW) & \% Unconstrained & NegYaw [T0, T1, T2] \\
 \midrule
-5 (2.5\%) & $26.4 \pm 3.9$ & 100.1\% & [74, 76, 86] \\
-10 (5\%) & $25.2 \pm 5.3$ & 95.7\% & [25, 25, 26] \\
-15 (7.5\%) & $29.2 \pm 1.8$ & 110.9\% & [20, 20, 21] \\
-25 (12.5\%) & $26.1 \pm 4.1$ & 99.1\% & [17, 20, 20] \\
-50 (25\%) & $26.2 \pm 6.2$ & 99.3\% & [27, 39, 39] \\
-75 (37.5\%) & $27.7 \pm 3.6$ & 105.2\% & [54, 53, 62] \\
-100 (50\%) & $22.3 \pm 6.1$ & 84.9\% & [33, 50, 74] \\
+5   (2.5\%)   & $26.9 \pm 0.7$ & 103.7\% & [4, 4, 4]     \\
+10  (5\%)     & $25.7 \pm 0.8$ & 99.0\%  & [6, 7, 7]     \\
+20  (10\%)    & $26.7 \pm 0.5$ & 104.6\% & [13, 15, 15]  \\
+25  (12.5\%)  & $26.2 \pm 0.8$ & 102.6\% & [13, 15, 17]  \\
+50  (25\%)    & $26.8 \pm 0.6$ & 103.4\% & [28, 32, 36]  \\
+75  (37.5\%)  & $27.0 \pm 0.6$ & 104.2\% & [38, 43, 47]  \\
 \bottomrule
 \end{tabular}
 \end{table}

@@ -95,13 +95,21 @@ def load_actor():
 
 
 def pess_q(critics, s, a, kappa):
-    """Q_pess = mean + kappa * std over 10 critics (5 seeds x twin)."""
+    """Pessimistic Q.
+
+    kappa=0: single-critic twin-max (matches original paper wiring exactly).
+    kappa>0: mean + kappa*std over 10-head ensemble (5 seeds x twin).
+    """
+    if kappa == 0.0:
+        # Match original: single critic, max(q1, q2) pessimistic twin
+        q1, q2 = critics[0](s, a)
+        return torch.max(q1, q2).squeeze(-1)
     preds = []
     for qc in critics:
         q1, q2 = qc(s, a)
         preds.append(q1.squeeze(-1))
         preds.append(q2.squeeze(-1))
-    stack = torch.stack(preds)  # [10, B]
+    stack = torch.stack(preds)
     return stack.mean(dim=0) + kappa * stack.std(dim=0)
 
 
@@ -134,6 +142,8 @@ def run_config(critics, actor, act_limit, env_name, kappa, budget):
     env = safety_gymnasium.make(env_name)
     rewards, costs = [], []
     for ep in range(N_EPISODES):
+        torch.manual_seed(2000 + ep)
+        np.random.seed(2000 + ep)
         obs, _ = env.reset(seed=2000 + ep)
         ep_r, C = 0.0, 0.0
         for t in range(HORIZON):
@@ -173,7 +183,7 @@ def main():
     print(f"Ensemble: 5 seeds x 2 heads = 10 critics")
     print(f"env={env_name}, obs_dim={obs_dim}, act_dim={act_dim}, act_limit={act_limit}")
 
-    kappas = [0.0, 0.5, 1.0, 2.0, 4.0]
+    kappas = [0.0, 1.0, 4.0]
     budgets = [10, 25, 40]
     out = {"meta": {"n_episodes": N_EPISODES, "eta": ETA,
                     "correction_steps": CORRECTION_STEPS,

@@ -6,15 +6,13 @@
 #SBATCH --cpus-per-task=7
 #SBATCH --mem=60G
 #SBATCH --time=04:00:00
-#SBATCH --job-name=windfarm_s%a
-#SBATCH --output=logs/windfarm_seed%a_%j.out
-#SBATCH --error=logs/windfarm_seed%a_%j.err
-#SBATCH --array=1-3
+#SBATCH --job-name=wf_s%a
+#SBATCH --output=logs/wf_seed%a_%j.out
+#SBATCH --error=logs/wf_seed%a_%j.err
+#SBATCH --array=2-5
 
-# ===========================================================================
-# Multi-seed wind farm: train + budget eval sweep for each seed
-# Submit with: sbatch lumi/multiseed_windfarm.sbatch
-# ===========================================================================
+# 5 seeds total: seed 1 already trained (step_100000.pt)
+# This array adds seeds 2-5 in parallel.
 
 set -euo pipefail
 SEED=$SLURM_ARRAY_TASK_ID
@@ -24,9 +22,11 @@ PROJECT_DIR=/scratch/project_465002609/julian/ac_budget_experiment
 cd "$PROJECT_DIR"
 mkdir -p logs
 
-# Ensure deps
 pixi run pip install torch==2.5.1 --index-url https://download.pytorch.org/whl/rocm6.2 2>/dev/null || true
 pixi run pip install /scratch/project_465002609/julian/windgym 2>/dev/null || true
+# Force sync of WindGym package in case install is incomplete
+SITE=$(pixi run python -c "import sys; print([p for p in sys.path if 'site-packages' in p][0])")
+cp -r /scratch/project_465002609/julian/windgym/WindGym/* "$SITE/WindGym/" 2>/dev/null || true
 
 pixi run python ebt_sac_windfarm.py \
     --layouts 3turb \
@@ -44,6 +44,7 @@ pixi run python ebt_sac_windfarm.py \
     --neg_yaw_horizon_hours 0.055556 \
     --neg_yaw_risk_aversion 2.0 \
     --neg_yaw_threshold_deg 0.0 \
+    --exp_name "ebt_wf_seed${SEED}" \
     --no-track
 
 echo "Job $SLURM_JOB_ID seed=$SEED finished at $(date)"
