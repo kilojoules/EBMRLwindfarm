@@ -1,4 +1,4 @@
-\begin{thebibliography}{20}
+\begin{thebibliography}{16}
 \providecommand{\natexlab}[1]{#1}
 \providecommand{\url}[1]{\texttt{#1}}
 \expandafter\ifx\csname urlstyle\endcsname\relax
@@ -42,27 +42,23 @@ Ruairidh Gladstone et~al.
 \newblock Energy-based transformers are scalable learners and thinkers.
 \newblock \emph{arXiv preprint arXiv:2507.02092}, 2025.
 
+\bibitem[Ji et~al.(2023)Ji, Zhang, Zhou, Pan, Dai, Sun, Huang, Gong, Zhang, and
+  Yang]{ji2023safetygym}
+Jiaming Ji, Borong Zhang, Jiayi Zhou, Juntao Pan, Hantao Dai, Ruiyang Sun,
+  Shunyu Huang, Yiran Gong, Junting Zhang, and Yaodong Yang.
+\newblock Safety-gymnasium: A unified safe reinforcement learning benchmark.
+\newblock In \emph{Advances in Neural Information Processing Systems}, 2023.
+
 \bibitem[Lin et~al.(2023)]{lin2023trebi}
 Qian Lin et~al.
 \newblock Safe offline reinforcement learning with real-time budget
   constraints.
 \newblock In \emph{International Conference on Machine Learning}, 2023.
 
-\bibitem[Liu et~al.(2026)]{liu2026bcr}
-Chia-Chi Liu et~al.
-\newblock Beyond hard constraints: Budget-conditioned reachability for safe
-  offline reinforcement learning.
-\newblock \emph{arXiv preprint arXiv:2603.22292}, 2026.
-
 \bibitem[Nilsen et~al.(2025)Nilsen, Quick, Simutis, and {\AA}strand]{windgym}
 Marcus~Binder Nilsen, Julian Quick, Ernestas Simutis, and Teodor {\AA}strand.
 \newblock Wind{G}ym: A wind farm reinforcement learning environment.
 \newblock \url{https://github.com/DTUWindEnergy/WindGym}, 2025.
-
-\bibitem[Ning et~al.(2024)]{ning2024execution}
-Boming Ning et~al.
-\newblock Reinforcement learning for optimal execution: A survey.
-\newblock \emph{arXiv preprint arXiv:2411.06389}, 2024.
 
 \bibitem[Sootla et~al.(2022)Sootla, Cowen-Rivers, Jafferjee, Wang, Mguni, Wang,
   and Ammar]{sootla2022saute}
@@ -77,12 +73,6 @@ Adam Stooke, Joshua Achiam, and Pieter Abbeel.
 \newblock Responsive safety in reinforcement learning by {PID} {L}agrangian
   methods.
 \newblock In \emph{International Conference on Machine Learning}, 2020.
-
-\bibitem[Todorov et~al.(2012)Todorov, Erez, and Tassa]{todorov2012mujoco}
-Emanuel Todorov, Tom Erez, and Yuval Tassa.
-\newblock Mu{J}o{C}o: A physics engine for model-based control.
-\newblock In \emph{IEEE/RSJ International Conference on Intelligent Robots and
-  Systems}, 2012.
 
 \bibitem[Urain et~al.(2023)Urain, Li, Liu, D'Eramo, and
   Peters]{urain2023composable}
@@ -104,22 +94,9 @@ Wei Xiao, Tsun-Hsuan Wang, Chuang Zhan, Karthik~Narasimhan Ramamurthy, Ramin
 \newblock Safe{D}iffuser: Safe planning with diffusion probabilistic models.
 \newblock \emph{International Conference on Learning Representations}, 2025.
 
-\bibitem[Yao et~al.(2025)]{yao2024caps}
-Zuxin Yao et~al.
-\newblock Constraint-adaptive policy switching for offline safe reinforcement
-  learning.
-\newblock \emph{Proceedings of the AAAI Conference on Artificial Intelligence},
-  2025.
-
 \bibitem[Zhang et~al.(2025)]{zhang2025constrained}
 Zheyu Zhang et~al.
 \newblock Constrained diffusers for safe planning and control.
 \newblock \emph{Advances in Neural Information Processing Systems}, 2025.
-
-\bibitem[Zheng et~al.(2024)]{zheng2024fisor}
-Zuxin Zheng et~al.
-\newblock {FISOR}: Building safe and adaptable offline reinforcement learning
-  agents with feasibility-guided diffusion model.
-\newblock \emph{International Conference on Learning Representations}, 2024.
 
 \end{thebibliography}
