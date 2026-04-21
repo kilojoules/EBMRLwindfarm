@@ -18,6 +18,8 @@
 \usepackage{algorithmic}
 \usepackage{subcaption}
 \usepackage{xcolor}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta, positioning, fit, backgrounds, calc}
 
 \newcommand{\ie}{\textit{i.e.}}
 \newcommand{\eg}{\textit{e.g.}}
@@ -325,7 +327,14 @@ The method succeeds when cost depends on the current action ($\nabla_a c \neq 0$
 Realistic fatigue involves \emph{state-dependent} costs---wake propagation delays decouple upstream yaw from downstream loading~\citep{dijk2025load}.
 Safety Gym~\citep{ji2023safetygym} exhibits the same structure: position-dependent cost with momentum dynamics.
 
-To bridge this gap, we train a cost critic $Q_c(s,a) = \mathbb{E}_\pi[\sum \gamma_c^k c_{t+k}]$ offline (MC returns, $\gamma_c\!=\!0.99$, correlation 0.965) and modulate $\nabla_a Q_c$ via the urgency schedule.
+To bridge this gap, we train a cost critic $Q_c(s,a) = \mathbb{E}_\pi[\sum \gamma_c^k c_{t+k}]$ offline (MC returns, $\gamma_c\!=\!0.99$, correlation 0.965) and modulate $\nabla_a Q_c$ via the urgency schedule (Figure~\ref{fig:qc_pipeline}).
+
+\begin{figure}[t]
+    \centering
+    \resizebox{\linewidth}{!}{\input{figures/fig_qc_pipeline.tex}}
+    \caption{$Q_c$ pipeline. \textbf{A.} Collect transitions from frozen policy rollouts. \textbf{B.} Fit $Q_c$ on Monte Carlo cost returns (no bootstrap). \textbf{C.} Deploy: actor proposes action, $Q_c$ gradient corrects it $K$ times per step. Policy stays frozen throughout.}
+    \label{fig:qc_pipeline}
+\end{figure}
 On the wind farm (strong coupling), $Q_c$ achieves $5.7\times$ fatigue reduction; on Safety Gym (weak coupling), 20--36\% cost reduction at $>$97\% reward, satisfying budget at $d\!=\!40$ but not tighter (Appendix Tables~\ref{tab:qc_windfarm},~\ref{tab:safetygym}).
 The \emph{coupling strength}---$\|\nabla_a Q_c\|$ relative to $\|\nabla_s Q_c\|$---determines the correction ceiling.
 

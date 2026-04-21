@@ -70,65 +70,67 @@
 \citation{balseiro2023budget}
 \citation{agrawal2014bandits}
 \citation{almgren2001optimal}
+\@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces $Q_c$ pipeline. \textbf  {A.} Collect transitions from frozen policy rollouts. \textbf  {B.} Fit $Q_c$ on Monte Carlo cost returns (no bootstrap). \textbf  {C.} Deploy: actor proposes action, $Q_c$ gradient corrects it $K$ times per step. Policy stays frozen throughout.}}{6}{figure.caption.3}\protected@file@percent }
+\newlabel{fig:qc_pipeline}{{1}{6}{$Q_c$ pipeline. \textbf {A.} Collect transitions from frozen policy rollouts. \textbf {B.} Fit $Q_c$ on Monte Carlo cost returns (no bootstrap). \textbf {C.} Deploy: actor proposes action, $Q_c$ gradient corrects it $K$ times per step. Policy stays frozen throughout}{figure.caption.3}{}}
 \@writefile{toc}{\contentsline {section}{\numberline {7}Related Work}{6}{section.7}\protected@file@percent }
 \newlabel{sec:related}{{7}{6}{Related Work}{section.7}{}}
 \@writefile{toc}{\contentsline {section}{\numberline {8}Conclusion}{6}{section.8}\protected@file@percent }
 \newlabel{sec:conclusion}{{8}{6}{Conclusion}{section.8}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {A}Additional Results and Proofs}{6}{appendix.A}\protected@file@percent }
-\newlabel{app:additional}{{A}{6}{Additional Results and Proofs}{appendix.A}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {A.1}Full Proof of Proposition~\ref {prop:optimal}}{6}{subsection.A.1}\protected@file@percent }
-\newlabel{app:proof}{{A.1}{6}{Full Proof of Proposition~\ref {prop:optimal}}{subsection.A.1}{}}
-\newlabel{eq:balance}{{7}{6}{Full Proof of Proposition~\ref {prop:optimal}}{equation.7}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {A}Additional Results and Proofs}{7}{appendix.A}\protected@file@percent }
+\newlabel{app:additional}{{A}{7}{Additional Results and Proofs}{appendix.A}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {A.1}Full Proof of Proposition~\ref {prop:optimal}}{7}{subsection.A.1}\protected@file@percent }
+\newlabel{app:proof}{{A.1}{7}{Full Proof of Proposition~\ref {prop:optimal}}{subsection.A.1}{}}
+\newlabel{eq:balance}{{7}{7}{Full Proof of Proposition~\ref {prop:optimal}}{equation.7}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {A.2}Approximation Quality}{7}{subsection.A.2}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces (a)~Schedule comparison: $\exp (\eta (1/u-1))$ (solid) vs.\ $u^{-\eta }$ (dashed) across the full urgency range. Red region: hard wall backstop active ($u < 0.05$). (b)~Relative approximation error. The schedules agree within 10\% for $u > 0.5$ (the regime where smooth pacing operates).}}{7}{figure.caption.3}\protected@file@percent }
-\newlabel{fig:approx}{{1}{7}{(a)~Schedule comparison: $\exp (\eta (1/u-1))$ (solid) vs.\ $u^{-\eta }$ (dashed) across the full urgency range. Red region: hard wall backstop active ($u < 0.05$). (b)~Relative approximation error. The schedules agree within 10\% for $u > 0.5$ (the regime where smooth pacing operates)}{figure.caption.3}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {A.3}Penalty Landscape}{7}{subsection.A.3}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {2}{\ignorespaces Penalty weight $\lambda (\rho , \tau )$ across the budget--time state space for three risk-aversion values $\eta $. The TWAP diagonal (white dashed, $u = \rho /\tau = 1$) separates surplus (blue, $\lambda < 1$) from deficit (red, $\lambda > 1$). Contour lines show penalty magnitudes. Higher $\eta $ produces steeper gradients near the diagonal, concentrating budget spending into favorable conditions.}}{7}{figure.caption.4}\protected@file@percent }
-\newlabel{fig:contours}{{2}{7}{Penalty weight $\lambda (\rho , \tau )$ across the budget--time state space for three risk-aversion values $\eta $. The TWAP diagonal (white dashed, $u = \rho /\tau = 1$) separates surplus (blue, $\lambda < 1$) from deficit (red, $\lambda > 1$). Contour lines show penalty magnitudes. Higher $\eta $ produces steeper gradients near the diagonal, concentrating budget spending into favorable conditions}{figure.caption.4}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {2}{\ignorespaces (a)~Schedule comparison: $\exp (\eta (1/u-1))$ (solid) vs.\ $u^{-\eta }$ (dashed) across the full urgency range. Red region: hard wall backstop active ($u < 0.05$). (b)~Relative approximation error. The schedules agree within 10\% for $u > 0.5$ (the regime where smooth pacing operates).}}{7}{figure.caption.4}\protected@file@percent }
+\newlabel{fig:approx}{{2}{7}{(a)~Schedule comparison: $\exp (\eta (1/u-1))$ (solid) vs.\ $u^{-\eta }$ (dashed) across the full urgency range. Red region: hard wall backstop active ($u < 0.05$). (b)~Relative approximation error. The schedules agree within 10\% for $u > 0.5$ (the regime where smooth pacing operates)}{figure.caption.4}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {3}{\ignorespaces Penalty weight $\lambda (\rho , \tau )$ across the budget--time state space for three risk-aversion values $\eta $. The TWAP diagonal (white dashed, $u = \rho /\tau = 1$) separates surplus (blue, $\lambda < 1$) from deficit (red, $\lambda > 1$). Contour lines show penalty magnitudes. Higher $\eta $ produces steeper gradients near the diagonal, concentrating budget spending into favorable conditions.}}{8}{figure.caption.5}\protected@file@percent }
+\newlabel{fig:contours}{{3}{8}{Penalty weight $\lambda (\rho , \tau )$ across the budget--time state space for three risk-aversion values $\eta $. The TWAP diagonal (white dashed, $u = \rho /\tau = 1$) separates surplus (blue, $\lambda < 1$) from deficit (red, $\lambda > 1$). Contour lines show penalty magnitudes. Higher $\eta $ produces steeper gradients near the diagonal, concentrating budget spending into favorable conditions}{figure.caption.5}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {4}{\ignorespaces Yaw angle heatmaps (turbine $\times $ timestep) showing the spatial-temporal pattern. Unconstrained (left): persistent positive/negative yaw steering across all turbines. AC $\eta =2$ (middle): nearly zero yaw---very conservative. AC $\eta =5$ (right): mostly zero with a concentrated burst of negative yaw (blue) near the end, representing strategic budget spending.}}{8}{figure.caption.6}\protected@file@percent }
+\newlabel{fig:wf_heatmap}{{4}{8}{Yaw angle heatmaps (turbine $\times $ timestep) showing the spatial-temporal pattern. Unconstrained (left): persistent positive/negative yaw steering across all turbines. AC $\eta =2$ (middle): nearly zero yaw---very conservative. AC $\eta =5$ (right): mostly zero with a concentrated burst of negative yaw (blue) near the end, representing strategic budget spending}{figure.caption.6}{}}
 \bibdata{references}
 \bibcite{agrawal2014bandits}{{1}{2014}{{Agrawal and Devanur}}{{}}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {A.4}Yaw Angle Heatmaps}{8}{subsection.A.4}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {3}{\ignorespaces Yaw angle heatmaps (turbine $\times $ timestep) showing the spatial-temporal pattern. Unconstrained (left): persistent positive/negative yaw steering across all turbines. AC $\eta =2$ (middle): nearly zero yaw---very conservative. AC $\eta =5$ (right): mostly zero with a concentrated burst of negative yaw (blue) near the end, representing strategic budget spending.}}{8}{figure.caption.5}\protected@file@percent }
-\newlabel{fig:wf_heatmap}{{3}{8}{Yaw angle heatmaps (turbine $\times $ timestep) showing the spatial-temporal pattern. Unconstrained (left): persistent positive/negative yaw steering across all turbines. AC $\eta =2$ (middle): nearly zero yaw---very conservative. AC $\eta =5$ (right): mostly zero with a concentrated burst of negative yaw (blue) near the end, representing strategic budget spending}{figure.caption.5}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {A.5}Wind Farm Time Series and Pareto}{8}{subsection.A.5}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {A.6}Safety Gymnasium Diagnostic}{8}{subsection.A.6}\protected@file@percent }
-\@writefile{lot}{\contentsline {table}{\numberline {3}{\ignorespaces Safety Gymnasium diagnostic (SafetyPointGoal1-v0, 20 episodes). $Q_c$ reduces cost 20--36\% while preserving $>$97\% reward. Budget satisfied only at $d\!=\!40$.}}{8}{table.caption.8}\protected@file@percent }
-\newlabel{tab:safetygym}{{3}{8}{Safety Gymnasium diagnostic (SafetyPointGoal1-v0, 20 episodes). $Q_c$ reduces cost 20--36\% while preserving $>$97\% reward. Budget satisfied only at $d\!=\!40$}{table.caption.8}{}}
-\bibcite{almgren2001optimal}{{2}{2001}{{Almgren and Chriss}}{{}}}
-\bibcite{altman1999constrained}{{3}{1999}{{Altman}}{{}}}
-\@writefile{lof}{\contentsline {figure}{\numberline {4}{\ignorespaces Wind farm yaw time series (one episode, budget$=15$). $\lambda (t)$ adapts: $\eta =5$ drops during surplus and spikes near depletion. Cumulative neg-yaw shows $\eta =5$ uses the full budget.}}{9}{figure.caption.6}\protected@file@percent }
-\newlabel{fig:wf_timeseries}{{4}{9}{Wind farm yaw time series (one episode, budget$=15$). $\lambda (t)$ adapts: $\eta =5$ drops during surplus and spikes near depletion. Cumulative neg-yaw shows $\eta =5$ uses the full budget}{figure.caption.6}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {5}{\ignorespaces Wind farm yaw time series (one episode, budget$=15$). $\lambda (t)$ adapts: $\eta =5$ drops during surplus and spikes near depletion. Cumulative neg-yaw shows $\eta =5$ uses the full budget.}}{9}{figure.caption.7}\protected@file@percent }
+\newlabel{fig:wf_timeseries}{{5}{9}{Wind farm yaw time series (one episode, budget$=15$). $\lambda (t)$ adapts: $\eta =5$ drops during surplus and spikes near depletion. Cumulative neg-yaw shows $\eta =5$ uses the full budget}{figure.caption.7}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {A.3}Penalty Landscape}{9}{subsection.A.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {A.4}Yaw Angle Heatmaps}{9}{subsection.A.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {A.5}Wind Farm Time Series and Pareto}{9}{subsection.A.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {A.6}Safety Gymnasium Diagnostic}{9}{subsection.A.6}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsection}{\numberline {A.7}Learned Cost Critic on Wind Farm}{9}{subsection.A.7}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsection}{\numberline {A.8}Wind Farm Spatial Allocation}{9}{subsection.A.8}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsection}{\numberline {A.9}Hard Guard Ablation}{9}{subsection.A.9}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsection}{\numberline {A.10}Schedule Comparison: $1/u^{\eta }$ vs.\ $\exp (\eta (1/u - 1))$}{9}{subsection.A.10}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsection}{\numberline {A.11}Budget Flexibility}{9}{subsection.A.11}\protected@file@percent }
+\bibcite{almgren2001optimal}{{2}{2001}{{Almgren and Chriss}}{{}}}
+\bibcite{altman1999constrained}{{3}{1999}{{Altman}}{{}}}
 \bibcite{balseiro2023budget}{{4}{2024}{{Balseiro et~al.}}{{}}}
 \bibcite{chen2025predictive}{{5}{2025}{{Chen et~al.}}{{}}}
 \bibcite{durkin2025picnn}{{6}{2025}{{Durkin et~al.}}{{}}}
 \bibcite{gladstone2025ebt}{{7}{2025}{{Gladstone et~al.}}{{}}}
 \bibcite{ji2023safetygym}{{8}{2023}{{Ji et~al.}}{{Ji, Zhang, Zhou, Pan, Dai, Sun, Huang, Gong, Zhang, and Yang}}}
 \bibcite{lin2023trebi}{{9}{2023}{{Lin et~al.}}{{}}}
+\@writefile{lof}{\contentsline {figure}{\numberline {6}{\ignorespaces Budget utilization vs.\ reward retention. Constant penalty (red) cannot achieve both; AC schedule (blue) clusters in the efficient top-right region.}}{10}{figure.caption.8}\protected@file@percent }
+\newlabel{fig:pareto}{{6}{10}{Budget utilization vs.\ reward retention. Constant penalty (red) cannot achieve both; AC schedule (blue) clusters in the efficient top-right region}{figure.caption.8}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {3}{\ignorespaces Safety Gymnasium diagnostic (SafetyPointGoal1-v0, 20 episodes). $Q_c$ reduces cost 20--36\% while preserving $>$97\% reward. Budget satisfied only at $d\!=\!40$.}}{10}{table.caption.9}\protected@file@percent }
+\newlabel{tab:safetygym}{{3}{10}{Safety Gymnasium diagnostic (SafetyPointGoal1-v0, 20 episodes). $Q_c$ reduces cost 20--36\% while preserving $>$97\% reward. Budget satisfied only at $d\!=\!40$}{table.caption.9}{}}
 \bibcite{windgym}{{10}{2025}{{Nilsen et~al.}}{{Nilsen, Quick, Simutis, and {\r A}strand}}}
 \bibcite{sootla2022saute}{{11}{2022}{{Sootla et~al.}}{{Sootla, Cowen-Rivers, Jafferjee, Wang, Mguni, Wang, and Ammar}}}
-\@writefile{lof}{\contentsline {figure}{\numberline {5}{\ignorespaces Budget utilization vs.\ reward retention. Constant penalty (red) cannot achieve both; AC schedule (blue) clusters in the efficient top-right region.}}{10}{figure.caption.7}\protected@file@percent }
-\newlabel{fig:pareto}{{5}{10}{Budget utilization vs.\ reward retention. Constant penalty (red) cannot achieve both; AC schedule (blue) clusters in the efficient top-right region}{figure.caption.7}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {4}{\ignorespaces Learned cost critic $Q_c$ on 3-turbine wind farm (10 episodes). $Q_c$ trained on 100 episodes with nonlinear fatigue cost. Power exceeding unconstrained reflects $Q_c$ steering toward configurations that are both lower-fatigue and higher-power.}}{10}{table.caption.9}\protected@file@percent }
-\newlabel{tab:qc_windfarm}{{4}{10}{Learned cost critic $Q_c$ on 3-turbine wind farm (10 episodes). $Q_c$ trained on 100 episodes with nonlinear fatigue cost. Power exceeding unconstrained reflects $Q_c$ steering toward configurations that are both lower-fatigue and higher-power}{table.caption.9}{}}
 \bibcite{stooke2020responsive}{{12}{2020}{{Stooke et~al.}}{{Stooke, Achiam, and Abbeel}}}
 \bibcite{urain2023composable}{{13}{2023}{{Urain et~al.}}{{Urain, Li, Liu, D'Eramo, and Peters}}}
 \bibcite{dijk2025load}{{14}{2025}{{van Dijk et~al.}}{{}}}
 \bibcite{xiao2023safediffuser}{{15}{2025}{{Xiao et~al.}}{{Xiao, Wang, Zhan, Ramamurthy, Hasani, and Rus}}}
 \bibcite{zhang2025constrained}{{16}{2025}{{Zhang et~al.}}{{}}}
+\@writefile{lot}{\contentsline {table}{\numberline {4}{\ignorespaces Learned cost critic $Q_c$ on 3-turbine wind farm (10 episodes). $Q_c$ trained on 100 episodes with nonlinear fatigue cost. Power exceeding unconstrained reflects $Q_c$ steering toward configurations that are both lower-fatigue and higher-power.}}{11}{table.caption.10}\protected@file@percent }
+\newlabel{tab:qc_windfarm}{{4}{11}{Learned cost critic $Q_c$ on 3-turbine wind farm (10 episodes). $Q_c$ trained on 100 episodes with nonlinear fatigue cost. Power exceeding unconstrained reflects $Q_c$ steering toward configurations that are both lower-fatigue and higher-power}{table.caption.10}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {7}{\ignorespaces Wind farm spatial yaw allocation. (a) Unconstrained agent uses negative yaw heavily on all turbines; AC ($\eta =2$) constrains to within the 15-step budget; constant penalty over-spends. (b) Turbine layout.}}{11}{figure.caption.11}\protected@file@percent }
+\newlabel{fig:wf_spatial}{{7}{11}{Wind farm spatial yaw allocation. (a) Unconstrained agent uses negative yaw heavily on all turbines; AC ($\eta =2$) constrains to within the 15-step budget; constant penalty over-spends. (b) Turbine layout}{figure.caption.11}{}}
 \bibstyle{plainnat}
-\@writefile{lof}{\contentsline {figure}{\numberline {6}{\ignorespaces Wind farm spatial yaw allocation. (a) Unconstrained agent uses negative yaw heavily on all turbines; AC ($\eta =2$) constrains to within the 15-step budget; constant penalty over-spends. (b) Turbine layout.}}{11}{figure.caption.10}\protected@file@percent }
-\newlabel{fig:wf_spatial}{{6}{11}{Wind farm spatial yaw allocation. (a) Unconstrained agent uses negative yaw heavily on all turbines; AC ($\eta =2$) constrains to within the 15-step budget; constant penalty over-spends. (b) Turbine layout}{figure.caption.10}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {5}{\ignorespaces Hard guard ablation (3-turbine wind farm, budget=15/200 steps, $\eta =2$, $k=2$, gs=0.1, 10 episodes).}}{11}{table.caption.12}\protected@file@percent }
-\newlabel{tab:hard_guard}{{5}{11}{Hard guard ablation (3-turbine wind farm, budget=15/200 steps, $\eta =2$, $k=2$, gs=0.1, 10 episodes)}{table.caption.12}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {7}{\ignorespaces Wind farm budget effect. (a) Per-turbine allocation: as budget tightens, downstream T2 reduces negative yaw first. (b) Power retention remains within 5\% of unconstrained.}}{12}{figure.caption.11}\protected@file@percent }
-\newlabel{fig:wf_budget}{{7}{12}{Wind farm budget effect. (a) Per-turbine allocation: as budget tightens, downstream T2 reduces negative yaw first. (b) Power retention remains within 5\% of unconstrained}{figure.caption.11}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {6}{\ignorespaces Schedule comparison on 3-turbine wind farm (budget=15/200 steps, $k=2$, gs=0.1, 10 episodes).}}{12}{table.caption.13}\protected@file@percent }
-\newlabel{tab:schedule}{{6}{12}{Schedule comparison on 3-turbine wind farm (budget=15/200 steps, $k=2$, gs=0.1, 10 episodes)}{table.caption.13}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {7}{\ignorespaces Budget flexibility (3-turbine wind farm, $\eta =2$, $k=2$, gs=0.1, 10 episodes). A single policy serves arbitrary budget levels. Power retention is high from $d=10$ onward.}}{12}{table.caption.14}\protected@file@percent }
-\newlabel{tab:flexibility}{{7}{12}{Budget flexibility (3-turbine wind farm, $\eta =2$, $k=2$, gs=0.1, 10 episodes). A single policy serves arbitrary budget levels. Power retention is high from $d=10$ onward}{table.caption.14}{}}
-\gdef \@abspage@last{12}
+\@writefile{lof}{\contentsline {figure}{\numberline {8}{\ignorespaces Wind farm budget effect. (a) Per-turbine allocation: as budget tightens, downstream T2 reduces negative yaw first. (b) Power retention remains within 5\% of unconstrained.}}{12}{figure.caption.12}\protected@file@percent }
+\newlabel{fig:wf_budget}{{8}{12}{Wind farm budget effect. (a) Per-turbine allocation: as budget tightens, downstream T2 reduces negative yaw first. (b) Power retention remains within 5\% of unconstrained}{figure.caption.12}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {5}{\ignorespaces Hard guard ablation (3-turbine wind farm, budget=15/200 steps, $\eta =2$, $k=2$, gs=0.1, 10 episodes).}}{12}{table.caption.13}\protected@file@percent }
+\newlabel{tab:hard_guard}{{5}{12}{Hard guard ablation (3-turbine wind farm, budget=15/200 steps, $\eta =2$, $k=2$, gs=0.1, 10 episodes)}{table.caption.13}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {6}{\ignorespaces Schedule comparison on 3-turbine wind farm (budget=15/200 steps, $k=2$, gs=0.1, 10 episodes).}}{13}{table.caption.14}\protected@file@percent }
+\newlabel{tab:schedule}{{6}{13}{Schedule comparison on 3-turbine wind farm (budget=15/200 steps, $k=2$, gs=0.1, 10 episodes)}{table.caption.14}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {7}{\ignorespaces Budget flexibility (3-turbine wind farm, $\eta =2$, $k=2$, gs=0.1, 10 episodes). A single policy serves arbitrary budget levels. Power retention is high from $d=10$ onward.}}{13}{table.caption.15}\protected@file@percent }
+\newlabel{tab:flexibility}{{7}{13}{Budget flexibility (3-turbine wind farm, $\eta =2$, $k=2$, gs=0.1, 10 episodes). A single policy serves arbitrary budget levels. Power retention is high from $d=10$ onward}{table.caption.15}{}}
+\gdef \@abspage@last{13}
