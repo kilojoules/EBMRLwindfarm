@@ -365,7 +365,8 @@ We introduced a closed-form urgency-ratio schedule for enforcing cumulative budg
 On wind farm yaw control, a nonlinear fatigue surrogate achieves $6.8\times$ fatigue reduction while retaining 98\% of power; a learned cost critic $Q_c$ discovers the same physics from data ($5.7\times$ reduction).
 On Safety Gym, $Q_c$ achieves 20--36\% cost reduction at $>$97\% reward, with the action-to-cost coupling strength determining the ceiling.
 The method requires zero policy retraining but mild calibration of $\eta$ and $\lambda_{\mathrm{gs}}$; the $Q_c$ extension requires offline training on logged transitions.
-For state-dependent costs where action-to-cost coupling is weak (momentum-dominated dynamics, wake propagation delays), future work on control barrier functions or model-predictive shielding may close the gap.
+For state-dependent costs where action-to-cost coupling is weak (momentum-dominated dynamics, wake propagation delays), pessimistic $Q_c$ correction did not close the gap in our experiments (Appendix~\ref{app:uncertainty}) despite ensemble disagreement being a reliable failure discriminator ($\rho\!=\!+0.195$ vs.\ $+0.064$ for action deviation).
+Future work on control barrier functions or model-predictive shielding may address the underlying coupling limitation.
 Code and checkpoints are available at \url{[anonymized]}.
 
 %----------------------------------------------------------------------
@@ -554,6 +555,39 @@ Budget (steps/200) & Power (MW) & \% Unconstrained & NegYaw [T0, T1, T2] \\
 50 (25\%) & $26.2 \pm 6.2$ & 99.3\% & [27, 39, 39] \\
 75 (37.5\%) & $27.7 \pm 3.6$ & 105.2\% & [54, 53, 62] \\
 100 (50\%) & $22.3 \pm 6.1$ & 84.9\% & [33, 50, 74] \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Uncertainty Diagnostic for $Q_c$ Failure}
+\label{app:uncertainty}
+
+We asked whether two candidate predictors distinguish $Q_c$ failure states: (i)~ensemble disagreement $\sigma(Q_c)$ across 5 independently-trained cost critics, and (ii)~action-space deviation $\|\Delta a\|$ between actor proposal and corrected action.
+Across 20{,}000 state samples on Safety Gym with $B\!=\!10$, ensemble disagreement correlates with cost-over-next-$H$ steps at Spearman $\rho\!=\!+0.195$, while $\|\Delta a\|$ achieves only $\rho\!=\!+0.064$ (Figure~\ref{fig:discriminator}).
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.85\linewidth]{figures/fig_discriminator.pdf}
+    \caption{Predictors of $Q_c$ failure. Ensemble disagreement $\sigma(Q_c)$ tracks realized cost $\sim$3$\times$ more strongly than $\|\Delta a\|$, supporting an uncertainty-aware extension over action-space trust regions.}
+    \label{fig:discriminator}
+\end{figure}
+
+\textbf{Uncertainty-gated $Q_c$ ablation.}
+Motivated by the above, we tested pessimistic $Q_c$ correction: replace $\nabla_a Q_c$ with $\nabla_a(\bar{Q} + \kappa\,\sigma)$ where $\bar{Q}, \sigma$ are computed from the 10-head ensemble (5 seeds $\times$ twin critics).
+Sweep over $\kappa \in \{0, 1, 4\}$ and $d \in \{10, 25, 40\}$ (50 episodes each, seeds pinned) yields a null result (Table~\ref{tab:pessimism}): $\kappa=0$ wins or ties at every budget level.
+Ensemble uncertainty correctly flags failure regions but the pessimism-modulated gradient does not exploit the signal when the underlying $\|\nabla_a Q_c\|$ is dominated by noise in the weak-coupling regime.
+
+\begin{table}[h]
+\centering
+\caption{Pessimistic $Q_c$: ensemble $\kappa$-quantile correction. Cost mean$\pm$SE, 50 episodes. No monotonic $\kappa^*$ exists across budgets.}
+\label{tab:pessimism}
+\begin{tabular}{cccc}
+\toprule
+Budget $d$ & $\kappa=0$ & $\kappa=1$ & $\kappa=4$ \\
+\midrule
+10 & $51.1 \pm 4.9$ & $\mathbf{50.6 \pm 4.6}$ & $58.3 \pm 5.0$ \\
+25 & $\mathbf{48.2 \pm 4.1}$ & $56.6 \pm 4.6$ & $53.0 \pm 4.2$ \\
+40 & $\mathbf{53.1 \pm 4.8}$ & $55.2 \pm 5.2$ & $55.3 \pm 4.6$ \\
 \bottomrule
 \end{tabular}
 \end{table}
