@@ -337,8 +337,7 @@ To bridge this gap, we train a cost critic $Q_c(s,a) = \mathbb{E}_\pi[\sum \gamm
 \end{figure}
 On the wind farm (strong coupling), $Q_c$ achieves $5.7\times$ fatigue reduction; on Safety Gym (weak coupling), 20--36\% cost reduction at $>$97\% reward, satisfying budget at $d\!=\!40$ but not tighter (Appendix Tables~\ref{tab:qc_windfarm},~\ref{tab:safetygym}).
 The \emph{coupling strength}---measured as $\kappa = \mathbb{E}\|\nabla_a Q_c\| / \mathbb{E}\|\nabla_s Q_c\|$---determines the correction ceiling.
-We measure $\kappa_{\mathrm{windfarm}}$ and $\kappa_{\mathrm{SG}}$ from 2000 state--action samples per domain (Appendix~\ref{app:coupling}).
-% TODO: fill in kappa values from LUMI job 17705401 results
+We measure $\kappa_{\mathrm{windfarm}} = 0.72$ and $\kappa_{\mathrm{SG}} = 0.02$ from 2000 on-policy samples per domain (a $36\times$ gap; Appendix~\ref{app:coupling}).
 
 %----------------------------------------------------------------------
 \section{Related Work}
@@ -569,7 +568,20 @@ Formalizing the scope condition from Section~\ref{sec:state_dependent}, we measu
 \]
 on 2000 on-policy state--action samples per domain.
 Large $\kappa$ means the current action has strong leverage over future cost (expect post-hoc correction to work); small $\kappa$ means cost is dominated by accumulated state, and the correction gradient is weak (expect tight budgets to fail).
-% TODO: populate table with kappa_windfarm and kappa_safetygym from LUMI 17705401
+
+\begin{table}[h]
+\centering
+\caption{Coupling strength per domain (2000 on-policy samples). Wind farm's 36$\times$ higher $\kappa$ predicts its success with post-hoc correction; Safety Gym's weak coupling predicts tight-budget failure.}
+\label{tab:coupling}
+\begin{tabular}{lccc}
+\toprule
+Domain & $\mathbb{E}\|\nabla_a Q_c\|$ & $\mathbb{E}\|\nabla_s Q_c\|$ & $\kappa$ \\
+\midrule
+Wind farm (3-turb)     & $0.69 \pm 0.34$ & $0.97 \pm 0.26$ & $\mathbf{0.72}$ \\
+Safety Gym (PointGoal) & $0.99 \pm 0.69$ & $49.8 \pm 12.5$ & $\mathbf{0.02}$ \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 \subsection{Uncertainty Diagnostic for $Q_c$ Failure}
 \label{app:uncertainty}
