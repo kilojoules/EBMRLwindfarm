@@ -47,7 +47,7 @@
 Deploying RL policies under cumulative operational constraints (maintenance budgets, duty-cycle limits) typically requires retraining for each constraint specification.
 We propose a closed-form penalty weight based on the \emph{urgency ratio}---remaining budget divided by remaining time---that composes post-hoc with pre-trained policies via energy addition or gradient correction, requiring zero retraining.
 A single parameter $\eta$ controls risk aversion; a single policy serves arbitrary budget levels instantly.
-On wind farm yaw control, the schedule outperforms an oracle-tuned constant penalty (98.9\% vs.\ 96.7\% power retention) and a nonlinear fatigue surrogate achieves $6.8\times$ structural fatigue reduction.
+On wind farm yaw control, the schedule outperforms an oracle-tuned constant penalty (98.9\% vs.\ 96.7\% power retention on one seed; $95.9 \pm 3.1\%$ across 4 seeds, all satisfying budget), and a nonlinear fatigue surrogate achieves $6.8\times$ structural fatigue reduction.
 We identify the \emph{action-to-cost coupling strength} as the scope condition: post-hoc correction works for action-dependent costs (wind farm) but partially fails for state-dependent costs (Safety Gym), where a learned cost critic $Q_c$ reduces cost by 20--36\% but cannot satisfy tight budgets.
 \end{abstract}
 
