@@ -129,6 +129,32 @@ def run_episode(checkpoint, budget, seed, horizon=200, eta=2.0, gs=0.1):
                 rotor_d=env_info["rotor_diameter"])
 
 
+def jensen_field(xy, yaws, ws, wd_deg, D, grid_x, grid_y, k=0.05):
+    """Jensen wake on 2D grid. Wind direction wd_deg follows meteorological
+    convention (0=N, 90=E). Project onto wind vector: u_rel along wind."""
+    # Wind unit vector (flow direction, from where wind blows toward)
+    theta = np.deg2rad(270.0 - wd_deg)  # convert to standard x-axis
+    u_dir = np.array([np.cos(theta), np.sin(theta)])
+    deficit = np.zeros(grid_x.shape)
+    for (tx, ty), yaw in zip(xy, yaws):
+        # downstream distance from turbine
+        dx = (grid_x - tx) * u_dir[0] + (grid_y - ty) * u_dir[1]
+        # crosswind distance
+        dy = (grid_x - tx) * (-u_dir[1]) + (grid_y - ty) * u_dir[0]
+        R = D / 2.0
+        wake_r = R + k * dx
+        # Ct reduced by yaw (cos^2)
+        ct = 0.8 * np.cos(np.deg2rad(yaw)) ** 2
+        # Yaw deflection: shifts wake center crosswind
+        deflect = np.tan(np.deg2rad(yaw)) * dx * 0.3
+        in_wake = (dx > 0) & (np.abs(dy - deflect) < wake_r)
+        local = np.where(in_wake,
+                         ct * (R / np.maximum(wake_r, 1e-3)) ** 2,
+                         0.0)
+        deficit += local
+    return ws * (1.0 - np.clip(deficit, 0, 0.9))
+
+
 def make_animation(data, out_path):
     yaws = data["yaws"]; powers = data["powers"]; cum_neg = data["cum_neg"]
     ws = data["wind_speed"]; wd = data["wind_dir"]; lam = data["lambdas"]
@@ -142,11 +168,24 @@ def make_animation(data, out_path):
     ax_p = fig.add_subplot(gs[1, 1])
 
     # Birds-eye layout
-    ax_xy.set_aspect("equal"); ax_xy.grid(alpha=0.3)
-    xmin, xmax = xy[:, 0].min() - 3 * D, xy[:, 0].max() + 3 * D
+    ax_xy.set_aspect("equal")
+    xmin, xmax = xy[:, 0].min() - 3 * D, xy[:, 0].max() + 6 * D
     ymin, ymax = xy[:, 1].min() - 3 * D, xy[:, 1].max() + 3 * D
     ax_xy.set_xlim(xmin, xmax); ax_xy.set_ylim(ymin, ymax)
     ax_xy.set_xlabel("x [m]"); ax_xy.set_ylabel("y [m]")
+
+    # Flow field grid
+    gx, gy = np.meshgrid(np.linspace(xmin, xmax, 120),
+                         np.linspace(ymin, ymax, 80))
+    base_ws = float(ws[0]) if ws[0] > 0 else 10.0
+    base_wd = float(wd[0]) if wd[0] != 0 else 270.0
+    field0 = jensen_field(xy, yaws[0], base_ws, base_wd, D, gx, gy)
+    flow_im = ax_xy.imshow(field0, extent=[xmin, xmax, ymin, ymax],
+                           origin="lower", cmap="RdYlBu_r",
+                           vmin=0.55 * base_ws, vmax=1.0 * base_ws,
+                           alpha=0.65, zorder=0, aspect="auto")
+    cbar = plt.colorbar(flow_im, ax=ax_xy, shrink=0.7, pad=0.02)
+    cbar.set_label("u [m/s]", fontsize=9)
 
     turb_patches = []
     wake_lines = []
@@ -187,11 +226,14 @@ def make_animation(data, out_path):
         return [x - dx, x + dx], [y - dy, y + dy]
 
     def update(t):
+        cur_ws = float(ws[t]) if ws[t] > 0 else base_ws
+        cur_wd = float(wd[t]) if wd[t] != 0 else base_wd
+        field = jensen_field(xy, yaws[t], cur_ws, cur_wd, D, gx, gy)
+        flow_im.set_data(field)
         for i, (x, y) in enumerate(xy):
             rx, ry = yaw_rotor_coords(x, y, yaws[t, i])
             rotor, blade = turb_patches[i]
             rotor.set_data(rx, ry)
-            # blade perpendicular to rotor
             theta = np.deg2rad(yaws[t, i])
             blade.set_data([x - np.cos(theta) * D / 4, x + np.cos(theta) * D / 4],
                             [y - np.sin(theta) * D / 4, y + np.sin(theta) * D / 4])
