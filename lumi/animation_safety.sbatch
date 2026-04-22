@@ -21,14 +21,6 @@ eval "$($CONDA_DIR/bin/conda shell.bash hook)"
 conda activate safety_env
 pip install imageio-ffmpeg 2>/dev/null || true
 
-# Try osmesa first (software rendering, no GPU display needed)
-export MUJOCO_GL=osmesa
-export PYOPENGL_PLATFORM=osmesa
-
-python scripts/animate_safety_gym.py --budget 40 --seed 1 \
-    --out results/safety_gym_ep_B40.mp4 --horizon 500 || {
-    echo "osmesa failed, trying glfw..."
-    export MUJOCO_GL=glfw
-    python scripts/animate_safety_gym.py --budget 40 --seed 1 \
-        --out results/safety_gym_ep_B40.mp4 --horizon 500
-}
+# State-based plotting (no MuJoCo rendering — LUMI has no GL)
+python scripts/animate_safety_gym.py --budget 10 --seed 1 \
+    --out results/safety_gym_ep_B10_tight.mp4 --horizon 500

@@ -29,5 +29,5 @@ echo "Using checkpoint: $CKPT"
 
 pixi run python scripts/animate_windfarm.py \
     --checkpoint "$CKPT" \
-    --budget 15 --eta 5.0 --gs 0.1 \
-    --out results/windfarm_ep_B15.mp4 --horizon 200
+    --budget 5 --eta 5.0 --gs 0.1 \
+    --out results/windfarm_ep_B5_tight.mp4 --horizon 200
