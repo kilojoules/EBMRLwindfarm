@@ -266,21 +266,26 @@ Ablations on the wind farm test the hard guard, schedule form ($1/u^\eta$ vs.\ $
 
 \subsection{Wind Farm: AC Schedule vs.\ Oracle Baseline}
 
-Table~\ref{tab:main_results} compares the AC schedule against an oracle-tuned constant penalty (15-step bisection) on the 3-turbine wind farm (50 episodes, budget$\!=\!15$).
-The AC schedule achieves 98.9\% power retention with neg-yaw $[8, 9, 10]$, outperforming the oracle constant (96.7\%, $[11, 13, 14]$) without any per-budget calibration.
+Table~\ref{tab:main_results} compares the AC schedule against an oracle-tuned constant penalty (15-step bisection search) on the 3-turbine wind farm (50 episodes, budget$\!=\!15$).
+The AC schedule (single-seed, $\eta\!=\!5$, gs$\!=\!0.1$) achieves 98.9\% power retention with neg-yaw $[8, 9, 10]$, outperforming the oracle constant (96.7\%, $[11, 13, 14]$) without any per-budget calibration.
+Across 4 training seeds, the same AC configuration delivers $95.9 \pm 3.1\%$ of unconstrained power with $[11, 12, 12]$ neg-yaw steps (all seeds satisfy the budget).
 
 \begin{table}[t]
 \centering
-\caption{Wind farm comparison (3-turbine, budget=15/200 steps, 50 episodes). The AC schedule outperforms the oracle-tuned constant penalty (found via 15-step bisection) while requiring zero per-budget calibration.}
+\caption{Wind farm comparison (3-turbine, budget=15/200 steps, 50 episodes). Seed 1 columns compare oracle-tuned constant vs.\ AC. Last row: AC across 4 training seeds, same $(\eta,\text{gs})$.}
 \label{tab:main_results}
 \begin{tabular}{lcccl}
 \toprule
 Method & Power (MW) & \% Uncon & NegYaw & Notes \\
 \midrule
+\multicolumn{5}{l}{\textit{Single seed (seed 1):}} \\
 Unconstrained & $27.1 \pm 0.6$ & 100\% & [49, 56, 61] & --- \\
 Oracle const ($k\!=\!5.86$) & $26.2 \pm 0.7$ & 96.7\% & [11, 13, 14] & 15-step bisection \\
 AC ($\eta\!=\!2$, gs$\!=\!0.05$) & $26.8 \pm 0.6$ & \textbf{98.6\%} & [9, 10, 10] & Zero calibration \\
 AC ($\eta\!=\!5$, gs$\!=\!0.1$) & $26.9 \pm 0.5$ & \textbf{98.9\%} & [8, 9, 10] & Zero calibration \\
+\midrule
+\multicolumn{5}{l}{\textit{Multi-seed (4 training seeds, same AC config):}} \\
+AC ($\eta\!=\!5$, gs$\!=\!0.1$) & $25.7 \pm 0.5$ & $\mathbf{95.9 \pm 3.1\%}$ & [11, 12, 12] & All 4 seeds satisfy \\
 \bottomrule
 \end{tabular}
 \end{table}

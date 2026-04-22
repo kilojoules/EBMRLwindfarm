@@ -24,8 +24,8 @@ cp -r /scratch/project_465002609/julian/windgym/WindGym/* "$SITE/WindGym/" 2>/de
 
 CKPT="runs/ebt_wf_seed${SEED}/checkpoints/step_100000.pt"
 
-PYTHONUNBUFFERED=1 pixi run python scripts/ppo_lag_baseline.py \
+PYTHONUNBUFFERED=1 pixi run python scripts/ac_eval_single.py \
     --checkpoint "$CKPT" \
-    --budget 15 \
-    --n-eval-episodes 50 \
-    --output "results/ppo_lag_seed${SEED}.json"
+    --budget 15 --eta 5.0 --gs 0.1 --k 2.0 \
+    --n-episodes 50 \
+    --output "results/ac_eval_seed${SEED}.json"
