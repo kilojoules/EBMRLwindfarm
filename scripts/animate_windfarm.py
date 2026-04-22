@@ -268,6 +268,31 @@ def make_animation(data, out_path):
         out_path = gif_path
     print(f"wrote {out_path}")
 
+    # Final-frame snapshot for 2-panel κ-diagnostic figure (Option 8)
+    fig2, ax2 = plt.subplots(figsize=(6, 6))
+    field_f = jensen_field(xy, yaws[T-1], base_ws, base_wd, D, gx, gy)
+    im = ax2.imshow(field_f, extent=[xmin, xmax, ymin, ymax], origin="lower",
+                    cmap="RdYlBu_r", vmin=0.55 * base_ws, vmax=1.0 * base_ws,
+                    alpha=0.7)
+    for i, (x, y) in enumerate(xy):
+        yang = yaws[T-1, i]
+        th = np.deg2rad(yang)
+        dxr = (D / 2) * np.sin(th); dyr = (D / 2) * np.cos(th)
+        ax2.plot([x - dxr, x + dxr], [y - dyr, y + dyr], "k-", lw=3)
+        ax2.text(x + D * 0.15, y + D * 0.6, f"T{i}\nψ={yang:.0f}°",
+                 fontsize=9, weight="bold")
+    plt.colorbar(im, ax=ax2, shrink=0.7).set_label("u [m/s]", fontsize=9)
+    ax2.set_xlim(xmin, xmax); ax2.set_ylim(ymin, ymax)
+    ax2.set_aspect("equal"); ax2.set_xlabel("x [m]"); ax2.set_ylabel("y [m]")
+    final_neg = cum_neg[T-1]
+    ax2.set_title(
+        f"Wind farm  κ=0.72  (strong coupling)\n"
+        f"neg-yaw=[{int(final_neg[0])},{int(final_neg[1])},"
+        f"{int(final_neg[2])}]/{B}", fontsize=10)
+    snap_path = str(out_path).replace(".mp4", "_snap.png").replace(".gif", "_snap.png")
+    fig2.tight_layout(); fig2.savefig(snap_path, dpi=140)
+    print(f"wrote {snap_path}")
+
 
 def main():
     p = argparse.ArgumentParser()
