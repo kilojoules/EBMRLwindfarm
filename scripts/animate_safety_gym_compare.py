@@ -191,11 +191,14 @@ def make_animation(du, dc, budget, out_path, kappa_val=0.02):
     ax2.set_aspect("equal"); ax2.set_xlim(xmin, xmax); ax2.set_ylim(ymin, ymax)
     ax2.grid(alpha=0.3); ax2.set_xlabel("x [m]"); ax2.set_ylabel("y [m]")
     for i, (hx, hy) in enumerate(dc["haz"]):
-        ax2.add_patch(Circle((hx, hy), dc["hs"], color="C3", alpha=0.3,
+        ax2.add_patch(Circle((hx, hy), dc["hs"], color="C3", alpha=0.35,
                               label="hazard" if i == 0 else None))
-    ax2.plot(du["xy"][:T, 0], du["xy"][:T, 1], "C3-", lw=1.5, alpha=0.7, label="uncon")
-    ax2.plot(dc["xy"][:T, 0], dc["xy"][:T, 1], "C0-", lw=1.5, alpha=0.7, label="AC")
-    step_ids = np.linspace(5, T - 1, 20).astype(int)
+    ax2.plot(du["xy"][:T, 0], du["xy"][:T, 1], color="gray", ls="--",
+             lw=1.2, alpha=0.55, label="uncon")
+    ax2.plot(dc["xy"][:T, 0], dc["xy"][:T, 1], "C0-", lw=1.8, alpha=0.85,
+             label="AC")
+    step_ids = np.linspace(5, T - 1, 15).astype(int)
+    arrow_scale = 12.0
     for ti in step_ids:
         if ti > 0 and ti < T:
             g = dc["arrows"][ti]
@@ -203,12 +206,12 @@ def make_animation(du, dc, budget, out_path, kappa_val=0.02):
             vn = np.linalg.norm(v)
             if vn > 1e-3:
                 h = v / vn; p = np.array([-h[1], h[0]])
-                dvec = -(g[0] * h + g[1] * p) * 5.0
+                dvec = -(g[0] * h + g[1] * p) * arrow_scale
                 ax2.arrow(dc["xy"][ti, 0], dc["xy"][ti, 1], dvec[0], dvec[1],
-                          head_width=0.04, head_length=0.06, fc="red",
-                          ec="red", alpha=0.6, lw=0.8)
-    ax2.set_title(f"Safety Gym  κ={kappa_val:.2f}  ‖∇ₐQc‖={dc['g_a'].mean():.3f}  "
-                  f"‖∇ₛQc‖={dc['g_s'].mean():.3f}", fontsize=10)
+                          head_width=0.07, head_length=0.10, fc="red",
+                          ec="red", alpha=0.9, lw=1.5, zorder=10)
+    ax2.set_title(f"Safety Gym  — action-gradient arrows (red)  "
+                  f"scaled {arrow_scale:.0f}$\\times$", fontsize=10)
     ax2.legend(fontsize=9, loc="upper right")
     snap_path = str(out_path).replace(".mp4", "_snap.png").replace(".gif", "_snap.png")
     fig2.tight_layout(); fig2.savefig(snap_path, dpi=140)
