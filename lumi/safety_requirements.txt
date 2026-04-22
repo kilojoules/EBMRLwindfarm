@@ -1,0 +1,12 @@
+# Exact pins for safety-gymnasium 1.0.0 on Python 3.10
+gymnasium==0.28.1
+gymnasium-robotics==1.2.2
+safety-gymnasium==1.0.0
+mujoco==2.3.3
+numpy==1.23.5
+imageio>=2.27
+pyyaml
+xmltodict
+scipy
+matplotlib
+PettingZoo>=1.23.0

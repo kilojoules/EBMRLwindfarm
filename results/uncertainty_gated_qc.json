@@ -1,0 +1,89 @@
+{
+  "meta": {
+    "n_episodes": 50,
+    "eta": 5.0,
+    "correction_steps": 5,
+    "n_critics": 10
+  },
+  "B10_k0.0": {
+    "reward_mean": 26.089767484238156,
+    "reward_std": 1.3475398020464178,
+    "reward_se": 0.19057090638915997,
+    "cost_mean": 51.32,
+    "cost_std": 32.60456409768424,
+    "cost_se": 4.6109816742207945,
+    "cost_sat": false
+  },
+  "B10_k1.0": {
+    "reward_mean": 26.204551762531242,
+    "reward_std": 1.357201947290843,
+    "reward_se": 0.19193734007378846,
+    "cost_mean": 50.64,
+    "cost_std": 32.31455399661273,
+    "cost_se": 4.569968052404742,
+    "cost_sat": false
+  },
+  "B10_k4.0": {
+    "reward_mean": 25.911979916718952,
+    "reward_std": 1.1248564763323872,
+    "reward_se": 0.15907872845524723,
+    "cost_mean": 58.3,
+    "cost_std": 35.51126581804709,
+    "cost_se": 5.02205137369183,
+    "cost_sat": false
+  },
+  "B25_k0.0": {
+    "reward_mean": 26.340926439825683,
+    "reward_std": 1.1507539719183015,
+    "reward_se": 0.16274118740415697,
+    "cost_mean": 48.2,
+    "cost_std": 36.01166477684696,
+    "cost_se": 5.092818473105045,
+    "cost_sat": false
+  },
+  "B25_k1.0": {
+    "reward_mean": 26.425159636002217,
+    "reward_std": 1.0963570145864163,
+    "reward_se": 0.1550482959230987,
+    "cost_mean": 56.62,
+    "cost_std": 32.457288857820515,
+    "cost_se": 4.590153810059092,
+    "cost_sat": false
+  },
+  "B25_k4.0": {
+    "reward_mean": 25.987984393508395,
+    "reward_std": 1.3283428013468617,
+    "reward_se": 0.18785604051454016,
+    "cost_mean": 53.02,
+    "cost_std": 29.42073418526465,
+    "cost_se": 4.160720129977502,
+    "cost_sat": false
+  },
+  "B40_k0.0": {
+    "reward_mean": 26.59304766084217,
+    "reward_std": 1.4421765409420342,
+    "reward_se": 0.2039545623536542,
+    "cost_mean": 48.16,
+    "cost_std": 32.26103532126643,
+    "cost_se": 4.562399368753244,
+    "cost_sat": false
+  },
+  "B40_k1.0": {
+    "reward_mean": 25.86760105299934,
+    "reward_std": 2.4716599512211728,
+    "reward_se": 0.3495455024591405,
+    "cost_mean": 55.2,
+    "cost_std": 36.99729719857925,
+    "cost_se": 5.232207946937889,
+    "cost_sat": false
+  },
+  "B40_k4.0": {
+    "reward_mean": 26.254961536004362,
+    "reward_std": 1.305382845933406,
+    "reward_se": 0.18460901248082112,
+    "cost_mean": 55.32,
+    "cost_std": 32.82952329839713,
+    "cost_se": 4.642795709483672,
+    "cost_sat": false
+  }
+}

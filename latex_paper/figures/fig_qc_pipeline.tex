@@ -1,0 +1,56 @@
+% Q_c pipeline — 3-stage TikZ diagram
+% Requires: \usepackage{tikz}
+%           \usetikzlibrary{arrows.meta, positioning, fit, backgrounds, calc}
+
+\begin{tikzpicture}[
+    font=\small,
+    node distance=6mm and 8mm,
+    box/.style={draw, rounded corners=1.5pt, minimum height=7mm, minimum width=14mm,
+                align=center, inner sep=3pt, fill=white},
+    policy/.style={box, fill=blue!8},
+    data/.style={box, fill=orange!12},
+    learn/.style={box, fill=green!12},
+    env/.style={box, fill=gray!10},
+    grad/.style={box, fill=red!8},
+    arr/.style={-{Latex[length=1.4mm]}, line width=0.4pt},
+    stagelbl/.style={font=\footnotesize\bfseries, text=black!70},
+]
+
+% ---------- Stage A: Collect ----------
+\begin{scope}[local bounding box=A]
+  \node[policy]           (aPi)  {frozen $\pi$};
+  \node[env, right=of aPi] (aEnv) {env};
+  \node[data, below=9mm of $(aPi)!0.5!(aEnv)$] (aBuf)
+    {buffer $(s_t, a_t, c_t, s_{t+1})$};
+  \draw[arr] (aPi.east) -- node[above, font=\scriptsize]{$a_t$} (aEnv.west);
+  \draw[arr] ([yshift=-1mm]aEnv.west) -- ++(-4mm,0) |- ([yshift=-1mm]aPi.east)
+             node[pos=0.25, below, font=\scriptsize]{$s_{t+1}$};
+  \draw[arr] (aEnv.south) |- (aBuf.east);
+\end{scope}
+\node[stagelbl, above=2mm of A.north west, anchor=south west] {A. Collect};
+
+% ---------- Stage B: Train Q_c ----------
+\begin{scope}[local bounding box=B, shift={(62mm,0)}]
+  \node[data] (bBuf) {buffer};
+  \node[learn, below=6mm of bBuf] (bMC) {$G_t = \sum_k \gamma_c^k c_{t+k}$};
+  \node[learn, below=6mm of bMC] (bQ)  {$Q_c(s,a)$};
+  \draw[arr] (bBuf.south) -- node[right, font=\scriptsize]{MC returns} (bMC.north);
+  \draw[arr] (bMC.south)  -- node[right, font=\scriptsize]{MSE fit} (bQ.north);
+\end{scope}
+\node[stagelbl, above=2mm of B.north west, anchor=south west] {B. Train $Q_c$};
+
+% ---------- Stage C: Deploy ----------
+\begin{scope}[local bounding box=C, shift={(115mm,0)}]
+  \node[policy] (cPi) {frozen $\pi$};
+  \node[grad, below=8mm of cPi, text width=38mm]
+    (cGrad) {$a \leftarrow a - \lambda_{\mathrm{gs}}\lambda(t)\alpha\,\nabla_a Q_c$\\[-1pt]
+             \scriptsize repeat $K$ times};
+  \node[env, right=14mm of cGrad] (cEnv) {env};
+  \draw[arr] (cPi.south) -- node[right, font=\scriptsize]{$a_{\mathrm{actor}}$} (cGrad.north);
+  \draw[arr] (cGrad.east) -- node[above, font=\scriptsize]{$a_t$} (cEnv.west);
+  \draw[arr] (cEnv.north) |- ([yshift=2mm]cPi.north)
+             -- (cPi.north) node[pos=0.25, above, font=\scriptsize]{$s_{t+1}$};
+\end{scope}
+\node[stagelbl, above=2mm of C.north west, anchor=south west] {C. Deploy};
+
+\end{tikzpicture}

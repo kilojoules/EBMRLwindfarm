@@ -29,3 +29,8 @@ scripts/wandb_plots/
 .ipynb_checkpoints/
 .claude/
 /surrogate
+
+# Large untracked data
+energy_island_10y_daily_av_wind.csv
+texput.log
+checkpoints/*.pt

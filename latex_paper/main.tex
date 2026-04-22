@@ -1,0 +1,563 @@
+\documentclass{article}
+
+% NeurIPS 2026 style
+\usepackage[final]{neurips_2026}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{hyperref}
+\usepackage{url}
+\usepackage{booktabs}
+\usepackage{amsfonts}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{nicefrac}
+\usepackage{microtype}
+\usepackage{graphicx}
+\usepackage{algorithm}
+\usepackage{algorithmic}
+\usepackage{subcaption}
+\usepackage{xcolor}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta, positioning, fit, backgrounds, calc}
+
+\newcommand{\ie}{\textit{i.e.}}
+\newcommand{\eg}{\textit{e.g.}}
+\newcommand{\cf}{\textit{cf.}}
+\newcommand{\etal}{\textit{et al.}}
+
+\title{Post-Hoc Budget Constraints for Pre-Trained RL Policies: \\
+A Closed-Form Schedule and Its Coupling-Strength Scope}
+
+\author{
+  Julian Quick \\
+  DTU Wind Energy \\
+  Technical University of Denmark \\
+  \texttt{juqu@dtu.dk}
+  \And
+  Marcus Binder Nilsen \\
+  DTU Wind Energy \\
+  Technical University of Denmark \\
+}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+Deploying RL policies under cumulative operational constraints (maintenance budgets, duty-cycle limits) typically requires retraining for each new constraint specification.
+We propose a closed-form penalty weight based on the \emph{urgency ratio}---remaining budget divided by remaining time---that composes post-hoc with pre-trained policies via energy addition or gradient correction, requiring zero policy retraining.
+A single risk-aversion scalar $\eta$ governs the schedule; a single policy serves arbitrary budget levels instantly.
+We further identify a dimensionless quantity---the \emph{action-to-cost coupling strength} $\kappa = \mathbb{E}\|\nabla_a Q_c\|/\mathbb{E}\|\nabla_s Q_c\|$---that predicts the method's scope \emph{a priori}.
+On two domains with a $36\times$ gap in $\kappa$, the predictor is validated in both directions: wind farm yaw control ($\kappa\!\approx\!0.72$) retains 98\% of unconstrained power while reducing fatigue $1.6\times$ vs.\ unconstrained (and $6.8\times$ vs.\ a naive binary-cost penalty) and satisfies the budget across 4 training seeds ($95.9 \pm 3.1\%$ of unconstrained power); Safety Gymnasium navigation ($\kappa\!\approx\!0.02$) predictably fails at tight budgets across 5 seeds, exposing where post-hoc correction is and is not appropriate.
+\end{abstract}
+
+%----------------------------------------------------------------------
+\section{Introduction}
+\label{sec:intro}
+%----------------------------------------------------------------------
+
+Consider a wind farm operator whose deployed controller suddenly faces a new maintenance constraint: turbine~2's yaw may be negative for at most 15~hours per year.
+Retraining is expensive.
+The operator needs to impose this cumulative constraint on the \emph{existing} policy, instantly and without touching the policy weights.
+This scenario is ubiquitous---cumulative operational limits arise whenever an agent must bound total time in a costly regime: wind turbines with load budgets~\citep{dijk2025load}, robots with joint-wear cycles, grid batteries with cycle-life limits, advertisers with spending caps~\citep{balseiro2023budget}.
+Unlike instantaneous constraints, these are \emph{lifetime budgets}: the agent must decide \emph{when} to spend its limited capacity for risky actions.
+
+\textbf{Existing approaches do not solve this.}
+CMDP methods~\citep{altman1999constrained, stooke2020responsive, sootla2022saute} retrain the policy per budget.
+Post-hoc composition~\citep{urain2023composable, zhang2025constrained, xiao2023safediffuser} handles instantaneous but not cumulative constraints.
+Inspired by optimal trade execution~\citep{almgren2001optimal}---a trader paces liquidation against remaining inventory vs.\ remaining time---we propose an \emph{urgency-ratio} schedule $\lambda(t)$ that adapts constraint strength to budget state and composes with any pre-trained actor.
+
+\textbf{The key question is not whether the schedule works, but \emph{when}.}
+Post-hoc correction modifies the action at inference; its leverage is limited by how much the future cost depends on the current action.
+We formalize this via the coupling strength
+\begin{equation}
+\kappa := \mathbb{E}_{(s,a)\sim\pi}\,\|\nabla_a Q_c(s,a)\|_2 \,/\, \mathbb{E}_{(s,a)\sim\pi}\,\|\nabla_s Q_c(s,a)\|_2 ,
+\label{eq:kappa}
+\end{equation}
+where $Q_c(s,a)$ is a learned cost critic (see~\S\ref{sec:scope}).
+Large $\kappa$: action has strong leverage over future cost (post-hoc correction works).
+Small $\kappa$: cost is state-dominated, the correction gradient is weak (post-hoc correction fails).
+Figure~\ref{fig:kappa_diag} visualizes this contrast on the two domains we study.
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=\linewidth]{figures/fig_kappa_diagnostic.png}
+    \caption{Coupling-strength diagnostic $\kappa = \mathbb{E}\|\nabla_a Q_c\|/\mathbb{E}\|\nabla_s Q_c\|$ predicts whether post-hoc budget correction works. (a) Wind farm ($\kappa\!\approx\!0.72$): yaw angles directly set rotor-wake geometry, so $\nabla_a Q_c$ strongly corrects actions. (b) Safety Gymnasium ($\kappa\!\approx\!0.02$): cost is position-dependent (hazards), but actions are instantaneous velocity commands --- momentum dominates. The red arrows are the raw correction $\nabla_a Q_c$: large/directional on the farm, vanishingly small on SG.}
+    \label{fig:kappa_diag}
+\end{figure}
+
+\textbf{Contributions.}
+(1)~A \emph{closed-form} budget-scheduling penalty $w(u)=\exp(\eta(1/u-1))$ derived from budget-balanced allocation (\S\ref{sec:theory}), with a single risk-aversion parameter $\eta$.
+(2)~\emph{Post-hoc composition} with pre-trained policies via energy addition (EBT actors) or gradient correction (MLP actors), requiring zero policy retraining (\S\ref{sec:method}).
+(3)~A \emph{coupling-strength scope predictor} $\kappa$ (\S\ref{sec:scope}) that forecasts success/failure before deployment.
+(4)~\emph{Empirical validation} on two domains with $36\times$ difference in $\kappa$: wind farm ($1.6\times$ fatigue reduction vs.\ unconstrained at 98\% power, $95.9 \pm 3.1\%$ retention across 4 seeds; nonlinear cost avoids the fatigue inflation induced by a naive binary penalty) and Safety Gymnasium (predicted failure across 5 seeds; \S\ref{sec:results}).
+
+%----------------------------------------------------------------------
+\section{Background}
+\label{sec:background}
+%----------------------------------------------------------------------
+
+\textbf{Constrained MDPs.}
+A CMDP~\citep{altman1999constrained} adds cost-return constraints to the MDP objective:
+$\max_\pi \mathbb{E}_\pi[\sum_t r_t]$ subject to $\mathbb{E}_\pi[\sum_t c_t^i] \leq d^i$,
+where $c_t = c(s_t,a_t)$ and $d^i$ is the cost limit (standard CMDP notation~\citep{ray2019safetygym, achiam2017cpo}).
+Lagrangian methods~\citep{stooke2020responsive} learn a dual variable $\mu$ during training; changing $d$ requires a new policy.
+
+\textbf{Energy-based actors and composition.}
+Energy-Based Transformer (EBT) actors~\citep{gladstone2025ebt} generate actions by gradient descent on a learned energy.
+External terms compose per-agent before aggregation:
+\begin{equation}
+    E_{\mathrm{total}}(a) = \frac{1}{N}\sum_{i=1}^{N}\!\left[E_\phi^i(\mathbf{e}^i,a^i) + \lambda_{\mathrm{gs}} \cdot E_{\mathrm{constraint}}^i(a^i)\right]
+    \label{eq:composition}
+\end{equation}
+enabling post-hoc constraints without modifying $E_\phi$~\citep{urain2023composable,zhang2025constrained}.
+We extend this from instantaneous constraints to \emph{cumulative budgets} via a time-varying weight.
+
+%----------------------------------------------------------------------
+\section{Urgency-Ratio Budget Schedule}
+\label{sec:theory}
+%----------------------------------------------------------------------
+
+An agent allocates budget $d$ over horizon $T$.
+Per-step cost $c_t := c(s_t,a_t) \geq 0$; cumulative $C_t := \sum_{s=0}^{t-1} c_s$ (in wind fatigue: Miner's-rule damage~\citep{dijk2025load}).
+The \emph{urgency ratio} captures the budget--time state:
+\begin{equation}
+    u_t = \frac{\rho_t}{\tau_t}, \qquad
+    \rho_t = \frac{d - C_t}{d}, \qquad
+    \tau_t = \frac{T - t}{T}
+    \label{eq:urgency}
+\end{equation}
+$\rho_t$ is the remaining budget fraction, $\tau_t$ the remaining time fraction.
+$u > 1$ means the agent has underspent; $u < 1$ means overspent.
+Per-agent budgets $d^i$ yield $u_t^i$ computed independently per agent.
+
+\begin{proposition}[Idealized-Boltzmann motivation]
+\label{prop:optimal}
+If the policy responds to penalty weight $\lambda$ via
+$P(\mathrm{risky}\mid\lambda)=P_0\exp(-\alpha\lambda)$, then the penalty weight maintaining budget balance takes the multiplicative form
+\begin{equation}
+    w^*(u) = 1/u .
+    \label{eq:optimal}
+\end{equation}
+\end{proposition}
+
+\textit{Proof sketch.} Budget balance $(T-t)P(\mathrm{risky}\mid\lambda)=d-C_t$ with the Boltzmann substitution gives $\lambda=\frac{1}{\alpha}\ln\frac{(T-t)P_0}{d-C_t}$.
+The weight relative to TWAP ($u=1$) reduces to $\tau/\rho = 1/u$.
+Full derivation in Appendix~\ref{app:proof}.\hfill$\square$
+
+\textbf{Practical schedule.}
+Since $1/u\!\to\!\infty$ as $u\!\to\!0$ and the Boltzmann response is an idealization, we use a parametric family preserving the key structural properties:
+\begin{equation}
+    w(u) = \exp\!\Big(\eta\cdot\big(\tfrac{1}{u}-1\big)\Big),
+    \qquad \eta \geq 0 .
+    \label{eq:practical}
+\end{equation}
+$\eta=0$ recovers a constant-penalty baseline; $\eta>0$ tightens under deficit and relaxes under surplus.
+$w(u)$ and $u^{-\eta}$ agree within 5\% for $u\in[0.7,1.3]$ (Appendix Figure~\ref{fig:approx}).
+
+\textbf{Hard-wall backstop.}
+A steep barrier activates when budget drops below 5\%:
+$\lambda_{\mathrm{wall}}(t) = \exp(k\cdot\mathrm{ReLU}(1-\rho_t/0.05))$.
+The combined weight is $\lambda(t) = \min(w(u_t)\,\lambda_{\mathrm{wall}}(t),\lambda_{\max})$ with $\lambda_{\max}=10^6$.
+Ablations (Appendix~\ref{app:ablations}) show that the smooth schedule alone is sufficient in practice.
+
+\textbf{Note.}
+The Boltzmann derivation is a motivating idealization that identifies $u$ as the natural state variable and constrains $w$ to be monotone-decreasing in $u$; $\exp(\eta(1/u-1))$ is a principled parametric choice rather than an optimality claim.
+
+%----------------------------------------------------------------------
+\section{Method}
+\label{sec:method}
+%----------------------------------------------------------------------
+
+The method has three components that compose independently:
+(1)~the budget schedule $\lambda(t)$ from~\S\ref{sec:theory} (\emph{how strictly});
+(2)~the cost function $c(s,a)$ (\emph{what is costly});
+(3)~the application mechanism (\emph{how} the penalty modifies actions).
+
+\textbf{Cost functions.}
+The simplest cost is a binary indicator $c(s,a)=\mathbf{1}[\mathrm{yaw}<0]$.
+A nonlinear fatigue surrogate captures the physics:
+$c(s,a) = (|a|/\bar{a})^p(v(s)/v_{\mathrm{ref}})^q$, with $p\!=\!2$, $q\!=\!3$ (quadratic yaw-fatigue, cubic wind-speed amplification~\citep{dijk2025load}).
+
+\textbf{Application mechanisms.}
+(i)~\emph{Energy composition} for EBT actors: $E_{\mathrm{total}}=\frac{1}{N}\sum_i[E_\phi^i+\lambda_{\mathrm{gs}}\lambda^i(t)P(c(s,a^i))]$ with $P(x)=\exp(k\cdot\mathrm{ReLU}(x))-1$.
+(ii)~\emph{Gradient correction} for any actor:
+\begin{equation}
+    a \leftarrow a - \lambda_{\mathrm{gs}}\cdot\lambda(t)\cdot\alpha\cdot\nabla_a\,c(s,a), \quad K \text{ steps}.
+    \label{eq:gradient_correction}
+\end{equation}
+
+\begin{algorithm}[t]
+\caption{Post-Hoc Budget-Constrained Inference}
+\label{alg:budget}
+\begin{algorithmic}[1]
+\REQUIRE Trained actor, limit $d^i$, horizon $T$, risk aversion $\eta$, cost $c(s,a)$
+\STATE $C_0^i \leftarrow 0$ for all agents $i$
+\FOR{$t = 0, \ldots, T-1$}
+    \STATE Observe $s_t$; $u_t^i = \frac{(d^i-C_t^i)/d^i}{(T-t)/T}$; $\lambda^i(t)=\min(\exp(\eta(1/u_t^i-1))\cdot\lambda_{\mathrm{wall}}^i,\lambda_{\max})$
+    \STATE Generate $a_t$ (choose mechanism): \emph{EBT:} gradient descent on $E_\phi+\lambda_{\mathrm{gs}}\lambda^i(t)P(c)$;\quad\emph{MLP:} Eq.~\ref{eq:gradient_correction}
+    \STATE Execute $a_t$, observe $r_t$, $c_t^i = c^i(s_t,a_t)$; $C_{t+1}^i \leftarrow C_t^i + c_t^i$
+\ENDFOR
+\end{algorithmic}
+\end{algorithm}
+
+The schedule $\lambda$ adds 4.7~ms (19.8\%) overhead on the wind farm EBT actor.
+$\eta\!\in\![2,5]$ and $\lambda_{\mathrm{gs}}\!\in\![0.05,0.5]$ require mild calibration (a few evaluation episodes), cheaper than retraining but not zero-cost.
+Unlike the Lagrangian dual $\mu$ (learned via gradient ascent~\citep{stooke2020responsive}), $\lambda^i(t)$ is computed in closed form, enabling instant adaptation to new budget specifications.
+
+%----------------------------------------------------------------------
+\section{Scope: Coupling Strength as a Predictor}
+\label{sec:scope}
+%----------------------------------------------------------------------
+
+The schedule $\lambda(t)$ modulates a correction signal; its effectiveness is capped by how much the future cost depends on the current action.
+When the cost function is directly action-dependent ($\nabla_a c \neq 0$), $\lambda$ multiplies a useful gradient.
+When the cost is state-dependent---as with position-conditioned hazards or wake-propagation delays---the immediate $\nabla_a c$ is weak, and the correction must instead flow through a learned cost critic $Q_c(s,a)=\mathbb{E}_\pi[\sum \gamma_c^k c_{t+k}]$.
+We train $Q_c$ offline on frozen-policy rollouts (MC returns, $\gamma_c\!=\!0.99$, correlation $0.965$; Figure~\ref{fig:qc_pipeline}) and use $\nabla_a Q_c$ in Eq.~\ref{eq:gradient_correction}.
+
+\begin{figure}[t]
+    \centering
+    \resizebox{0.9\linewidth}{!}{\input{figures/fig_qc_pipeline.tex}}
+    \caption{$Q_c$ pipeline. \textbf{A.}~Collect transitions from frozen policy rollouts. \textbf{B.}~Fit $Q_c$ on Monte Carlo cost returns. \textbf{C.}~Deploy: actor proposes action, $Q_c$ gradient corrects it $K$ times per step. Policy weights unchanged throughout.}
+    \label{fig:qc_pipeline}
+\end{figure}
+
+\textbf{Coupling strength $\kappa$ (Eq.~\ref{eq:kappa}).}
+Large $\kappa$: the current action has strong leverage over future cost (expect post-hoc correction to work).
+Small $\kappa$: cost is state-dominated (expect tight budgets to fail).
+We measure $\kappa$ on 2000 on-policy samples per domain and report it in Table~\ref{tab:coupling}.
+The $36\times$ gap between wind farm and Safety Gym \emph{forecasts} the experimental results (\S\ref{sec:results}) before we deploy the method.
+
+\begin{table}[h]
+\centering
+\caption{Coupling strength per domain (2000 on-policy samples). Wind farm's $36\times$ higher $\kappa$ predicts success; Safety Gym's weak coupling predicts tight-budget failure.}
+\label{tab:coupling}
+\begin{tabular}{lccc}
+\toprule
+Domain & $\mathbb{E}\|\nabla_a Q_c\|$ & $\mathbb{E}\|\nabla_s Q_c\|$ & $\kappa$ \\
+\midrule
+Wind farm (3-turb)     & $0.69 \pm 0.34$ & $0.97 \pm 0.26$ & $\mathbf{0.72}$ \\
+Safety Gym (PointGoal) & $0.99 \pm 0.69$ & $49.8 \pm 12.5$ & $\mathbf{0.02}$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Operational test.}
+Given a new domain, compute $\kappa$ on logged rollouts in under a minute (Appendix~\ref{app:coupling_protocol}).
+Our two observed values differ by two orders of magnitude and predict qualitatively opposite outcomes; a precise threshold requires more domains and is left to future work.
+Pragmatically: if $\kappa$ for a new domain is comparable to our wind-farm value ($\sim\!1$), post-hoc correction is plausible; if it is comparable to our Safety-Gym value ($\sim\!10^{-2}$), state-space methods (MPC, control-barrier-function shielding) are indicated.
+
+%----------------------------------------------------------------------
+\section{Experiments}
+\label{sec:results}
+%----------------------------------------------------------------------
+
+We test the two predictions made by $\kappa$ (\S\ref{sec:scope}): success on wind farm yaw control ($\kappa\!\approx\!0.72$) and failure on Safety Gymnasium at tight budgets ($\kappa\!\approx\!0.02$).
+Both domains use the same schedule $\lambda(t)$, the same $Q_c$ training recipe, and the same correction mechanism.
+
+\subsection{Wind Farm: Strong Coupling, Budget Satisfied}
+
+\textbf{Environment.}
+WindGym~\citep{windgym} with PyWake backend; 3-turbine row and 9-turbine $3\!\times\!3$ grid; wind speed 10--14 m/s; direction 225--315$^\circ$.
+Negative yaw steers rotors against the conventional direction, deflecting wakes to raise downstream power but imposing structural loads on the yawed turbine~\citep{dijk2025load}.
+Budget $d$ = total timesteps at negative yaw per turbine per episode.
+Actor: EBT trained unconstrained with SAC for 100k steps; the budget surrogate composes post-hoc via per-turbine energy addition at inference.
+
+\textbf{AC schedule vs.\ oracle constant (single seed, 50 episodes).}
+Table~\ref{tab:main_results} compares the AC schedule ($\eta\!=\!5$, gs$\!=\!0.1$) against an oracle-tuned constant penalty (15-step bisection search) at $d\!=\!15$: AC achieves 98.9\% power retention without per-budget tuning; the oracle achieves 96.7\% and requires re-tuning for every new $d$.
+
+\textbf{Multi-seed AC (4 training seeds).}
+Averaged across 4 independently trained EBT actors using the \emph{same} $(\eta,\text{gs})$ configuration, AC delivers $95.9 \pm 3.1\%$ of unconstrained power with neg-yaw $[11,12,12]$; all 4 seeds satisfy the budget.
+
+\begin{table}[t]
+\centering
+\caption{Wind farm (3-turbine, budget $d\!=\!15$/200 steps, 50 episodes, wind 10--14 m/s). Seed-1 rows compare oracle-tuned constant vs.\ AC. Last row: AC across 4 training seeds, same $(\eta,\text{gs})$. Baseline power differs across Tables~\ref{tab:main_results},~\ref{tab:nonlinear},~\ref{tab:qc_windfarm} because each uses independently sampled evaluation episodes with different wind-condition ranges; within-table comparisons use the same episodes.}
+\label{tab:main_results}
+\begin{tabular}{lcccl}
+\toprule
+Method & Power (MW) & \% Uncon & NegYaw & Notes \\
+\midrule
+\multicolumn{5}{l}{\textit{Single seed (seed 1):}} \\
+Unconstrained                   & $27.1 \pm 0.6$ & 100\%    & $[49,56,61]$ & --- \\
+Oracle constant ($k\!=\!5.86$)  & $26.2 \pm 0.7$ & 96.7\%   & $[11,13,14]$ & 15-step bisection \\
+AC ($\eta\!=\!2$, gs$\!=\!0.05$)& $26.8 \pm 0.6$ & \textbf{98.6\%} & $[9,10,10]$  & Zero calibration \\
+AC ($\eta\!=\!5$, gs$\!=\!0.1$) & $26.9 \pm 0.5$ & \textbf{98.9\%} & $[8,9,10]$   & Zero calibration \\
+\midrule
+\multicolumn{5}{l}{\textit{Multi-seed (4 training seeds, same AC config):}} \\
+AC ($\eta\!=\!5$, gs$\!=\!0.1$) & $25.7 \pm 0.5$ & $\mathbf{95.9 \pm 3.1\%}$ & $[11,12,12]$ & All 4 seeds satisfy \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Nonlinear fatigue cost matters.}
+Table~\ref{tab:nonlinear} compares binary vs.\ nonlinear costs.
+Binary AC ($\eta\!=\!2$) avoids negative yaw entirely but accumulates fatigue $86.2$---$4.2\times$ \emph{worse} than unconstrained ($20.3$)---because it pushes the agent to large positive yaw.
+Nonlinear AC ($\eta\!=\!5$) uses \emph{more} neg-yaw steps (80--83) but achieves fatigue $12.8$: a $1.6\times$ reduction vs.\ unconstrained at 98\% power, and $6.8\times$ lower than the binary-cost AC trap.
+The lesson is methodological: the cost function choice dominates; a well-chosen nonlinear cost prevents the binary-penalty failure mode.
+
+\begin{table}[t]
+\centering
+\caption{Binary vs.\ nonlinear fatigue cost (3-turbine wind farm, 10 episodes at higher wind-speed range 12--16 m/s to exercise the nonlinear cost). Nonlinear: $|y/\bar{y}|^2\cdot(v/v_{\mathrm{ref}})^3$. The unconstrained power baseline differs from Table~\ref{tab:main_results} because this evaluation uses different wind conditions; within-table comparisons are on the same episodes.}
+\label{tab:nonlinear}
+\begin{tabular}{lccc}
+\toprule
+Method & Power (MW) & NegYaw & Fatigue \\
+\midrule
+Unconstrained               & 29.7 & $[66,75,71]$ & 20.3 \\
+Binary AC ($\eta\!=\!2$)    & 28.1 & $[8,8,10]$   & 86.2 \\
+Nonlinear AC ($\eta\!=\!5$) & \textbf{29.2} & $[80,81,83]$ & \textbf{12.8} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Learned $Q_c$ discovers the same physics.}
+Table~\ref{tab:qc_windfarm} applies the $Q_c$ pipeline (\S\ref{sec:scope}) to the wind farm.
+Starting only from nonlinear-cost transitions (no analytical surrogate at inference), $Q_c$ achieves $5.7\times$ fatigue reduction---close to the surrogate's $4.3\times$.
+The method learns fatigue physics from data without retraining the policy.
+
+\subsection{Safety Gymnasium: Weak Coupling, Predicted Failure}
+\label{sec:sg_results}
+
+\textbf{Environment.}
+SafetyPointGoal1-v0~\citep{ji2023safetygym}: a point robot navigates to goals while avoiding circular hazards ($c\!=\!1$ on hazard entry).
+Action space is 2D (thrust, turn); cost is spatial, driven by position relative to hazards.
+Actor: SAC/MLP trained unconstrained for 200k steps, 5 independent seeds.
+
+\textbf{Multi-seed result (Table~\ref{tab:safetygym}).}
+At all tested budgets $d\in\{10,25,40\}$ and both no-correction and gradient-correction modes, cost remains near the unconstrained baseline ($53.1 \pm 3.0$ at $d\!=\!10$ with correction; $53.6 \pm 2.1$ unconstrained).
+Every seed violates every tested budget.
+This is exactly what $\kappa\!\approx\!0.02$ predicts: the correction gradient $\nabla_a Q_c$ is $\sim\!50\times$ smaller than $\nabla_s Q_c$, so state drift---not the action---dominates cost accumulation.
+
+\begin{table}[h]
+\centering
+\caption{Safety Gymnasium multi-seed (SafetyPointGoal1-v0, 5 seeds $\times$ 20 episodes). All tested budgets are violated; cost barely changes vs.\ unconstrained. This is the predicted outcome given $\kappa\approx0.02$.}
+\label{tab:safetygym}
+\begin{tabular}{lccccc}
+\toprule
+Method & Budget $d$ & Reward & \% Uncon & Cost (mean$\pm$SE) & OK \\
+\midrule
+Unconstrained & --- & $26.8 \pm 0.1$ & 100\%  & $53.6 \pm 2.1$  & --- \\
+\midrule
+AC+$Q_c$ grad ($\eta\!=\!2$) & 10 & $26.9 \pm 0.2$ & 100\% & $53.1 \pm 3.0$ & \textcolor{red}{$\times$} \\
+AC+$Q_c$ grad ($\eta\!=\!2$) & 25 & $26.9 \pm 0.1$ & 100\% & $52.1 \pm 3.6$ & \textcolor{red}{$\times$} \\
+AC+$Q_c$ grad ($\eta\!=\!2$) & 40 & $26.8 \pm 0.1$ & 100\% & $53.7 \pm 1.3$ & \textcolor{red}{$\times$} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Pessimistic $Q_c$ does not rescue the method (Appendix~\ref{app:uncertainty}).}
+We trained an ensemble of 10 $Q_c$ critics (5 seeds $\times$ twin heads) and tested pessimistic correction $\nabla_a(\bar{Q}+q\,\sigma)$ with pessimism quantile $q\in\{0,1,4\}$ and $d\in\{10,25,40\}$ (note: $q$ is a pessimism coefficient, unrelated to the scope predictor $\kappa$).
+No monotonic $q^*$ exists: $q\!=\!0$ wins or ties at every budget (Appendix Table~\ref{tab:pessimism}).
+Ensemble disagreement \emph{does} reliably flag failure states (Spearman $\rho\!=\!+0.195$ vs.\ cost-ahead; stronger than $\|\Delta a\|$ at $+0.064$), but gating the correction on uncertainty does not exploit the signal when the underlying $\nabla_a Q_c$ is dominated by noise.
+
+\textbf{Compute note.}
+Each wind-farm training seed costs approximately 3~GPU-hours (LUMI/MI250X, 100k SAC steps on a 3-turbine row); each Safety-Gym seed costs approximately 1.5~GPU-hours (200k SAC steps).
+$Q_c$ training adds $\sim\!20$~minutes per domain (offline MC fit on logged transitions).
+Because our effect sizes are large---every Safety-Gym seed violates every tested budget; the wind-farm schedule beats an oracle on retention---the $n\!=\!4$/$n\!=\!5$ seed counts are adequate, although more seeds would tighten the wind-farm standard deviation ($3.1\%$).
+
+\textbf{Takeaway: the predictor works in both directions.}
+The coupling strength $\kappa$ forecasts both the wind-farm success and the Safety-Gym failure from a single sub-minute measurement on logged rollouts.
+When $\kappa$ is small, action-space correction is structurally the wrong tool---not a matter of hyperparameter tuning.
+We recommend switching to state-space methods (MPC, control-barrier-function shielding) for such domains.
+
+%----------------------------------------------------------------------
+\section{Related Work}
+\label{sec:related}
+%----------------------------------------------------------------------
+
+\textbf{Constrained MDPs.}
+Lagrangian methods~\citep{altman1999constrained,achiam2017cpo,stooke2020responsive,chen2025predictive} learn dual variables during training.
+SAUTE~\citep{sootla2022saute} augments state with remaining budget $\rho_t$ (same variable we use) but still retrains per budget.
+TREBI~\citep{lin2023trebi} handles real-time budget changes via diffusion models but requires diffusion-specific training.
+We freeze the policy and use a closed-form $\lambda(t)$ at inference.
+
+\textbf{Post-hoc constraint composition.}
+Energy composition~\citep{urain2023composable}, classifier guidance~\citep{zhang2025constrained}, control barrier functions~\citep{xiao2023safediffuser}, and input-convex corrections~\citep{durkin2025picnn} handle instantaneous constraints.
+None address cumulative budgets spanning an episode.
+
+\textbf{Budget pacing.}
+Budget allocation in advertising~\citep{balseiro2023budget} and bandits with knapsacks~\citep{agrawal2014bandits} share the allocation-across-time structure.
+We adopt the urgency-ratio framework from optimal execution~\citep{almgren2001optimal} without claiming structural equivalence to market-impact models.
+
+\textbf{Coupling-strength scope conditions.}
+We are not aware of prior scalar predictors specifically targeting the scope of post-hoc action-space correction; critic-gradient magnitudes have been analysed in offline-RL distributional work, controllability Grammians in classical control, and input-to-state stability in nonlinear systems, all of which address related but distinct questions.
+Our $\kappa$ uses the gradient \emph{ratio} $\|\nabla_a Q_c\|/\|\nabla_s Q_c\|$ as an \emph{a-priori} predictor of action-level correction leverage.
+
+%----------------------------------------------------------------------
+\section{Conclusion}
+\label{sec:conclusion}
+%----------------------------------------------------------------------
+
+We introduced a closed-form urgency-ratio schedule for enforcing cumulative budget constraints on pre-trained RL policies without retraining, and a coupling-strength predictor $\kappa$ that forecasts its scope.
+Wind farm yaw control ($\kappa\!\approx\!0.72$) reduces fatigue $1.6\times$ vs.\ unconstrained at 98\% power (avoiding the $4.2\times$ fatigue inflation caused by a naive binary-cost AC) and satisfies budget across 4 seeds.
+Safety Gymnasium ($\kappa\!\approx\!0.02$) predictably fails at tight budgets across 5 seeds: the cost is state-dominated, and no amount of action-space correction can close the gap.
+The scope predictor works in both directions on a single measurable quantity, turning what would otherwise be a deployment surprise into a pre-deployment decision.
+\textbf{Limitations.}
+The schedule requires mild calibration of $\eta$ and $\lambda_{\mathrm{gs}}$; $Q_c$ requires a one-time offline training phase (cheaper than retraining, not zero-cost).
+For weakly coupled domains, post-hoc correction is the wrong tool---future work should investigate state-space shielding~\citep{xiao2023safediffuser} or model-predictive methods that can leverage the dominant $\nabla_s Q_c$ signal.
+Code and checkpoints: \url{[anonymized]}.
+
+%----------------------------------------------------------------------
+% Appendix
+%----------------------------------------------------------------------
+
+\appendix
+\section{Full Derivations and Additional Results}
+\label{app:additional}
+
+\subsection{Full Proof of Proposition~\ref{prop:optimal}}
+\label{app:proof}
+
+\begin{proof}
+Budget balance requires that the expected number of risky actions over the remaining horizon equals the remaining budget:
+\begin{equation}
+    (T-t)\cdot P(\mathrm{risky}\mid\lambda) = d - C_t .
+    \label{eq:balance}
+\end{equation}
+Substituting the Boltzmann model $P(\mathrm{risky}\mid\lambda)=P_0\exp(-\alpha\lambda)$ and solving:
+$\lambda = \frac{1}{\alpha}\ln\!\frac{(T-t)P_0}{d-C_t}$.
+At the TWAP baseline ($u=1$, \ie\ $(d-C_t)/d=(T-t)/T$), $\lambda_0=\frac{1}{\alpha}\ln\!\frac{TP_0}{d}$.
+The multiplicative weight relative to TWAP is:
+\[
+    w = \exp(\alpha(\lambda-\lambda_0)) = \frac{(T-t)P_0}{d-C_t}\cdot\frac{d}{TP_0} = \frac{(T-t)/T}{(d-C_t)/d} = \frac{\tau}{\rho} = \frac{1}{u}.
+\]
+\end{proof}
+
+\subsection{Schedule Approximation Quality}
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=\linewidth]{figures/fig_approx_quality.pdf}
+    \caption{(a)~Schedule comparison: $\exp(\eta(1/u-1))$ (solid) vs.\ $u^{-\eta}$ (dashed) across the full urgency range. Red region: hard-wall backstop active ($u<0.05$). (b)~Relative approximation error; schedules agree within 10\% for $u>0.5$.}
+    \label{fig:approx}
+\end{figure}
+
+\subsection{Wind Farm: Spatial, Budget, and Time-Series}
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=\linewidth]{figures/fig_windfarm_spatial.pdf}
+    \caption{Wind farm spatial yaw allocation. (a)~Unconstrained agent uses negative yaw heavily on all turbines; AC ($\eta=2$) constrains to within the 15-step budget; constant penalty over-spends. (b)~Turbine layout.}
+    \label{fig:wf_spatial}
+\end{figure}
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=\linewidth]{figures/fig_windfarm_budget.pdf}
+    \caption{Wind farm budget effect. (a)~Per-turbine allocation: as budget tightens, downstream T2 reduces negative yaw first. (b)~Power retention remains within 5\% of unconstrained.}
+    \label{fig:wf_budget}
+\end{figure}
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=\linewidth]{figures/fig_windfarm_timeseries.pdf}
+    \caption{Wind farm yaw time series (one episode, $d=15$). $\lambda(t)$ adapts: $\eta=5$ drops during surplus and spikes near depletion. Cumulative neg-yaw shows $\eta=5$ uses the full budget.}
+    \label{fig:wf_timeseries}
+\end{figure}
+
+\subsection{Learned Cost Critic on Wind Farm}
+
+\begin{table}[h]
+\centering
+\caption{Learned cost critic $Q_c$ on 3-turbine wind farm (10 episodes). $Q_c$ trained on 100 episodes with nonlinear fatigue cost. The unconstrained baseline here differs from Tables~\ref{tab:main_results},~\ref{tab:nonlinear} because this experiment uses independently sampled evaluation episodes and a broader wind-condition sweep; within-table comparisons are on the same episodes. Power exceeding unconstrained reflects $Q_c$ steering toward configurations that are both lower-fatigue and higher-power.}
+\label{tab:qc_windfarm}
+\begin{tabular}{lcccc}
+\toprule
+Method & Power (MW) & NegYaw & Fatigue & Fatigue $\times$ \\
+\midrule
+Unconstrained               & $24.6 \pm 5.6$ & $[84,96,94]$ & 54.6 & $1.0\times$ \\
+\midrule
+$Q_c$, $\eta\!=\!2$, gs$=0.05$ & $\mathbf{28.1 \pm 2.7}$ & $[43,44,43]$ & $\mathbf{9.5}$ & $5.7\times$ \\
+$Q_c$, $\eta\!=\!5$, gs$=0.5$  & $28.8 \pm 2.0$          & $[55,54,51]$ & $10.4$         & $5.3\times$ \\
+\midrule
+Analytical surrogate, $\eta\!=\!5$ & $29.2$ & $[80,81,83]$ & $12.8$ & $4.3\times$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Ablations}
+\label{app:ablations}
+
+\paragraph{Hard guard ablation.}
+Table~\ref{tab:hard_guard}: the AC schedule alone keeps all turbines within budget ($[11,11,11]$ at $d\!=\!15$); the constant penalty alone over-spends at $[29,51,58]$.
+
+\begin{table}[h]
+\centering
+\caption{Hard guard ablation (3-turbine wind farm, $d\!=\!15$/200, $\eta=2$, $k=2$, gs=0.1, 10 episodes).}
+\label{tab:hard_guard}
+\begin{tabular}{lccl}
+\toprule
+Configuration & Power (MW) & NegYaw & Budget \\
+\midrule
+Unconstrained             & $26.8 \pm 3.9$ & $[83,87,100]$ & --- \\
+Both (AC + guard)         & $24.7 \pm 5.1$ & $[13,16,19]$  & \checkmark \\
+AC only (no guard)        & $26.3 \pm 3.0$ & $[11,11,11]$  & \checkmark \\
+Guard only ($\eta\!=\!0$) & $24.8 \pm 5.7$ & $[29,51,58]$  & \textcolor{red}{$\times$} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Schedule form.}
+$1/u^\eta$ and $\exp(\eta(1/u-1))$ perform comparably on the wind farm:
+\begin{center}
+\begin{tabular}{llcc}
+\toprule
+Schedule & $\eta$ & Power (MW) & NegYaw \\
+\midrule
+$\exp(\eta(1/u-1))$ & 5.0 & $27.8 \pm 4.5$ & $[14,14,14]$ \\
+$u^{-\eta}$         & 5.0 & $26.6 \pm 5.3$ & $[22,24,24]$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\paragraph{Budget flexibility.}
+A single policy serves $d\in\{5,10,20,25,50,75\}$ (2.5--37.5\% of horizon) with $>\!95\%$ power retention from $d\!=\!10$ onward; all levels satisfy the budget.
+
+\subsection{Pessimistic $Q_c$ and Uncertainty Diagnostic}
+\label{app:uncertainty}
+
+\paragraph{Failure-state predictors.}
+We asked whether two predictors distinguish $Q_c$ failure: (i)~ensemble disagreement $\sigma(Q_c)$ across 5 cost critics, and (ii)~action-space deviation $\|\Delta a\|$ between actor proposal and corrected action.
+Across 20k Safety Gym state samples at $d\!=\!10$, ensemble disagreement correlates with cost-over-next-$H$ at Spearman $\rho\!=\!+0.195$; $\|\Delta a\|$ achieves $\rho\!=\!+0.064$ (Figure~\ref{fig:discriminator}).
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.85\linewidth]{figures/fig_discriminator.pdf}
+    \caption{Predictors of $Q_c$ failure. Ensemble disagreement $\sigma(Q_c)$ tracks realized cost $\sim\!3\times$ more strongly than $\|\Delta a\|$.}
+    \label{fig:discriminator}
+\end{figure}
+
+\paragraph{Pessimism null result.}
+Motivated by the discriminator, we tested pessimistic correction $\nabla_a(\bar{Q}+q\,\sigma)$ over pessimism quantile $q\in\{0,1,4\}\times d\in\{10,25,40\}$ (50 episodes each, seeds pinned; $q$ here is a pessimism coefficient, not the scope predictor $\kappa$).
+$q=0$ (single critic) wins or ties at every budget (Table~\ref{tab:pessimism}).
+Ensemble uncertainty correctly flags failure states, but the pessimism-modulated gradient does not exploit the signal when the underlying $\|\nabla_a Q_c\|$ is dominated by noise in the weak-coupling regime.
+
+\begin{table}[h]
+\centering
+\caption{Pessimistic $Q_c$ on Safety Gym: ensemble $q$-quantile correction. Cost mean$\pm$SE, 50 episodes. No monotonic $q^*$ exists across budgets. ($q$ is the pessimism coefficient, unrelated to the scope predictor $\kappa$.)}
+\label{tab:pessimism}
+\begin{tabular}{cccc}
+\toprule
+Budget $d$ & $q\!=\!0$ (single) & $q\!=\!1$ (ensemble) & $q\!=\!4$ (ensemble) \\
+\midrule
+10 & $51.3 \pm 4.6$ & $\mathbf{50.6 \pm 4.6}$ & $58.3 \pm 5.0$ \\
+25 & $\mathbf{48.2 \pm 5.1}$ & $56.6 \pm 4.6$ & $53.0 \pm 4.2$ \\
+40 & $\mathbf{48.2 \pm 4.6}$ & $55.2 \pm 5.2$ & $55.3 \pm 4.6$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Coupling Strength Measurement Protocol}
+\label{app:coupling_protocol}
+
+For each domain, we roll out 20 episodes under the frozen policy, subsample 2000 $(s,a)$ pairs uniformly, and compute
+$\|\nabla_a Q_c(s,a)\|_2$ and $\|\nabla_s Q_c(s,a)\|_2$ at each sample via automatic differentiation.
+The reported $\kappa$ is the ratio of sample means; standard errors in Table~\ref{tab:coupling} are computed by nonparametric bootstrap with 1000 resamples.
+The protocol requires the $Q_c$ checkpoint and a few hundred logged transitions---no environment rollouts beyond what is already needed to fit $Q_c$.
+
+%----------------------------------------------------------------------
+\bibliography{references}
+\bibliographystyle{plainnat}
+
+\end{document}

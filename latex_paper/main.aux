@@ -1,0 +1,128 @@
+\relax 
+\providecommand\hyper@newdestlabel[2]{}
+\providecommand\HyField@AuxAddToFields[1]{}
+\providecommand\HyField@AuxAddToCoFields[2]{}
+\citation{dijk2025load}
+\citation{balseiro2023budget}
+\citation{altman1999constrained,stooke2020responsive,sootla2022saute}
+\citation{urain2023composable,zhang2025constrained,xiao2023safediffuser}
+\citation{almgren2001optimal}
+\@writefile{toc}{\contentsline {section}{\numberline {1}Introduction}{1}{section.1}\protected@file@percent }
+\newlabel{sec:intro}{{1}{1}{Introduction}{section.1}{}}
+\newlabel{eq:kappa}{{1}{1}{Introduction}{equation.1}{}}
+\citation{altman1999constrained}
+\citation{ray2019safetygym,achiam2017cpo}
+\citation{stooke2020responsive}
+\citation{gladstone2025ebt}
+\@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces Coupling-strength diagnostic $\kappa = \mathbb  {E}\|\nabla _a Q_c\|/\mathbb  {E}\|\nabla _s Q_c\|$ predicts whether post-hoc budget correction works. (a) Wind farm ($\kappa \!\approx \!0.72$): yaw angles directly set rotor-wake geometry, so $\nabla _a Q_c$ strongly corrects actions. (b) Safety Gymnasium ($\kappa \!\approx \!0.02$): cost is position-dependent (hazards), but actions are instantaneous velocity commands --- momentum dominates. The red arrows are the raw correction $\nabla _a Q_c$: large/directional on the farm, vanishingly small on SG.}}{2}{figure.caption.1}\protected@file@percent }
+\providecommand*\caption@xref[2]{\@setref\relax\@undefined{#1}}
+\newlabel{fig:kappa_diag}{{1}{2}{Coupling-strength diagnostic $\kappa = \mathbb {E}\|\nabla _a Q_c\|/\mathbb {E}\|\nabla _s Q_c\|$ predicts whether post-hoc budget correction works. (a) Wind farm ($\kappa \!\approx \!0.72$): yaw angles directly set rotor-wake geometry, so $\nabla _a Q_c$ strongly corrects actions. (b) Safety Gymnasium ($\kappa \!\approx \!0.02$): cost is position-dependent (hazards), but actions are instantaneous velocity commands --- momentum dominates. The red arrows are the raw correction $\nabla _a Q_c$: large/directional on the farm, vanishingly small on SG}{figure.caption.1}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {2}Background}{2}{section.2}\protected@file@percent }
+\newlabel{sec:background}{{2}{2}{Background}{section.2}{}}
+\citation{urain2023composable,zhang2025constrained}
+\citation{dijk2025load}
+\citation{dijk2025load}
+\citation{stooke2020responsive}
+\newlabel{eq:composition}{{2}{3}{Background}{equation.2}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {3}Urgency-Ratio Budget Schedule}{3}{section.3}\protected@file@percent }
+\newlabel{sec:theory}{{3}{3}{Urgency-Ratio Budget Schedule}{section.3}{}}
+\newlabel{eq:urgency}{{3}{3}{Urgency-Ratio Budget Schedule}{equation.3}{}}
+\newlabel{prop:optimal}{{1}{3}{Idealized-Boltzmann motivation}{proposition.1}{}}
+\newlabel{eq:optimal}{{4}{3}{Idealized-Boltzmann motivation}{equation.4}{}}
+\newlabel{eq:practical}{{5}{3}{Urgency-Ratio Budget Schedule}{equation.5}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {4}Method}{3}{section.4}\protected@file@percent }
+\newlabel{sec:method}{{4}{3}{Method}{section.4}{}}
+\newlabel{eq:gradient_correction}{{6}{3}{Method}{equation.6}{}}
+\@writefile{loa}{\contentsline {algorithm}{\numberline {1}{\ignorespaces Post-Hoc Budget-Constrained Inference}}{4}{algorithm.1}\protected@file@percent }
+\newlabel{alg:budget}{{1}{4}{Post-Hoc Budget-Constrained Inference}{algorithm.1}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {2}{\ignorespaces $Q_c$ pipeline. \textbf  {A.}~Collect transitions from frozen policy rollouts. \textbf  {B.}~Fit $Q_c$ on Monte Carlo cost returns. \textbf  {C.}~Deploy: actor proposes action, $Q_c$ gradient corrects it $K$ times per step. Policy weights unchanged throughout.}}{4}{figure.caption.2}\protected@file@percent }
+\newlabel{fig:qc_pipeline}{{2}{4}{$Q_c$ pipeline. \textbf {A.}~Collect transitions from frozen policy rollouts. \textbf {B.}~Fit $Q_c$ on Monte Carlo cost returns. \textbf {C.}~Deploy: actor proposes action, $Q_c$ gradient corrects it $K$ times per step. Policy weights unchanged throughout}{figure.caption.2}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {5}Scope: Coupling Strength as a Predictor}{4}{section.5}\protected@file@percent }
+\newlabel{sec:scope}{{5}{4}{Scope: Coupling Strength as a Predictor}{section.5}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {1}{\ignorespaces Coupling strength per domain (2000 on-policy samples). Wind farm's $36\times $ higher $\kappa $ predicts success; Safety Gym's weak coupling predicts tight-budget failure.}}{4}{table.caption.3}\protected@file@percent }
+\newlabel{tab:coupling}{{1}{4}{Coupling strength per domain (2000 on-policy samples). Wind farm's $36\times $ higher $\kappa $ predicts success; Safety Gym's weak coupling predicts tight-budget failure}{table.caption.3}{}}
+\citation{windgym}
+\citation{dijk2025load}
+\citation{ji2023safetygym}
+\@writefile{lot}{\contentsline {table}{\numberline {2}{\ignorespaces Wind farm (3-turbine, budget $d\!=\!15$/200 steps, 50 episodes, wind 10--14 m/s). Seed-1 rows compare oracle-tuned constant vs.\ AC. Last row: AC across 4 training seeds, same $(\eta ,\text  {gs})$. Baseline power differs across Tables~\ref {tab:main_results},~\ref {tab:nonlinear},~\ref {tab:qc_windfarm} because each uses independently sampled evaluation episodes with different wind-condition ranges; within-table comparisons use the same episodes.}}{5}{table.caption.4}\protected@file@percent }
+\newlabel{tab:main_results}{{2}{5}{Wind farm (3-turbine, budget $d\!=\!15$/200 steps, 50 episodes, wind 10--14 m/s). Seed-1 rows compare oracle-tuned constant vs.\ AC. Last row: AC across 4 training seeds, same $(\eta ,\text {gs})$. Baseline power differs across Tables~\ref {tab:main_results},~\ref {tab:nonlinear},~\ref {tab:qc_windfarm} because each uses independently sampled evaluation episodes with different wind-condition ranges; within-table comparisons use the same episodes}{table.caption.4}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {6}Experiments}{5}{section.6}\protected@file@percent }
+\newlabel{sec:results}{{6}{5}{Experiments}{section.6}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.1}Wind Farm: Strong Coupling, Budget Satisfied}{5}{subsection.6.1}\protected@file@percent }
+\citation{altman1999constrained,achiam2017cpo,stooke2020responsive,chen2025predictive}
+\citation{sootla2022saute}
+\citation{lin2023trebi}
+\@writefile{lot}{\contentsline {table}{\numberline {3}{\ignorespaces Binary vs.\ nonlinear fatigue cost (3-turbine wind farm, 10 episodes at higher wind-speed range 12--16 m/s to exercise the nonlinear cost). Nonlinear: $|y/\bar  {y}|^2\cdot (v/v_{\mathrm  {ref}})^3$. The unconstrained power baseline differs from Table~\ref {tab:main_results} because this evaluation uses different wind conditions; within-table comparisons are on the same episodes.}}{6}{table.caption.5}\protected@file@percent }
+\newlabel{tab:nonlinear}{{3}{6}{Binary vs.\ nonlinear fatigue cost (3-turbine wind farm, 10 episodes at higher wind-speed range 12--16 m/s to exercise the nonlinear cost). Nonlinear: $|y/\bar {y}|^2\cdot (v/v_{\mathrm {ref}})^3$. The unconstrained power baseline differs from Table~\ref {tab:main_results} because this evaluation uses different wind conditions; within-table comparisons are on the same episodes}{table.caption.5}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.2}Safety Gymnasium: Weak Coupling, Predicted Failure}{6}{subsection.6.2}\protected@file@percent }
+\newlabel{sec:sg_results}{{6.2}{6}{Safety Gymnasium: Weak Coupling, Predicted Failure}{subsection.6.2}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {4}{\ignorespaces Safety Gymnasium multi-seed (SafetyPointGoal1-v0, 5 seeds $\times $ 20 episodes). All tested budgets are violated; cost barely changes vs.\ unconstrained. This is the predicted outcome given $\kappa \approx 0.02$.}}{6}{table.caption.6}\protected@file@percent }
+\newlabel{tab:safetygym}{{4}{6}{Safety Gymnasium multi-seed (SafetyPointGoal1-v0, 5 seeds $\times $ 20 episodes). All tested budgets are violated; cost barely changes vs.\ unconstrained. This is the predicted outcome given $\kappa \approx 0.02$}{table.caption.6}{}}
+\citation{urain2023composable}
+\citation{zhang2025constrained}
+\citation{xiao2023safediffuser}
+\citation{durkin2025picnn}
+\citation{balseiro2023budget}
+\citation{agrawal2014bandits}
+\citation{almgren2001optimal}
+\citation{xiao2023safediffuser}
+\@writefile{toc}{\contentsline {section}{\numberline {7}Related Work}{7}{section.7}\protected@file@percent }
+\newlabel{sec:related}{{7}{7}{Related Work}{section.7}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {8}Conclusion}{7}{section.8}\protected@file@percent }
+\newlabel{sec:conclusion}{{8}{7}{Conclusion}{section.8}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {A}Full Derivations and Additional Results}{7}{appendix.A}\protected@file@percent }
+\newlabel{app:additional}{{A}{7}{Full Derivations and Additional Results}{appendix.A}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {A.1}Full Proof of Proposition~\ref {prop:optimal}}{7}{subsection.A.1}\protected@file@percent }
+\newlabel{app:proof}{{A.1}{7}{Full Proof of Proposition~\ref {prop:optimal}}{subsection.A.1}{}}
+\newlabel{eq:balance}{{7}{7}{Full Proof of Proposition~\ref {prop:optimal}}{equation.7}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {A.2}Schedule Approximation Quality}{8}{subsection.A.2}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {3}{\ignorespaces (a)~Schedule comparison: $\exp (\eta (1/u-1))$ (solid) vs.\ $u^{-\eta }$ (dashed) across the full urgency range. Red region: hard-wall backstop active ($u<0.05$). (b)~Relative approximation error; schedules agree within 10\% for $u>0.5$.}}{8}{figure.caption.7}\protected@file@percent }
+\newlabel{fig:approx}{{3}{8}{(a)~Schedule comparison: $\exp (\eta (1/u-1))$ (solid) vs.\ $u^{-\eta }$ (dashed) across the full urgency range. Red region: hard-wall backstop active ($u<0.05$). (b)~Relative approximation error; schedules agree within 10\% for $u>0.5$}{figure.caption.7}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {A.3}Wind Farm: Spatial, Budget, and Time-Series}{8}{subsection.A.3}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {4}{\ignorespaces Wind farm spatial yaw allocation. (a)~Unconstrained agent uses negative yaw heavily on all turbines; AC ($\eta =2$) constrains to within the 15-step budget; constant penalty over-spends. (b)~Turbine layout.}}{8}{figure.caption.8}\protected@file@percent }
+\newlabel{fig:wf_spatial}{{4}{8}{Wind farm spatial yaw allocation. (a)~Unconstrained agent uses negative yaw heavily on all turbines; AC ($\eta =2$) constrains to within the 15-step budget; constant penalty over-spends. (b)~Turbine layout}{figure.caption.8}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {A.4}Learned Cost Critic on Wind Farm}{8}{subsection.A.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {A.5}Ablations}{8}{subsection.A.5}\protected@file@percent }
+\newlabel{app:ablations}{{A.5}{8}{Ablations}{subsection.A.5}{}}
+\@writefile{toc}{\contentsline {paragraph}{Hard guard ablation.}{8}{section*.12}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {5}{\ignorespaces Wind farm budget effect. (a)~Per-turbine allocation: as budget tightens, downstream T2 reduces negative yaw first. (b)~Power retention remains within 5\% of unconstrained.}}{9}{figure.caption.9}\protected@file@percent }
+\newlabel{fig:wf_budget}{{5}{9}{Wind farm budget effect. (a)~Per-turbine allocation: as budget tightens, downstream T2 reduces negative yaw first. (b)~Power retention remains within 5\% of unconstrained}{figure.caption.9}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {5}{\ignorespaces Learned cost critic $Q_c$ on 3-turbine wind farm (10 episodes). $Q_c$ trained on 100 episodes with nonlinear fatigue cost. The unconstrained baseline here differs from Tables~\ref {tab:main_results},~\ref {tab:nonlinear} because this experiment uses independently sampled evaluation episodes and a broader wind-condition sweep; within-table comparisons are on the same episodes. Power exceeding unconstrained reflects $Q_c$ steering toward configurations that are both lower-fatigue and higher-power.}}{9}{table.caption.11}\protected@file@percent }
+\newlabel{tab:qc_windfarm}{{5}{9}{Learned cost critic $Q_c$ on 3-turbine wind farm (10 episodes). $Q_c$ trained on 100 episodes with nonlinear fatigue cost. The unconstrained baseline here differs from Tables~\ref {tab:main_results},~\ref {tab:nonlinear} because this experiment uses independently sampled evaluation episodes and a broader wind-condition sweep; within-table comparisons are on the same episodes. Power exceeding unconstrained reflects $Q_c$ steering toward configurations that are both lower-fatigue and higher-power}{table.caption.11}{}}
+\@writefile{toc}{\contentsline {paragraph}{Schedule form.}{9}{section*.14}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Budget flexibility.}{9}{section*.15}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {A.6}Pessimistic $Q_c$ and Uncertainty Diagnostic}{9}{subsection.A.6}\protected@file@percent }
+\newlabel{app:uncertainty}{{A.6}{9}{Pessimistic $Q_c$ and Uncertainty Diagnostic}{subsection.A.6}{}}
+\@writefile{toc}{\contentsline {paragraph}{Failure-state predictors.}{9}{section*.16}\protected@file@percent }
+\bibdata{references}
+\bibcite{achiam2017cpo}{{1}{2017}{{Achiam et~al.}}{{Achiam, Held, Tamar, and Abbeel}}}
+\@writefile{lof}{\contentsline {figure}{\numberline {6}{\ignorespaces Wind farm yaw time series (one episode, $d=15$). $\lambda (t)$ adapts: $\eta =5$ drops during surplus and spikes near depletion. Cumulative neg-yaw shows $\eta =5$ uses the full budget.}}{10}{figure.caption.10}\protected@file@percent }
+\newlabel{fig:wf_timeseries}{{6}{10}{Wind farm yaw time series (one episode, $d=15$). $\lambda (t)$ adapts: $\eta =5$ drops during surplus and spikes near depletion. Cumulative neg-yaw shows $\eta =5$ uses the full budget}{figure.caption.10}{}}
+\@writefile{toc}{\contentsline {paragraph}{Pessimism null result.}{10}{section*.18}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {A.7}Coupling Strength Measurement Protocol}{10}{subsection.A.7}\protected@file@percent }
+\newlabel{app:coupling_protocol}{{A.7}{10}{Coupling Strength Measurement Protocol}{subsection.A.7}{}}
+\bibcite{agrawal2014bandits}{{2}{2014}{{Agrawal and Devanur}}{{}}}
+\bibcite{almgren2001optimal}{{3}{2001}{{Almgren and Chriss}}{{}}}
+\bibcite{altman1999constrained}{{4}{1999}{{Altman}}{{}}}
+\bibcite{balseiro2023budget}{{5}{2024}{{Balseiro et~al.}}{{}}}
+\bibcite{chen2025predictive}{{6}{2025}{{Chen et~al.}}{{}}}
+\bibcite{durkin2025picnn}{{7}{2025}{{Durkin et~al.}}{{}}}
+\bibcite{gladstone2025ebt}{{8}{2025}{{Gladstone et~al.}}{{}}}
+\bibcite{ji2023safetygym}{{9}{2023}{{Ji et~al.}}{{Ji, Zhang, Zhou, Pan, Dai, Sun, Huang, Gong, Zhang, and Yang}}}
+\bibcite{lin2023trebi}{{10}{2023}{{Lin et~al.}}{{}}}
+\bibcite{windgym}{{11}{2025}{{Nilsen et~al.}}{{Nilsen, Quick, Simutis, and {\r A}strand}}}
+\@writefile{lot}{\contentsline {table}{\numberline {6}{\ignorespaces Hard guard ablation (3-turbine wind farm, $d\!=\!15$/200, $\eta =2$, $k=2$, gs=0.1, 10 episodes).}}{11}{table.caption.13}\protected@file@percent }
+\newlabel{tab:hard_guard}{{6}{11}{Hard guard ablation (3-turbine wind farm, $d\!=\!15$/200, $\eta =2$, $k=2$, gs=0.1, 10 episodes)}{table.caption.13}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {7}{\ignorespaces Predictors of $Q_c$ failure. Ensemble disagreement $\sigma (Q_c)$ tracks realized cost $\sim \!3\times $ more strongly than $\|\Delta a\|$.}}{11}{figure.caption.17}\protected@file@percent }
+\newlabel{fig:discriminator}{{7}{11}{Predictors of $Q_c$ failure. Ensemble disagreement $\sigma (Q_c)$ tracks realized cost $\sim \!3\times $ more strongly than $\|\Delta a\|$}{figure.caption.17}{}}
+\bibcite{ray2019safetygym}{{12}{2019}{{Ray et~al.}}{{Ray, Achiam, and Amodei}}}
+\bibcite{sootla2022saute}{{13}{2022}{{Sootla et~al.}}{{Sootla, Cowen-Rivers, Jafferjee, Wang, Mguni, Wang, and Ammar}}}
+\bibcite{stooke2020responsive}{{14}{2020}{{Stooke et~al.}}{{Stooke, Achiam, and Abbeel}}}
+\bibcite{urain2023composable}{{15}{2023}{{Urain et~al.}}{{Urain, Li, Liu, D'Eramo, and Peters}}}
+\bibcite{dijk2025load}{{16}{2025}{{van Dijk et~al.}}{{}}}
+\bibcite{xiao2023safediffuser}{{17}{2025}{{Xiao et~al.}}{{Xiao, Wang, Zhan, Ramamurthy, Hasani, and Rus}}}
+\bibcite{zhang2025constrained}{{18}{2025}{{Zhang et~al.}}{{}}}
+\bibstyle{plainnat}
+\@writefile{lot}{\contentsline {table}{\numberline {7}{\ignorespaces Pessimistic $Q_c$ on Safety Gym: ensemble $q$-quantile correction. Cost mean$\pm $SE, 50 episodes. No monotonic $q^*$ exists across budgets. ($q$ is the pessimism coefficient, unrelated to the scope predictor $\kappa $.)}}{12}{table.caption.19}\protected@file@percent }
+\newlabel{tab:pessimism}{{7}{12}{Pessimistic $Q_c$ on Safety Gym: ensemble $q$-quantile correction. Cost mean$\pm $SE, 50 episodes. No monotonic $q^*$ exists across budgets. ($q$ is the pessimism coefficient, unrelated to the scope predictor $\kappa $.)}{table.caption.19}{}}
+\gdef \@abspage@last{12}

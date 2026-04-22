@@ -47,6 +47,8 @@ class Args:
     yaw_step: float = 0.5     # Max yaw change per sim step (degrees)
     max_eps: int = 20         # Number of flow passthroughs per episode
     num_envs: int = 1         # Number of parallel environments
+    wind_timeseries_csv: Optional[str] = None   # Path to wind time series CSV (overrides random wind sampling)
+    wind_timeseries_random_start: bool = False  # Random start position in time series each episode
 
     # === Evaluation Settings ===
     eval_interval: int = 50000        # How often to evaluate (in env steps)
@@ -152,9 +154,15 @@ class Args:
     travel_budget_window: int = 100           # Rolling window size (env steps)
     travel_budget_steepness: float = 5.0      # Exponential wall steepness for travel budget
     per_turbine_thresholds: str = ""          # Comma-separated per-turbine yaw limits in degrees (for per_turbine surrogate)
-    load_surrogate_type: str = "exponential"  # Load surrogate type (exponential, threshold, per_turbine, t1_positive_only, relu, del_per_turbine, del_farm_max)
-    load_del_threshold_pct: float = 0.10      # DEL increase threshold (0.10 = 10% max increase over baseline)
+    load_surrogate_type: str = "exponential"  # exponential, threshold, per_turbine, t1_positive_only, neg_yaw_budget, relu, del_per_turbine, del_farm_max
+    load_del_threshold_pct: float = 0.10       # DEL increase threshold (0.10 = 10% max)
     load_del_penalty_type: str = "exponential" # DEL penalty shape: "exponential" or "quadratic"
+
+    # === Negative Yaw Budget (Almgren-Chriss) ===
+    neg_yaw_budget_hours: float = 5.0          # Negative yaw time budget per turbine (hours)
+    neg_yaw_horizon_hours: float = 8760.0      # Planning horizon (hours, 8760 = 1 year)
+    neg_yaw_risk_aversion: float = 1.0         # AC risk aversion (0=uniform, higher=concentrate spending)
+    neg_yaw_threshold_deg: float = 0.0         # Below this = "negative yaw" (degrees)
 
     # === Action Regularization (for delta actions) ===
     action_reg_weight: float = 0.0        # L2 penalty on action magnitude (encourages staying put)

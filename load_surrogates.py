@@ -351,204 +351,230 @@ class PositiveYawT1Surrogate(nn.Module):
         return per_turb.sum(dim=(-2, -1), keepdim=False).unsqueeze(-1)
 
 
-class QuadraticPositiveYawT1Surrogate(nn.Module):
+class NegativeYawBudgetSurrogate(nn.Module):
     """
-    Constrains T1 (index 0) to positive yaw using a quadratic penalty.
+    Almgren-Chriss-inspired cumulative negative yaw time budget.
 
-    Softer than PositiveYawT1Surrogate: the gradient is zero at the boundary
-    (a=0), so the constraint doesn't overwhelm the actor's energy near the
-    decision point. This lets the actor's learned landscape determine where
-    T1 settles in the positive region.
+    Tracks how many timesteps each turbine has spent at negative yaw
+    over the full episode. The penalty weight varies dynamically via
+    an Almgren-Chriss optimal execution analogy:
 
-    T1 penalty: scale * relu(-action_T1)^2
+        - Budget surplus (spent less than TWAP trajectory) → relax penalty
+        - Budget deficit (overspent relative to TWAP) → tighten penalty
+        - Budget nearly depleted → hard exponential wall
+
+    The risk_aversion parameter controls how aggressively the agent
+    concentrates negative-yaw usage in favorable conditions vs.
+    spreading it uniformly (TWAP baseline).
+
+    Almgren-Chriss mapping:
+        Shares to liquidate  →  negative-yaw time budget
+        Time horizon         →  episode length / planning horizon
+        Risk aversion λ      →  concentration vs. uniform spending
+        TWAP                 →  uniform spending (risk_aversion=0)
+        Market impact         →  load damage from negative yaw
+
+    CMDP connection:
+        λ(t) serves a similar role to the Lagrangian dual variable in
+        the constrained MDP formulation:
+            max E[Σ r(s,a)]  s.t.  E[Σ c(s,a)] ≤ B
+        where c(s,a) = 1[yaw < 0] and B = budget_steps.
+        Standard CMDP learns λ via dual gradient ascent (requires
+        retraining); this AC-inspired schedule provides a closed-form
+        alternative that adapts post-hoc without retraining. Note: the
+        functional form differs from the original Almgren-Chriss sinh
+        trajectory; it shares the same qualitative properties (tighten
+        when overspending, relax when underspending, TWAP at η=0).
+
+    Empirical properties (verified numerically in ac_theory.py):
+        - Monotonicity: cumulative spending ≤ budget for all t (enforced
+          by the hard wall backstop; verified 0 violations in 3000 trials)
+        - Continuity: λ(t) is continuous in (budget_remaining, time_remaining)
+        - Boundary: λ → 1e6 as budget → 0 (effective hard constraint)
+        - TWAP recovery: risk_aversion=0 → λ=1 ∀t (analytically exact)
+        - Regret: empirically, regret scales approximately as O(√T)
+          under i.i.d. benefits (not a proven bound)
+
+    Usage:
+        surrogate = NegativeYawBudgetSurrogate(
+            budget_steps=180, horizon_steps=3600, risk_aversion=1.0,
+        )
+        surrogate.reset()
+        # In episode loop:
+        action = agent.act(..., guidance_fn=surrogate, guidance_scale=1.0)
+        next_obs, reward, ... = env.step(action)
+        surrogate.update(yaw_angles_deg)
 
     Args:
-        scale: Penalty scaling factor (higher = stronger constraint)
-    """
-
-    def __init__(self, scale: float = 10.0):
-        super().__init__()
-        self.scale = scale
-
-    def per_turbine_energy(
-        self,
-        action: torch.Tensor,
-        key_padding_mask: Optional[torch.Tensor] = None,
-    ) -> torch.Tensor:
-        penalty = torch.zeros_like(action)
-        penalty[:, 0, :] = self.scale * F.relu(-action[:, 0, :]) ** 2
-        if key_padding_mask is not None:
-            mask = (~key_padding_mask).unsqueeze(-1).float()
-            penalty = penalty * mask
-        return penalty
-
-    def forward(
-        self,
-        action: torch.Tensor,
-        key_padding_mask: Optional[torch.Tensor] = None,
-    ) -> torch.Tensor:
-        per_turb = self.per_turbine_energy(action, key_padding_mask)
-        return per_turb.sum(dim=(-2, -1), keepdim=False).unsqueeze(-1)
-
-
-class LinearPositiveYawT1Surrogate(nn.Module):
-    """
-    Constrains T1 (index 0) to positive yaw using a linear penalty.
-
-    Intermediate between exponential (gradient explodes) and quadratic
-    (gradient starts at zero). Provides a constant gradient when T1 is
-    negative, proportional to the scale parameter.
-
-    T1 penalty: scale * relu(-action_T1)
-
-    Args:
-        scale: Penalty scaling factor (higher = stronger constraint)
-    """
-
-    def __init__(self, scale: float = 10.0):
-        super().__init__()
-        self.scale = scale
-
-    def per_turbine_energy(
-        self,
-        action: torch.Tensor,
-        key_padding_mask: Optional[torch.Tensor] = None,
-    ) -> torch.Tensor:
-        penalty = torch.zeros_like(action)
-        penalty[:, 0, :] = self.scale * F.relu(-action[:, 0, :])
-        if key_padding_mask is not None:
-            mask = (~key_padding_mask).unsqueeze(-1).float()
-            penalty = penalty * mask
-        return penalty
-
-    def forward(
-        self,
-        action: torch.Tensor,
-        key_padding_mask: Optional[torch.Tensor] = None,
-    ) -> torch.Tensor:
-        per_turb = self.per_turbine_energy(action, key_padding_mask)
-        return per_turb.sum(dim=(-2, -1), keepdim=False).unsqueeze(-1)
-
-
-class DELConstraintSurrogate(nn.Module):
-    """Constrain per-turbine DEL to within X% of a baseline reference.
-
-    Uses a PyTorch port of the ANN DEL surrogate with frozen sector-averaged
-    wind conditions as context. Only the yaw input carries gradients inside
-    the EBT optimization loop.
-
-    Two comparison modes:
-      "per_turbine": penalty_i when DEL_agent_i / DEL_baseline_i > 1 + threshold
-      "farm_max":    penalty_i when DEL_agent_i / max(DEL_baseline) > 1 + threshold
-
-    Two penalty shapes:
-      "exponential": exp(steepness * relu(ratio - (1+threshold))) - 1
-      "quadratic":   steepness * relu(ratio - (1+threshold))^2
-
-    Requires set_context() to be called each env step with the current
-    sector averages and baseline DELs from LoadWrapper.
+        budget_steps: Total allowed timesteps at negative yaw per turbine.
+        horizon_steps: Total episode / planning horizon in timesteps.
+        risk_aversion: Almgren-Chriss risk aversion. 0 = TWAP (constant
+            penalty regardless of budget state). Higher values produce
+            stronger reactions to budget deviations.
+        steepness: Exponential wall steepness for the base neg-yaw penalty.
+        yaw_max_deg: Max yaw angle for normalization (default 30°).
+        neg_yaw_threshold_deg: Yaw angles below this are "negative" (default 0°).
+        per_turbine_budgets: Optional per-turbine budget overrides. When
+            provided, each turbine gets its own budget (e.g., turbine 3
+            had a bearing replacement and gets more budget). Length must
+            match n_turbines at runtime.
     """
 
     def __init__(
         self,
-        torch_del_model: nn.Module,
-        mode: str = "per_turbine",
-        threshold_pct: float = 0.10,
+        budget_steps: int = 180,
+        horizon_steps: int = 3600,
+        risk_aversion: float = 1.0,
         steepness: float = 10.0,
-        penalty_type: str = "exponential",
         yaw_max_deg: float = 30.0,
-        pset: float = 1.0,
+        neg_yaw_threshold_deg: float = 0.0,
+        per_turbine_budgets: Optional[List[int]] = None,
+        schedule_type: str = "exp",
     ):
         super().__init__()
-        assert mode in ("per_turbine", "farm_max"), f"Unknown mode: {mode}"
-        assert penalty_type in ("exponential", "quadratic"), f"Unknown penalty_type: {penalty_type}"
-
-        self.torch_del_model = torch_del_model
-        self.mode = mode
-        self.threshold_pct = threshold_pct
+        self.budget_steps = budget_steps
+        self.horizon_steps = horizon_steps
+        self.risk_aversion = risk_aversion
         self.steepness = steepness
-        self.penalty_type = penalty_type
         self.yaw_max_deg = yaw_max_deg
-        self.pset = pset
+        self.neg_yaw_threshold = neg_yaw_threshold_deg / yaw_max_deg  # normalized
+        self.per_turbine_budgets = per_turbine_budgets  # None = uniform
+        self.schedule_type = schedule_type  # "exp" or "inverse" (1/u)
 
-        # Frozen context (set per env step, no gradient)
-        self._frozen_sector_avgs: Optional[torch.Tensor] = None   # (n_turb, 8)
-        self._frozen_baseline_dels: Optional[torch.Tensor] = None  # (n_turb,)
+        # State (managed by reset/update, not nn parameters)
+        self.current_step: int = 0
+        self.cumulative_neg_steps: Optional[torch.Tensor] = None  # (n_turbines, 1)
 
-    def set_context(
-        self,
-        sector_avgs: torch.Tensor,
-        baseline_dels: torch.Tensor,
-    ) -> None:
-        """Update frozen context after each env step.
+    def reset(self):
+        """Reset at episode boundaries."""
+        self.current_step = 0
+        self.cumulative_neg_steps = None
+
+    def update(self, action_deg: torch.Tensor):
+        """
+        Update budget tracking after an environment step.
 
         Args:
-            sector_avgs: (n_turbines, 8) — [saws_L, saws_R, saws_U, saws_D,
-                         sati_L, sati_R, sati_U, sati_D] in physical units.
-            baseline_dels: (n_turbines,) — DEL under baseline yaws.
+            action_deg: (n_turbines,) or (n_turbines, 1) yaw angles in degrees
         """
-        self._frozen_sector_avgs = sector_avgs.detach()
-        self._frozen_baseline_dels = baseline_dels.detach()
+        if action_deg.dim() == 1:
+            action_deg = action_deg.unsqueeze(-1)
+        action_norm = action_deg / self.yaw_max_deg
+
+        if self.cumulative_neg_steps is None:
+            self.cumulative_neg_steps = torch.zeros_like(action_norm)
+
+        is_negative = (action_norm < -self.neg_yaw_threshold).float()
+        self.cumulative_neg_steps = self.cumulative_neg_steps + is_negative
+        self.current_step += 1
+
+    def _get_budget_tensor(self) -> torch.Tensor:
+        """Get per-turbine budget as a tensor matching cumulative_neg_steps shape."""
+        if self.per_turbine_budgets is not None and self.cumulative_neg_steps is not None:
+            budgets = torch.tensor(
+                self.per_turbine_budgets, dtype=torch.float32,
+                device=self.cumulative_neg_steps.device,
+            ).unsqueeze(-1)  # (n_turbines, 1)
+            return budgets
+        return torch.tensor(float(self.budget_steps))
+
+    def _compute_lambda(self) -> torch.Tensor:
+        """
+        Compute per-turbine Almgren-Chriss-inspired penalty weight.
+
+        The weight modulates how strongly negative yaw is penalized based
+        on remaining budget and remaining time. Derived from the optimal
+        execution analogy: urgency = budget_fraction / time_fraction.
+
+        The AC-inspired weight serves a similar role to a time-dependent
+        Lagrangian dual variable λ(t) for the cumulative constraint
+        E[Σ c(s,a)] ≤ B. Where standard CMDP learns λ via dual gradient
+        ascent (requiring retraining), this provides a closed-form
+        schedule that adapts post-hoc.
+
+        Returns:
+            (n_turbines, 1) or scalar penalty multiplier
+        """
+        if self.cumulative_neg_steps is None:
+            return torch.ones(1)
+
+        eps = 1e-6
+        budget_total = self._get_budget_tensor()
+        budget_remaining = (budget_total - self.cumulative_neg_steps).clamp(min=0)
+        time_remaining = max(self.horizon_steps - self.current_step, 1)
+
+        budget_fraction = budget_remaining / budget_total.clamp(min=1)
+        time_fraction = time_remaining / max(self.horizon_steps, 1)
+
+        # Urgency: >1 = surplus (spent less than expected), <1 = deficit
+        urgency = budget_fraction / max(time_fraction, eps)
+
+        safe_urgency = urgency.clamp(min=eps)
+        if self.schedule_type == "inverse":
+            # Theoretically optimal under Boltzmann response: w*(u) = u^{-eta}
+            # At eta=1 this is exactly 1/u. At eta=0 this is 1 (TWAP).
+            ac_weight = safe_urgency.pow(-self.risk_aversion)
+        else:
+            # Practical approximation: exp(eta * (1/u - 1))
+            # Matches 1/u to first order at u=1, better numerics near u=0
+            ac_weight = torch.exp(self.risk_aversion * (1.0 / safe_urgency - 1.0))
+
+        # Hard wall backstop when budget < 5% remaining
+        depletion = F.relu(1.0 - budget_fraction / 0.05)
+        hard_wall = torch.exp(self.steepness * depletion)
+
+        # Clamp to prevent inf (gradient-based optimizers need finite values)
+        return (ac_weight * hard_wall).clamp(max=1e6)
+
+    @property
+    def budget_utilization(self) -> Optional[torch.Tensor]:
+        """Fraction of budget consumed per turbine. None before first update."""
+        if self.cumulative_neg_steps is None:
+            return None
+        budget_total = self._get_budget_tensor()
+        return (self.cumulative_neg_steps / budget_total.clamp(min=1)).clamp(max=1.0)
+
+    @property
+    def budget_remaining_steps(self) -> Optional[torch.Tensor]:
+        """Remaining budget per turbine in timesteps. None before first update."""
+        if self.cumulative_neg_steps is None:
+            return None
+        budget_total = self._get_budget_tensor()
+        return (budget_total - self.cumulative_neg_steps).clamp(min=0)
+
+    @property
+    def time_fraction_remaining(self) -> float:
+        """Fraction of horizon remaining."""
+        return max(self.horizon_steps - self.current_step, 0) / max(self.horizon_steps, 1)
 
     def per_turbine_energy(
         self,
         action: torch.Tensor,
         key_padding_mask: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
-        """Per-turbine DEL penalty energy.
+        """
+        Per-turbine penalty for negative yaw, modulated by AC weight.
+
+        penalty_i = lambda_i(t) * (exp(k * relu(-action_i - threshold)) - 1)
 
         Args:
-            action: (batch, n_turbines, 1) in [-1, 1] normalised action space
+            action: (batch, n_turbines, action_dim) in [-1, 1] normalized
             key_padding_mask: (batch, n_turbines) True = padding
 
         Returns:
-            (batch, n_turbines, 1) penalty energy per turbine
+            (batch, n_turbines, 1) penalty
         """
-        if self._frozen_sector_avgs is None or self._frozen_baseline_dels is None:
-            return torch.zeros_like(action)
+        neg_excess = F.relu(-action - self.neg_yaw_threshold)
+        base_penalty = torch.exp(self.steepness * neg_excess) - 1.0
 
-        batch, n_turb, _ = action.shape
-        device = action.device
-
-        # Convert normalised action to yaw degrees (only this carries gradient)
-        yaw_deg = action * self.yaw_max_deg  # (batch, n_turb, 1)
-
-        # Frozen context: broadcast to batch dimension
-        sector = self._frozen_sector_avgs.to(device)  # (n_turb, 8)
-        sector_batch = sector.unsqueeze(0).expand(batch, -1, -1)  # (batch, n_turb, 8)
-
-        pset_batch = torch.full(
-            (batch, n_turb, 1), self.pset, device=device, dtype=action.dtype
-        )
-
-        # Build 10-d input: [saws(4), sati(4), pset, yaw]
-        model_input = torch.cat([sector_batch, pset_batch, yaw_deg], dim=-1)
-
-        # Predict DEL — reshape to (batch*n_turb, 10) for the model
-        flat_input = model_input.reshape(-1, 10)
-        flat_del = self.torch_del_model(flat_input)  # (batch*n_turb, 1)
-        del_agent = flat_del.reshape(batch, n_turb, 1)
-
-        # Reference DEL
-        baseline = self._frozen_baseline_dels.to(device)
-        if self.mode == "per_turbine":
-            del_ref = baseline.unsqueeze(0).unsqueeze(-1)  # (1, n_turb, 1)
-        else:  # farm_max
-            del_ref = baseline.max().view(1, 1, 1)
-
-        # Ratio and penalty
-        ratio = del_agent / del_ref.clamp(min=1e-6)
-        excess = F.relu(ratio - (1.0 + self.threshold_pct))
-
-        if self.penalty_type == "exponential":
-            penalty = torch.exp(self.steepness * excess) - 1.0
-        else:  # quadratic
-            penalty = self.steepness * excess ** 2
+        ac_lambda = self._compute_lambda().to(action.device)
+        if ac_lambda.dim() >= 2 and action.dim() == 3:
+            ac_lambda = ac_lambda.unsqueeze(0)  # (1, n_turbines, 1)
+        penalty = ac_lambda * base_penalty
 
         if key_padding_mask is not None:
             mask = (~key_padding_mask).unsqueeze(-1).float()
             penalty = penalty * mask
-
         return penalty
 
     def forward(
@@ -556,7 +582,7 @@ class DELConstraintSurrogate(nn.Module):
         action: torch.Tensor,
         key_padding_mask: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
-        """Scalar version. Returns (batch, 1)."""
+        """Scalar version for diffusion guidance. Returns (batch, 1)."""
         per_turb = self.per_turbine_energy(action, key_padding_mask)
         return per_turb.sum(dim=(-2, -1), keepdim=False).unsqueeze(-1)
 
@@ -566,15 +592,12 @@ class DELConstraintSurrogate(nn.Module):
 # =============================================================================
 
 VALID_LOAD_SURROGATE_TYPES = [
-    "exponential",           # ExponentialYawSurrogate — uniform |yaw| threshold
-    "threshold",             # YawThresholdLoadSurrogate — quadratic penalty
-    "per_turbine",           # PerTurbineYawSurrogate — heterogeneous thresholds
-    "t1_positive_only",      # PositiveYawT1Surrogate — T1 positive yaw (exponential)
-    "t1_positive_quadratic", # QuadraticPositiveYawT1Surrogate — T1 positive (quadratic)
-    "t1_positive_linear",    # LinearPositiveYawT1Surrogate — T1 positive (linear)
-    "relu",                  # ReluLoadSurrogate — proof-of-concept
-    "del_per_turbine",       # DELConstraintSurrogate — per-turbine DEL comparison
-    "del_farm_max",          # DELConstraintSurrogate — farm-max DEL comparison
+    "exponential",        # ExponentialYawSurrogate — uniform |yaw| threshold
+    "threshold",          # YawThresholdLoadSurrogate — quadratic penalty
+    "per_turbine",        # PerTurbineYawSurrogate — heterogeneous thresholds
+    "t1_positive_only",   # PositiveYawT1Surrogate — T1 positive yaw only
+    "neg_yaw_budget",     # NegativeYawBudgetSurrogate — Almgren-Chriss neg yaw budget
+    "relu",               # ReluLoadSurrogate — proof-of-concept
 ]
 
 
@@ -584,47 +607,29 @@ def create_load_surrogate(
     threshold_deg: float = 15.0,
     yaw_max_deg: float = 30.0,
     per_turbine_thresholds: str = "",
-    del_model_dir: str = "",
-    del_threshold_pct: float = 0.10,
-    del_penalty_type: str = "exponential",
+    neg_yaw_budget_steps: int = 180,
+    neg_yaw_horizon_steps: int = 3600,
+    neg_yaw_risk_aversion: float = 1.0,
+    neg_yaw_threshold_deg: float = 0.0,
 ) -> nn.Module:
     """Factory function for load surrogates.
 
     Args:
         surrogate_type: One of VALID_LOAD_SURROGATE_TYPES.
-        steepness: Exponential wall steepness or penalty scale factor.
+        steepness: Exponential wall steepness (used by exponential, per_turbine, t1_positive_only, neg_yaw_budget).
         threshold_deg: Yaw threshold in degrees (used by exponential, threshold).
         yaw_max_deg: Max yaw angle for normalization (default 30°).
-        per_turbine_thresholds: Comma-separated per-turbine limits in degrees.
-        del_model_dir: Path to surrogate/ directory (for del_* types).
-        del_threshold_pct: DEL increase threshold as fraction (e.g. 0.10 = 10%).
-        del_penalty_type: "exponential" or "quadratic" (for del_* types).
+        per_turbine_thresholds: Comma-separated per-turbine limits in degrees (used by per_turbine).
+        neg_yaw_budget_steps: Total allowed neg-yaw timesteps (used by neg_yaw_budget).
+        neg_yaw_horizon_steps: Planning horizon in timesteps (used by neg_yaw_budget).
+        neg_yaw_risk_aversion: AC risk aversion param (used by neg_yaw_budget).
+        neg_yaw_threshold_deg: Below this = "negative yaw" (used by neg_yaw_budget).
     """
     if surrogate_type not in VALID_LOAD_SURROGATE_TYPES:
         raise ValueError(
             f"Unknown load_surrogate_type={surrogate_type!r}. "
             f"Valid: {VALID_LOAD_SURROGATE_TYPES}"
         )
-
-    if surrogate_type.startswith("del_"):
-        from pathlib import Path
-        from helpers.surrogate_loads import TorchDELSurrogate
-        model_dir = Path(del_model_dir)
-        torch_del = TorchDELSurrogate.from_keras(
-            model_dir / "models" / "ann_dlc12_out_wrot_Bl1Rad0FlpMnt_rank1.keras",
-            model_dir / "scalers" / "scaler_input_DLC12_wrot_Bl1Rad0FlpMnt.pkl",
-            model_dir / "scalers" / "scaler_output_DLC12_wrot_Bl1Rad0FlpMnt.pkl",
-        )
-        mode = "per_turbine" if surrogate_type == "del_per_turbine" else "farm_max"
-        return DELConstraintSurrogate(
-            torch_del_model=torch_del,
-            mode=mode,
-            threshold_pct=del_threshold_pct,
-            steepness=steepness,
-            penalty_type=del_penalty_type,
-            yaw_max_deg=yaw_max_deg,
-        )
-
     if surrogate_type == "exponential":
         return ExponentialYawSurrogate(threshold_deg, yaw_max_deg, steepness)
     elif surrogate_type == "threshold":
@@ -634,10 +639,15 @@ def create_load_surrogate(
         return PerTurbineYawSurrogate(thresholds, yaw_max_deg, steepness)
     elif surrogate_type == "t1_positive_only":
         return PositiveYawT1Surrogate(steepness)
-    elif surrogate_type == "t1_positive_quadratic":
-        return QuadraticPositiveYawT1Surrogate(steepness)
-    elif surrogate_type == "t1_positive_linear":
-        return LinearPositiveYawT1Surrogate(steepness)
+    elif surrogate_type == "neg_yaw_budget":
+        return NegativeYawBudgetSurrogate(
+            budget_steps=neg_yaw_budget_steps,
+            horizon_steps=neg_yaw_horizon_steps,
+            risk_aversion=neg_yaw_risk_aversion,
+            steepness=steepness,
+            yaw_max_deg=yaw_max_deg,
+            neg_yaw_threshold_deg=neg_yaw_threshold_deg,
+        )
     elif surrogate_type == "relu":
         return ReluLoadSurrogate()
     raise ValueError(f"Unhandled surrogate_type={surrogate_type!r}")

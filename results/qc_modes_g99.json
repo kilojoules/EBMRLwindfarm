@@ -1,0 +1,371 @@
+{
+  "unconstrained": {
+    "reward": 26.678260569799534,
+    "reward_std": 1.0567484778342973,
+    "cost": 59.5,
+    "cost_std": 50.18515716823053,
+    "budget": 1000,
+    "utilization": 5.95,
+    "goal_rate": 100.0
+  },
+  "B10_ra0.0_none": {
+    "reward": 27.279253663464402,
+    "reward_std": 0.9898267115855381,
+    "cost": 58.55,
+    "cost_std": 30.404728250717852,
+    "budget": 10,
+    "utilization": 585.5,
+    "goal_rate": 100.0,
+    "pct_unconstrained": 102.25274467236146
+  },
+  "B10_ra0.0_grad": {
+    "reward": 26.047447143738395,
+    "reward_std": 1.22420086556456,
+    "cost": 53.75,
+    "cost_std": 34.10113634470265,
+    "budget": 10,
+    "utilization": 537.5,
+    "goal_rate": 100.0,
+    "pct_unconstrained": 97.63547767887373
+  },
+  "B10_ra0.0_sample": {
+    "reward": 25.813528381024657,
+    "reward_std": 1.9019691507667973,
+    "cost": 47.7,
+    "cost_std": 24.484893301789167,
+    "budget": 10,
+    "utilization": 477.0,
+    "goal_rate": 100.0,
+    "pct_unconstrained": 96.75866353238271
+  },
+  "B10_ra2.0_none": {
+    "reward": 27.578217381664132,
+    "reward_std": 0.9491350880760557,
+    "cost": 49.2,
+    "cost_std": 35.50154926196884,
+    "budget": 10,
+    "utilization": 492.0,
+    "goal_rate": 100.0,
+    "pct_unconstrained": 103.37337139919599
+  },
+  "B10_ra2.0_grad": {
+    "reward": 26.17351801592526,
+    "reward_std": 1.0759485405148201,
+    "cost": 45.55,
+    "cost_std": 34.373645427856495,
+    "budget": 10,
+    "utilization": 455.5,
+    "goal_rate": 100.0,
+    "pct_unconstrained": 98.1080379938801
+  },
+  "B10_ra2.0_sample": {
+    "reward": 25.47918348638236,
+    "reward_std": 2.038947402322044,
+    "cost": 55.75,
+    "cost_std": 39.843286762012994,
+    "budget": 10,
+    "utilization": 557.5,
+    "goal_rate": 100.0,
+    "pct_unconstrained": 95.50541505402883
+  },
+  "B10_ra5.0_none": {
+    "reward": 26.386991490612314,
+    "reward_std": 2.3219359262565225,
+    "cost": 49.35,
+    "cost_std": 33.90468256745667,
+    "budget": 10,
+    "utilization": 493.5,
+    "goal_rate": 100.0,
+    "pct_unconstrained": 98.90821562963163
+  },
+  "B10_ra5.0_grad": {
+    "reward": 26.12658813299752,
+    "reward_std": 1.1068299087387925,
+    "cost": 40.55,
+    "cost_std": 24.405890682374206,
+    "budget": 10,
+    "utilization": 405.49999999999994,
+    "goal_rate": 100.0,
+    "pct_unconstrained": 97.93212741378453
+  },
+  "B10_ra5.0_sample": {
+    "reward": 26.243947580407145,
+    "reward_std": 1.4904567161932083,
+    "cost": 39.55,
+    "cost_std": 37.878060932418386,
+    "budget": 10,
+    "utilization": 395.49999999999994,
+    "goal_rate": 100.0,
+    "pct_unconstrained": 98.3720340827466
+  },
+  "B25_ra0.0_none": {
+    "reward": 26.931928250197927,
+    "reward_std": 1.243469733475182,
+    "cost": 52.75,
+    "cost_std": 35.50897773803126,
+    "budget": 25,
+    "utilization": 211.0,
+    "goal_rate": 100.0,
+    "pct_unconstrained": 100.95084040331156
+  },
+  "B25_ra0.0_grad": {
+    "reward": 26.469653056459528,
+    "reward_std": 1.076529974122779,
+    "cost": 49.5,
+    "cost_std": 34.718150872418306,
+    "budget": 25,
+    "utilization": 198.0,
+    "goal_rate": 100.0,
+    "pct_unconstrained": 99.21806178932013
+  },
+  "B25_ra0.0_sample": {
+    "reward": 26.139492748516528,
+    "reward_std": 1.284457636157133,
+    "cost": 40.45,
+    "cost_std": 32.20943184845085,
+    "budget": 25,
+    "utilization": 161.8,
+    "goal_rate": 100.0,
+    "pct_unconstrained": 97.98049869153424
+  },
+  "B25_ra2.0_none": {
+    "reward": 26.804802765882,
+    "reward_std": 0.7742134158524053,
+    "cost": 39.7,
+    "cost_std": 30.744267758396848,
+    "budget": 25,
+    "utilization": 158.8,
+    "goal_rate": 100.0,
+    "pct_unconstrained": 100.47432701150582
+  },
+  "B25_ra2.0_grad": {
+    "reward": 26.332201567112094,
+    "reward_std": 1.421265279120649,
+    "cost": 44.05,
+    "cost_std": 30.5229012382506,
+    "budget": 25,
+    "utilization": 176.2,
+    "goal_rate": 100.0,
+    "pct_unconstrained": 98.70284270677232
+  },
+  "B25_ra2.0_sample": {
+    "reward": 25.83953335987448,
+    "reward_std": 1.2126873177342252,
+    "cost": 51.9,
+    "cost_std": 35.63972502699762,
+    "budget": 25,
+    "utilization": 207.6,
+    "goal_rate": 100.0,
+    "pct_unconstrained": 96.8561398231693
+  },
+  "B25_ra5.0_none": {
+    "reward": 26.509471884980684,
+    "reward_std": 0.8795836099566499,
+    "cost": 46.6,
+    "cost_std": 34.54909550190859,
+    "budget": 25,
+    "utilization": 186.4,
+    "goal_rate": 100.0,
+    "pct_unconstrained": 99.36731750416321
+  },
+  "B25_ra5.0_grad": {
+    "reward": 26.71193467887751,
+    "reward_std": 1.843653187950091,
+    "cost": 40.95,
+    "cost_std": 27.17071033300381,
+    "budget": 25,
+    "utilization": 163.8,
+    "goal_rate": 100.0,
+    "pct_unconstrained": 100.12622303088267
+  },
+  "B25_ra5.0_sample": {
+    "reward": 25.930377944010708,
+    "reward_std": 1.5273377815810738,
+    "cost": 54.6,
+    "cost_std": 38.100393698753294,
+    "budget": 25,
+    "utilization": 218.4,
+    "goal_rate": 100.0,
+    "pct_unconstrained": 97.1966589657069
+  },
+  "B40_ra0.0_none": {
+    "reward": 27.05690980028365,
+    "reward_std": 1.3722499301607327,
+    "cost": 48.5,
+    "cost_std": 35.18451363881559,
+    "budget": 40,
+    "utilization": 121.25,
+    "goal_rate": 100.0,
+    "pct_unconstrained": 101.41931753568954
+  },
+  "B40_ra0.0_grad": {
+    "reward": 25.786477384885927,
+    "reward_std": 2.009183760751935,
+    "cost": 33.05,
+    "cost_std": 28.639963337965362,
+    "budget": 40,
+    "utilization": 82.62499999999999,
+    "goal_rate": 100.0,
+    "pct_unconstrained": 96.65726638144045
+  },
+  "B40_ra0.0_sample": {
+    "reward": 26.897062296269667,
+    "reward_std": 1.3028205278107732,
+    "cost": 43.45,
+    "cost_std": 36.85033921146452,
+    "budget": 40,
+    "utilization": 108.625,
+    "goal_rate": 100.0,
+    "pct_unconstrained": 100.82014989657094
+  },
+  "B40_ra2.0_none": {
+    "reward": 27.011035644171507,
+    "reward_std": 1.0807033205928214,
+    "cost": 46.65,
+    "cost_std": 37.66334424875199,
+    "budget": 40,
+    "utilization": 116.625,
+    "goal_rate": 100.0,
+    "pct_unconstrained": 101.24736421065128
+  },
+  "B40_ra2.0_grad": {
+    "reward": 26.43649047604344,
+    "reward_std": 1.1885297367198966,
+    "cost": 48.1,
+    "cost_std": 26.986848648925278,
+    "budget": 40,
+    "utilization": 120.25,
+    "goal_rate": 100.0,
+    "pct_unconstrained": 99.0937561572894
+  },
+  "B40_ra2.0_sample": {
+    "reward": 26.404452697581924,
+    "reward_std": 1.6323362903045042,
+    "cost": 50.6,
+    "cost_std": 32.610427780082865,
+    "budget": 40,
+    "utilization": 126.5,
+    "goal_rate": 100.0,
+    "pct_unconstrained": 98.9736666995165
+  },
+  "B40_ra5.0_none": {
+    "reward": 26.740056387384993,
+    "reward_std": 0.9725172631358916,
+    "cost": 49.35,
+    "cost_std": 29.56395609521838,
+    "budget": 40,
+    "utilization": 123.375,
+    "goal_rate": 100.0,
+    "pct_unconstrained": 100.23163360828484
+  },
+  "B40_ra5.0_grad": {
+    "reward": 26.611055448624125,
+    "reward_std": 1.158796299400095,
+    "cost": 55.2,
+    "cost_std": 28.02427519134081,
+    "budget": 40,
+    "utilization": 138.0,
+    "goal_rate": 100.0,
+    "pct_unconstrained": 99.74809031870883
+  },
+  "B40_ra5.0_sample": {
+    "reward": 26.355865722480598,
+    "reward_std": 1.1419082006653114,
+    "cost": 45.8,
+    "cost_std": 29.277294957014046,
+    "budget": 40,
+    "utilization": 114.5,
+    "goal_rate": 100.0,
+    "pct_unconstrained": 98.79154472430675
+  },
+  "B59_ra0.0_none": {
+    "reward": 27.161850704503784,
+    "reward_std": 1.1601663349417328,
+    "cost": 33.4,
+    "cost_std": 26.702808841018953,
+    "budget": 59,
+    "utilization": 56.610169491525426,
+    "goal_rate": 100.0,
+    "pct_unconstrained": 101.81267490599326
+  },
+  "B59_ra0.0_grad": {
+    "reward": 26.80088732172303,
+    "reward_std": 1.323532038950902,
+    "cost": 42.8,
+    "cost_std": 27.825527847643787,
+    "budget": 59,
+    "utilization": 72.54237288135593,
+    "goal_rate": 100.0,
+    "pct_unconstrained": 100.45965047684673
+  },
+  "B59_ra0.0_sample": {
+    "reward": 26.484697643387456,
+    "reward_std": 1.0635275893882676,
+    "cost": 53.8,
+    "cost_std": 38.46894851695325,
+    "budget": 59,
+    "utilization": 91.1864406779661,
+    "goal_rate": 100.0,
+    "pct_unconstrained": 99.27445447237594
+  },
+  "B59_ra2.0_none": {
+    "reward": 26.68606085562458,
+    "reward_std": 1.2750755267940594,
+    "cost": 47.2,
+    "cost_std": 47.24891533146555,
+    "budget": 59,
+    "utilization": 80.0,
+    "goal_rate": 100.0,
+    "pct_unconstrained": 100.02923835984222
+  },
+  "B59_ra2.0_grad": {
+    "reward": 26.992015844085195,
+    "reward_std": 1.1032035100589141,
+    "cost": 47.3,
+    "cost_std": 39.26206820838657,
+    "budget": 59,
+    "utilization": 80.16949152542372,
+    "goal_rate": 100.0,
+    "pct_unconstrained": 101.17607095659318
+  },
+  "B59_ra2.0_sample": {
+    "reward": 26.470690669860886,
+    "reward_std": 1.1168146100985739,
+    "cost": 46.7,
+    "cost_std": 39.330776753072136,
+    "budget": 59,
+    "utilization": 79.15254237288136,
+    "goal_rate": 100.0,
+    "pct_unconstrained": 99.22195114859318
+  },
+  "B59_ra5.0_none": {
+    "reward": 27.249488379992215,
+    "reward_std": 1.39722938297481,
+    "cost": 59.45,
+    "cost_std": 43.70981011169003,
+    "budget": 59,
+    "utilization": 100.76271186440678,
+    "goal_rate": 100.0,
+    "pct_unconstrained": 102.14117336734962
+  },
+  "B59_ra5.0_grad": {
+    "reward": 26.2943382490512,
+    "reward_std": 1.0104600175375331,
+    "cost": 48.8,
+    "cost_std": 37.233855561840485,
+    "budget": 59,
+    "utilization": 82.71186440677967,
+    "goal_rate": 100.0,
+    "pct_unconstrained": 98.56091696929094
+  },
+  "B59_ra5.0_sample": {
+    "reward": 26.499384218984765,
+    "reward_std": 1.6218919447842057,
+    "cost": 38.1,
+    "cost_std": 26.370248387150244,
+    "budget": 59,
+    "utilization": 64.57627118644068,
+    "goal_rate": 100.0,
+    "pct_unconstrained": 99.32950519638727
+  }
+}

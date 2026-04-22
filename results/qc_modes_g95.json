@@ -1,0 +1,371 @@
+{
+  "unconstrained": {
+    "reward": 26.883032393643127,
+    "reward_std": 1.5071352547963226,
+    "cost": 48.6,
+    "cost_std": 25.877403270034648,
+    "budget": 1000,
+    "utilization": 4.86,
+    "goal_rate": 100.0
+  },
+  "B10_ra0.0_none": {
+    "reward": 27.022320789134636,
+    "reward_std": 1.0324347079397846,
+    "cost": 41.65,
+    "cost_std": 34.00334542364913,
+    "budget": 10,
+    "utilization": 416.5,
+    "goal_rate": 100.0,
+    "pct_unconstrained": 100.51812754399108
+  },
+  "B10_ra0.0_grad": {
+    "reward": 26.18362048344241,
+    "reward_std": 1.2448019471074918,
+    "cost": 42.55,
+    "cost_std": 35.423826727218504,
+    "budget": 10,
+    "utilization": 425.5,
+    "goal_rate": 100.0,
+    "pct_unconstrained": 97.39831466941912
+  },
+  "B10_ra0.0_sample": {
+    "reward": 25.72958532683961,
+    "reward_std": 1.2212272745188735,
+    "cost": 42.4,
+    "cost_std": 37.4545057369604,
+    "budget": 10,
+    "utilization": 424.0,
+    "goal_rate": 100.0,
+    "pct_unconstrained": 95.70938631507856
+  },
+  "B10_ra2.0_none": {
+    "reward": 27.17476261377796,
+    "reward_std": 0.9514953468889328,
+    "cost": 41.1,
+    "cost_std": 26.39299149395536,
+    "budget": 10,
+    "utilization": 411.0,
+    "goal_rate": 100.0,
+    "pct_unconstrained": 101.08518345647576
+  },
+  "B10_ra2.0_grad": {
+    "reward": 25.783402184371674,
+    "reward_std": 1.0448405493270438,
+    "cost": 56.1,
+    "cost_std": 36.55803605228268,
+    "budget": 10,
+    "utilization": 561.0,
+    "goal_rate": 100.0,
+    "pct_unconstrained": 95.90957525486792
+  },
+  "B10_ra2.0_sample": {
+    "reward": 25.46901944111102,
+    "reward_std": 1.6367018948159813,
+    "cost": 52.25,
+    "cost_std": 27.860141779969464,
+    "budget": 10,
+    "utilization": 522.5,
+    "goal_rate": 100.0,
+    "pct_unconstrained": 94.74012852483683
+  },
+  "B10_ra5.0_none": {
+    "reward": 26.710704723313718,
+    "reward_std": 0.988489366830064,
+    "cost": 32.95,
+    "cost_std": 30.223293996518652,
+    "budget": 10,
+    "utilization": 329.50000000000006,
+    "goal_rate": 100.0,
+    "pct_unconstrained": 99.35897235175688
+  },
+  "B10_ra5.0_grad": {
+    "reward": 26.256394704570404,
+    "reward_std": 1.0463467621226226,
+    "cost": 63.0,
+    "cost_std": 56.87793948447851,
+    "budget": 10,
+    "utilization": 630.0,
+    "goal_rate": 100.0,
+    "pct_unconstrained": 97.66902156015368
+  },
+  "B10_ra5.0_sample": {
+    "reward": 26.140273397369924,
+    "reward_std": 1.1920836190661903,
+    "cost": 43.65,
+    "cost_std": 27.921810471385985,
+    "budget": 10,
+    "utilization": 436.5,
+    "goal_rate": 100.0,
+    "pct_unconstrained": 97.2370713787153
+  },
+  "B25_ra0.0_none": {
+    "reward": 27.201150146222556,
+    "reward_std": 1.2687628812894378,
+    "cost": 55.95,
+    "cost_std": 32.80163867857824,
+    "budget": 25,
+    "utilization": 223.8,
+    "goal_rate": 100.0,
+    "pct_unconstrained": 101.18334028662129
+  },
+  "B25_ra0.0_grad": {
+    "reward": 26.72147600594107,
+    "reward_std": 1.4049887238053391,
+    "cost": 41.85,
+    "cost_std": 26.000528840775527,
+    "budget": 25,
+    "utilization": 167.4,
+    "goal_rate": 100.0,
+    "pct_unconstrained": 99.39903956764842
+  },
+  "B25_ra0.0_sample": {
+    "reward": 26.48394062122899,
+    "reward_std": 1.5214929884601924,
+    "cost": 38.4,
+    "cost_std": 29.705891671518632,
+    "budget": 25,
+    "utilization": 153.6,
+    "goal_rate": 100.0,
+    "pct_unconstrained": 98.51545106009503
+  },
+  "B25_ra2.0_none": {
+    "reward": 26.5873166214577,
+    "reward_std": 0.9365497148798317,
+    "cost": 46.95,
+    "cost_std": 33.21667502926806,
+    "budget": 25,
+    "utilization": 187.8,
+    "goal_rate": 100.0,
+    "pct_unconstrained": 98.89999101345667
+  },
+  "B25_ra2.0_grad": {
+    "reward": 26.027944811026106,
+    "reward_std": 1.072736516442375,
+    "cost": 42.65,
+    "cost_std": 34.377718074357404,
+    "budget": 25,
+    "utilization": 170.6,
+    "goal_rate": 100.0,
+    "pct_unconstrained": 96.81922943031077
+  },
+  "B25_ra2.0_sample": {
+    "reward": 26.66862421707038,
+    "reward_std": 1.1441418936663952,
+    "cost": 29.25,
+    "cost_std": 22.710955506098813,
+    "budget": 25,
+    "utilization": 117.0,
+    "goal_rate": 100.0,
+    "pct_unconstrained": 99.20244050807511
+  },
+  "B25_ra5.0_none": {
+    "reward": 26.43522867447202,
+    "reward_std": 0.9742073423696956,
+    "cost": 53.55,
+    "cost_std": 37.131489331832626,
+    "budget": 25,
+    "utilization": 214.2,
+    "goal_rate": 100.0,
+    "pct_unconstrained": 98.3342514616134
+  },
+  "B25_ra5.0_grad": {
+    "reward": 26.57231102942443,
+    "reward_std": 1.362991159449021,
+    "cost": 44.55,
+    "cost_std": 38.567440931438526,
+    "budget": 25,
+    "utilization": 178.2,
+    "goal_rate": 100.0,
+    "pct_unconstrained": 98.84417293529665
+  },
+  "B25_ra5.0_sample": {
+    "reward": 26.26280178014636,
+    "reward_std": 1.0598271262480927,
+    "cost": 38.8,
+    "cost_std": 25.709142342754262,
+    "budget": 25,
+    "utilization": 155.2,
+    "goal_rate": 100.0,
+    "pct_unconstrained": 97.69285471811793
+  },
+  "B40_ra0.0_none": {
+    "reward": 26.541539950312607,
+    "reward_std": 1.5129221218162128,
+    "cost": 39.4,
+    "cost_std": 34.3997093010973,
+    "budget": 40,
+    "utilization": 98.5,
+    "goal_rate": 100.0,
+    "pct_unconstrained": 98.72971010736397
+  },
+  "B40_ra0.0_grad": {
+    "reward": 26.52259626603082,
+    "reward_std": 1.489611119307921,
+    "cost": 44.4,
+    "cost_std": 37.136774227172715,
+    "budget": 40,
+    "utilization": 111.0,
+    "goal_rate": 100.0,
+    "pct_unconstrained": 98.65924304098395
+  },
+  "B40_ra0.0_sample": {
+    "reward": 26.921551120784716,
+    "reward_std": 0.9949987962035568,
+    "cost": 52.25,
+    "cost_std": 39.93729460041078,
+    "budget": 40,
+    "utilization": 130.625,
+    "goal_rate": 100.0,
+    "pct_unconstrained": 100.14328267204966
+  },
+  "B40_ra2.0_none": {
+    "reward": 26.597033119776967,
+    "reward_std": 1.158991075781272,
+    "cost": 41.6,
+    "cost_std": 29.085047704963454,
+    "budget": 40,
+    "utilization": 104.0,
+    "goal_rate": 100.0,
+    "pct_unconstrained": 98.9361346232139
+  },
+  "B40_ra2.0_grad": {
+    "reward": 26.51903902019557,
+    "reward_std": 1.2014836374421907,
+    "cost": 48.5,
+    "cost_std": 28.800173610587837,
+    "budget": 40,
+    "utilization": 121.25,
+    "goal_rate": 100.0,
+    "pct_unconstrained": 98.64601073228023
+  },
+  "B40_ra2.0_sample": {
+    "reward": 26.485885411755863,
+    "reward_std": 1.0251793814037815,
+    "cost": 40.75,
+    "cost_std": 30.3082084590957,
+    "budget": 40,
+    "utilization": 101.875,
+    "goal_rate": 100.0,
+    "pct_unconstrained": 98.52268532778625
+  },
+  "B40_ra5.0_none": {
+    "reward": 26.959824526899432,
+    "reward_std": 0.934787004221117,
+    "cost": 54.85,
+    "cost_std": 36.90023712660936,
+    "budget": 40,
+    "utilization": 137.125,
+    "goal_rate": 100.0,
+    "pct_unconstrained": 100.2856527944164
+  },
+  "B40_ra5.0_grad": {
+    "reward": 26.626271954813564,
+    "reward_std": 1.4410871446314133,
+    "cost": 36.25,
+    "cost_std": 25.606395685453272,
+    "budget": 40,
+    "utilization": 90.625,
+    "goal_rate": 100.0,
+    "pct_unconstrained": 99.04489778135938
+  },
+  "B40_ra5.0_sample": {
+    "reward": 26.146150411371174,
+    "reward_std": 1.018202605990575,
+    "cost": 51.35,
+    "cost_std": 35.595329749842186,
+    "budget": 40,
+    "utilization": 128.375,
+    "goal_rate": 100.0,
+    "pct_unconstrained": 97.25893280385215
+  },
+  "B48_ra0.0_none": {
+    "reward": 26.81728489091273,
+    "reward_std": 0.9093403772396604,
+    "cost": 42.0,
+    "cost_std": 32.984845004941285,
+    "budget": 48,
+    "utilization": 87.5,
+    "goal_rate": 100.0,
+    "pct_unconstrained": 99.7554312260326
+  },
+  "B48_ra0.0_grad": {
+    "reward": 27.081915565999424,
+    "reward_std": 1.004923966387051,
+    "cost": 37.1,
+    "cost_std": 28.546278216257896,
+    "budget": 48,
+    "utilization": 77.29166666666667,
+    "goal_rate": 100.0,
+    "pct_unconstrained": 100.7398092947406
+  },
+  "B48_ra0.0_sample": {
+    "reward": 26.743989514754666,
+    "reward_std": 1.4988680586501641,
+    "cost": 40.2,
+    "cost_std": 33.521038170080594,
+    "budget": 48,
+    "utilization": 83.75000000000001,
+    "goal_rate": 100.0,
+    "pct_unconstrained": 99.48278573319973
+  },
+  "B48_ra2.0_none": {
+    "reward": 26.63379259162421,
+    "reward_std": 1.4690289045284328,
+    "cost": 42.45,
+    "cost_std": 36.398454637525475,
+    "budget": 48,
+    "utilization": 88.4375,
+    "goal_rate": 100.0,
+    "pct_unconstrained": 99.07287318495419
+  },
+  "B48_ra2.0_grad": {
+    "reward": 26.67092793245471,
+    "reward_std": 1.1575366890569545,
+    "cost": 48.2,
+    "cost_std": 31.58575628348956,
+    "budget": 48,
+    "utilization": 100.41666666666667,
+    "goal_rate": 100.0,
+    "pct_unconstrained": 99.21100991107473
+  },
+  "B48_ra2.0_sample": {
+    "reward": 26.97918725837632,
+    "reward_std": 1.1254185508300312,
+    "cost": 37.35,
+    "cost_std": 33.70649047290448,
+    "budget": 48,
+    "utilization": 77.8125,
+    "goal_rate": 100.0,
+    "pct_unconstrained": 100.35767864028587
+  },
+  "B48_ra5.0_none": {
+    "reward": 27.17553013773652,
+    "reward_std": 0.9515258672357101,
+    "cost": 56.15,
+    "cost_std": 38.708235557824125,
+    "budget": 48,
+    "utilization": 116.97916666666667,
+    "goal_rate": 100.0,
+    "pct_unconstrained": 101.08803850626076
+  },
+  "B48_ra5.0_grad": {
+    "reward": 26.425772413857032,
+    "reward_std": 1.0166227443180356,
+    "cost": 52.7,
+    "cost_std": 23.729938895833676,
+    "budget": 48,
+    "utilization": 109.79166666666667,
+    "goal_rate": 100.0,
+    "pct_unconstrained": 98.299075888871
+  },
+  "B48_ra5.0_sample": {
+    "reward": 26.394801149516816,
+    "reward_std": 1.1837650953352743,
+    "cost": 55.2,
+    "cost_std": 40.58768286069063,
+    "budget": 48,
+    "utilization": 115.0,
+    "goal_rate": 100.0,
+    "pct_unconstrained": 98.1838684082315
+  }
+}
