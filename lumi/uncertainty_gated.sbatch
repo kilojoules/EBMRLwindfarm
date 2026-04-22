@@ -5,7 +5,7 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=30G
-#SBATCH --time=02:00:00
+#SBATCH --time=04:00:00
 #SBATCH --job-name=unc_qc
 #SBATCH --output=logs/unc_qc_%j.out
 #SBATCH --error=logs/unc_qc_%j.err

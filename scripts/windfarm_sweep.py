@@ -151,6 +151,8 @@ def main():
                         default="runs/ebt_sac_windfarm/checkpoints/step_100000.pt")
     parser.add_argument("--n-episodes", type=int, default=50)
     parser.add_argument("--horizon", type=int, default=200)
+    parser.add_argument("--budgets", type=int, nargs="+",
+                        default=None, help="Budget levels to sweep (default: all)")
     parser.add_argument("--output", default="results/windfarm_sweep.json")
     cli = parser.parse_args()
 
@@ -205,7 +207,7 @@ def main():
     }}
 
     # --- Main sweep ---
-    budget_levels = [5, 10, 15, 20, 25, 30, 50, 75, 100]
+    budget_levels = cli.budgets or [5, 10, 15, 20, 25, 30, 50, 75, 100]
     eta_values = [0.0, 0.5, 1.0, 2.0, 5.0, 10.0]
     k_values = [2.0, 3.0, 5.0]
     gs_values = [0.05, 0.1, 0.2, 0.5]

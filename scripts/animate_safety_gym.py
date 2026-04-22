@@ -149,15 +149,21 @@ def make_animation(data, budget, out_path):
     def update(t):
         agent.center = agent_xy[t]
         goal_patch.center = goal_xy[t]
-        # Flash agent on cost hit
         hit = costs[t] > costs[t - 1] if t > 0 else False
         agent.set_color("C3" if hit else "C0")
         trail.set_data(agent_xy[:t + 1, 0], agent_xy[:t + 1, 1])
         n_reached = int(reached[:t + 1].sum())
-        title.set_text(f"t={t}  λ={lambdas[t]:.1f}  C={costs[t]:.1f}/{budget}  "
-                        f"R={rewards[t]:.1f}  goals={n_reached}/{goals_hit}")
+        status = " BUDGET EXCEEDED" if costs[t] > budget else ""
+        title.set_text(f"t={t}  λ={lambdas[t]:.1f}  C={costs[t]:.1f}/{budget}{status}  "
+                        f"R={rewards[t]:.1f}  goals={n_reached}")
         pt_c.set_data([t], [costs[t]])
         pt_r.set_data([t], [rewards[t]])
+        # Red-tinge everything after budget exceeded
+        if costs[t] > budget:
+            agent.set_edgecolor("red")
+            agent.set_linewidth(2)
+        else:
+            agent.set_linewidth(0)
         return agent, goal_patch, trail, pt_c, pt_r, title
 
     ani = animation.FuncAnimation(fig, update, frames=T, interval=33, blit=False)

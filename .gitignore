@@ -28,3 +28,8 @@ scripts/wandb_plots/
 .vscode/
 .ipynb_checkpoints/
 .claude/
+
+# Large untracked data
+energy_island_10y_daily_av_wind.csv
+texput.log
+checkpoints/*.pt

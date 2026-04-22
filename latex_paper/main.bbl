@@ -1,9 +1,14 @@
-\begin{thebibliography}{16}
+\begin{thebibliography}{18}
 \providecommand{\natexlab}[1]{#1}
 \providecommand{\url}[1]{\texttt{#1}}
 \expandafter\ifx\csname urlstyle\endcsname\relax
   \providecommand{\doi}[1]{doi: #1}\else
   \providecommand{\doi}{doi: \begingroup \urlstyle{rm}\Url}\fi
+
+\bibitem[Achiam et~al.(2017)Achiam, Held, Tamar, and Abbeel]{achiam2017cpo}
+Joshua Achiam, David Held, Aviv Tamar, and Pieter Abbeel.
+\newblock Constrained policy optimization.
+\newblock In \emph{International Conference on Machine Learning}, 2017.
 
 \bibitem[Agrawal and Devanur(2014)]{agrawal2014bandits}
 Shipra Agrawal and Nikhil~R Devanur.
@@ -59,6 +64,11 @@ Qian Lin et~al.
 Marcus~Binder Nilsen, Julian Quick, Ernestas Simutis, and Teodor {\AA}strand.
 \newblock Wind{G}ym: A wind farm reinforcement learning environment.
 \newblock \url{https://github.com/DTUWindEnergy/WindGym}, 2025.
+
+\bibitem[Ray et~al.(2019)Ray, Achiam, and Amodei]{ray2019safetygym}
+Alex Ray, Joshua Achiam, and Dario Amodei.
+\newblock Benchmarking safe exploration in deep reinforcement learning.
+\newblock \emph{arXiv preprint arXiv:1910.01708}, 2019.
 
 \bibitem[Sootla et~al.(2022)Sootla, Cowen-Rivers, Jafferjee, Wang, Mguni, Wang,
   and Ammar]{sootla2022saute}

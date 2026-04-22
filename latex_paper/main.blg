@@ -3,44 +3,46 @@ Capacity: max_strings=200000, hash_size=200000, hash_prime=170003
 The top-level auxiliary file: main.aux
 The style file: plainnat.bst
 Database file #1: references.bib
-You've used 16 entries,
+Warning--I didn't find a database entry for "fujimoto2019bcq"
+You've used 18 entries,
             2773 wiz_defined-function locations,
-            663 strings with 7535 characters,
-and the built_in function-call counts, 7179 in all, are:
-= -- 581
-> -- 525
+            673 strings with 7820 characters,
+and the built_in function-call counts, 8085 in all, are:
+= -- 652
+> -- 594
 < -- 10
-+ -- 178
-- -- 162
-* -- 534
-:= -- 1150
-add.period$ -- 48
-call.type$ -- 16
-change.case$ -- 94
-chr.to.int$ -- 16
-cite$ -- 32
-duplicate$ -- 333
-empty$ -- 568
-format.name$ -- 189
-if$ -- 1487
++ -- 201
+- -- 183
+* -- 609
+:= -- 1293
+add.period$ -- 54
+call.type$ -- 18
+change.case$ -- 107
+chr.to.int$ -- 18
+cite$ -- 36
+duplicate$ -- 377
+empty$ -- 640
+format.name$ -- 212
+if$ -- 1674
 int.to.chr$ -- 1
 int.to.str$ -- 1
-missing$ -- 16
-newline$ -- 88
-num.names$ -- 64
-pop$ -- 224
+missing$ -- 18
+newline$ -- 98
+num.names$ -- 72
+pop$ -- 254
 preamble$ -- 1
-purify$ -- 79
+purify$ -- 90
 quote$ -- 0
-skip$ -- 257
+skip$ -- 288
 stack$ -- 0
-substring$ -- 79
-swap$ -- 22
+substring$ -- 83
+swap$ -- 25
 text.length$ -- 0
 text.prefix$ -- 0
 top$ -- 0
-type$ -- 171
+type$ -- 193
 warning$ -- 0
-while$ -- 52
+while$ -- 58
 width$ -- 0
-write$ -- 201
+write$ -- 225
+(There was 1 warning)
