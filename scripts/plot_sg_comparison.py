@@ -29,12 +29,16 @@ def load_apf_blend():
 
 
 def load_sac_lag():
+    """Prefer 500k-step results; fall back to 100k."""
     out = {}
     for B in [10, 25, 40]:
-        f = f'runs/sac_lag_sg_B{B}/actor_eval.json'
-        if Path(f).exists():
-            d = json.load(open(f))
-            out[B] = d
+        for tag in ("_long", ""):
+            f = f'runs/sac_lag_sg_B{B}{tag}/actor_eval.json'
+            if Path(f).exists():
+                d = json.load(open(f))
+                d["steps"] = 500000 if tag == "_long" else 100000
+                out[B] = d
+                break
     return out
 
 
@@ -93,7 +97,7 @@ def main():
     # Pareto frontier hint: connect best points
     ax.set_xlabel("Episode cost (mean, lower is safer)", fontsize=11)
     ax.set_ylabel("Episode reward (mean, higher is better)", fontsize=11)
-    ax.set_title("Safety Gymnasium PointGoal1-v0: post-hoc blend vs.\nretrained CMDP baseline (5 seeds × 20 ep APF; 1 seed × 20 ep SAC-Lag)",
+    ax.set_title("Safety Gymnasium PointGoal1-v0: post-hoc blend vs.\nretrained CMDP baseline (5 seeds × 20 ep APF; 1 seed × 500k steps SAC-Lag)",
                  fontsize=11)
     ax.grid(alpha=0.3)
 

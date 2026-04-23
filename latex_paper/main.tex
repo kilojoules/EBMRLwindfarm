@@ -339,15 +339,16 @@ APF blend ($\eta\!=\!3$)          & 40 & $19.1\!\pm\!0.8$ & 71\%  & $34.5\!\pm\!
 \textbf{Reading the table.} Unconstrained actor accumulates $\approx\!50$ cost per episode. The $\eta\!=\!0$ control confirms the blend is a no-op at on-pace ($\sigma\!=\!0$): same cost and reward. Turning up $\eta$ shifts the blend toward $\pi_{\mathrm{safe}}$ when budget deficit, dropping cost by $\sim\!67\%$ at $d\!=\!10$ (from 49 to 15--19) at the cost of half the reward. At looser budgets ($d\!=\!25, 40$), the trade-off is milder: $d\!=\!40$ retains 71\% of unconstrained reward while cutting cost to 34.5 and satisfying the budget in 56\% of episodes. \emph{This is a real mechanism effect}, unlike the nine gradient-based attempts (Appendix~\ref{app:sg_rescues}) that all failed to move the cost distribution.
 
 \textbf{Comparison to retrained CMDP baseline.}
-Figure~\ref{fig:sg_comparison} compares the APF blend against a SAC-Lagrangian (CMDP-retrained) policy at each of $d\!\in\!\{10,25,40\}$, with 100k training steps per budget.
-SAC-Lag collapses to near-zero reward across all budgets despite satisfying the cost constraint in 50--90\% of episodes---the Lagrangian dual drives the policy toward pure-safety behaviour (stay still / wander).
-Our post-hoc blend, with \emph{zero} policy retraining, retains 45--71\% of unconstrained reward at the same cost levels.
+Figure~\ref{fig:sg_comparison} compares the APF blend against a SAC-Lagrangian (CMDP-retrained) policy at each of $d\!\in\!\{10,25,40\}$, trained for 500k steps per budget (5$\times$ the unconstrained SAC training).
+SAC-Lag \emph{does} satisfy the budget at 500k steps (satisfaction rate 80--95\%), but \emph{collapses to near-zero reward} across all budgets ($R\!=\!-0.15, -0.07, +0.26$ at $d\!=\!10, 25, 40$): the Lagrangian dual $\mu$ drives the policy toward a "stand still" minimum that is safe but useless.
+Our post-hoc blend, with \emph{zero} policy retraining, retains 45--71\% of unconstrained reward at comparable cost levels.
+The two methods occupy different operating points in the reward--cost plane: SAC-Lag minimises cost at the expense of any useful behaviour; the APF blend retains a usable policy while paying down the budget gradually.
 SAC-Lag at a fixed training budget thus does not dominate our method, and it loses the operational flexibility of swapping $d$ at inference.
 
 \begin{figure}[h]
     \centering
     \includegraphics[width=0.75\linewidth]{figures/fig_sg_comparison.pdf}
-    \caption{Safety Gymnasium reward-cost Pareto. Dashed lines: budget levels $d$. Unconstrained (black X) sits at the high-cost, high-reward extreme. Post-hoc APF blend (blue/orange/green at $d\!=\!10, 25, 40$) preserves $45$--$71\%$ of unconstrained reward. SAC-Lag (red stars), trained from scratch at each $d$ for 100k steps, satisfies the budget but collapses to near-zero reward --- demonstrating that learned CMDP policies under tight compute are dominated by a post-hoc blend that does not retrain the performance policy at all.}
+    \caption{Safety Gymnasium reward-cost Pareto. Dashed lines: budget levels $d$. Unconstrained (black X) sits at the high-cost, high-reward extreme. Post-hoc APF blend (blue/orange/green at $d\!=\!10, 25, 40$) preserves $45$--$71\%$ of unconstrained reward. SAC-Lag (red stars), trained from scratch at each $d$ for 500k steps, satisfies the budget with 80--95\% sat-rate but collapses to near-zero reward --- the Lagrangian dual drives the policy toward a safe ``stand still'' minimum. The APF blend retains a useful policy at comparable cost by pacing between the unconstrained actor and the safety controller; SAC-Lag ``succeeds'' on the constraint only by abandoning the task.}
     \label{fig:sg_comparison}
 \end{figure}
 
