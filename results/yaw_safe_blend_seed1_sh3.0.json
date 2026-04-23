@@ -1,0 +1,30 @@
+{
+  "unconstrained": {
+    "power_mean": 25307917.364506796,
+    "power_se": 828798.2286339252,
+    "neg_yaw_mean": [
+      52.86,
+      68.92,
+      92.84
+    ]
+  },
+  "blend": {
+    "power_mean": 26773622.950710673,
+    "power_se": 629114.124795266,
+    "neg_yaw_mean": [
+      10.08,
+      11.88,
+      11.82
+    ],
+    "sigma_mean": 0.5503462196538574,
+    "budget_satisfied": true
+  },
+  "pct_uncon": 105.79149032728968,
+  "meta": {
+    "budget": 15,
+    "sharpness": 3.0,
+    "sigma_max": 1.0,
+    "n_episodes": 50,
+    "checkpoint": "runs/ebt_sac_windfarm/checkpoints/step_100000.pt"
+  }
+}
