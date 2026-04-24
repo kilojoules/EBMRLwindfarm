@@ -87,8 +87,8 @@ On pace $\Rightarrow$ performance; deficit $\Rightarrow$ safety.
 
 \begin{figure}[t]
     \centering
-    \includegraphics[width=\linewidth]{figures/fig_kappa_diagnostic.png}
-    \caption{Two domains, two safety controllers, one schedule. (a)~Wind farm: $\pi_{\mathrm{safe}}$ is a zero-yaw (no wake-steering) setpoint; the learned cost critic's action-gradient is informative ($\kappa\!\approx\!0.72$), so a lightweight gradient-correction variant of the same schedule also works. (b)~Safety Gymnasium: $\pi_{\mathrm{safe}}$ is an artificial-potential-field (APF) navigator; action-gradients are vanishingly small ($\kappa\!\approx\!0.02$), so explicit safe-controller blending is required.}
+    \includegraphics[width=\linewidth]{figures/fig1_blend_overview.pdf}
+    \caption{Two domains, two safety controllers, one schedule. (a)~Wind farm: $\pi_{\mathrm{safe}}$ is a zero-yaw (no wake-steering) setpoint; the Jensen wake field shows the farm under a budget-satisfying blend ($d\!=\!5$, neg-yaw $[5,5,5]$). (b)~Safety Gymnasium: $\pi_{\mathrm{safe}}$ is an artificial-potential-field navigator. The trajectory is color-coded by blend weight $\sigma(u)$: blue where the RL actor drives ($\sigma\!\to\!0$), orange where the APF safety controller drives ($\sigma\!\to\!1$). The $\sigma(u)$ track (middle) rises sharply when the cumulative cost (bottom) approaches the budget, pulling the agent off the goal-seeking path into hazard-avoiding APF mode until the urgency ratio recovers.}
     \label{fig:kappa_diag}
 \end{figure}
 
