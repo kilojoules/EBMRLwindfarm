@@ -338,19 +338,26 @@ APF blend ($\eta\!=\!3$)          & 40 & $19.1\!\pm\!0.8$ & 71\%  & $34.5\!\pm\!
 
 \textbf{Reading the table.} Unconstrained actor accumulates $\approx\!50$ cost per episode. The $\eta\!=\!0$ control confirms the blend is a no-op at on-pace ($\sigma\!=\!0$): same cost and reward. Turning up $\eta$ shifts the blend toward $\pi_{\mathrm{safe}}$ when budget deficit, dropping cost by $\sim\!67\%$ at $d\!=\!10$ (from 49 to 15--19) at the cost of half the reward. At looser budgets ($d\!=\!25, 40$), the trade-off is milder: $d\!=\!40$ retains 71\% of unconstrained reward while cutting cost to 34.5 and satisfying the budget in 56\% of episodes. \emph{This is a real mechanism effect}, unlike the nine gradient-based attempts (Appendix~\ref{app:sg_rescues}) that all failed to move the cost distribution.
 
-\textbf{Comparison to retrained CMDP baseline.}
-Figure~\ref{fig:sg_comparison} compares the APF blend against a SAC-Lagrangian (CMDP-retrained) policy at each of $d\!\in\!\{10,25,40\}$, trained for 500k steps per budget (5$\times$ the unconstrained SAC training).
-SAC-Lag \emph{does} satisfy the budget at 500k steps (satisfaction rate 80--95\%), but \emph{collapses to near-zero reward} across all budgets ($R\!=\!-0.15, -0.07, +0.26$ at $d\!=\!10, 25, 40$): the Lagrangian dual $\mu$ drives the policy toward a "stand still" minimum that is safe but useless.
-Our post-hoc blend, with \emph{zero} policy retraining, retains 45--71\% of unconstrained reward at comparable cost levels.
-The two methods occupy different operating points in the reward--cost plane: SAC-Lag minimises cost at the expense of any useful behaviour; the APF blend retains a usable policy while paying down the budget gradually.
-SAC-Lag at a fixed training budget thus does not dominate our method, and it loses the operational flexibility of swapping $d$ at inference.
+\textbf{Comparison: time-to-deployment.}
+The right operator-side baseline is \emph{Lagrangian finetune from the same pretrained actor}---the most favourable retraining path given the deployed policy.
+Figure~\ref{fig:time_to_deployment} plots reward vs.\ additional training steps after the budget constraint is revealed.
+The pretrained actor (step 0) achieves $R\!=\!26.6, C\!=\!58$ (violates all tested budgets).
+Lagrangian finetune with $\mu$-dual ascent collapses the reward to $R\!\approx\!0$ within 50k steps across all three budgets, and stays there through 200k steps---the penalty destroys goal-seeking before budget is satisfied.
+The APF blend sits at $R\!=\!12.3, 15.8, 19.1$ (for $d\!=\!10, 25, 40$) with \emph{zero} additional training.
+Post-hoc blending retains useful policy behaviour while paying down the budget incrementally; finetuning collapses to a safe-but-useless "stand still" minimum under the compute budgets an operator is likely to tolerate.
 
 \begin{figure}[h]
     \centering
-    \includegraphics[width=0.75\linewidth]{figures/fig_sg_comparison.pdf}
-    \caption{Safety Gymnasium reward-cost Pareto. Dashed lines: budget levels $d$. Unconstrained (black X) sits at the high-cost, high-reward extreme. Post-hoc APF blend (blue/orange/green at $d\!=\!10, 25, 40$) preserves $45$--$71\%$ of unconstrained reward. SAC-Lag (red stars), trained from scratch at each $d$ for 500k steps, satisfies the budget with 80--95\% sat-rate but collapses to near-zero reward --- the Lagrangian dual drives the policy toward a safe ``stand still'' minimum. The APF blend retains a useful policy at comparable cost by pacing between the unconstrained actor and the safety controller; SAC-Lag ``succeeds'' on the constraint only by abandoning the task.}
-    \label{fig:sg_comparison}
+    \includegraphics[width=0.85\linewidth]{figures/fig_time_to_deployment.pdf}
+    \caption{Time-to-deployment: reward vs.\ additional training after a budget constraint appears.
+        Dashed horizontal lines: APF-blend reward at each budget (zero retraining).
+        Curves: Lagrangian finetune starting from the same pretrained unconstrained actor, evaluated at 0, 50k, and 200k additional training steps.
+        Finetune destroys reward within 50k steps and does not recover; the post-hoc blend preserves 45--71\% of unconstrained reward instantly.}
+    \label{fig:time_to_deployment}
 \end{figure}
+
+\textbf{Reward-cost plane (from-scratch SAC-Lag, ablation).}
+For completeness Figure~\ref{fig:sg_comparison} in the appendix shows the reward-cost scatter against a from-scratch SAC-Lagrangian (500k steps), which also collapses reward---an orthogonal failure mode (no warm start) to the finetune collapse.
 
 \textbf{Takeaway.}
 When the action-gradient variant fails ($\kappa$ small), the explicit safe-controller blend recovers budget satisfaction---because the safety controller is not constrained to live near the performance policy's action distribution.
@@ -503,6 +510,16 @@ The two variants are indistinguishable within seed variance; the explicit-blend 
 
 A single trained $\pi_{\mathrm{perf}}$ serves $d\in\{5,10,20,25,50,75\}$ (2.5--37.5\% of horizon) with $>\!95\%$ power retention from $d\!=\!10$ onward under the gradient variant.
 Full table omitted.
+
+\subsection{Reward-Cost Scatter: from-scratch SAC-Lag (ablation)}
+\label{app:fromscratch_saclag}
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.75\linewidth]{figures/fig_sg_comparison.pdf}
+    \caption{Reward-cost Pareto. Black X: unconstrained pretrained actor. Blue/orange/green: post-hoc APF blend at $d\!=\!10, 25, 40$. Red stars: from-scratch SAC-Lagrangian trained for 500k steps per budget; satisfies the cost but collapses to zero reward.}
+    \label{fig:sg_comparison}
+\end{figure}
 
 \subsection{Nine Attempted SG Rescues via Gradient Variants}
 \label{app:sg_rescues}
