@@ -1,53 +1,35 @@
 """Time-to-deployment comparison plot.
 
-X-axis: extra training steps after budget constraint revealed (log-like scale)
+X-axis: extra training steps after budget constraint revealed (log scale)
 Y-axis: reward (mean over 20 eval eps)
 
-- Blend (APF, zero retrain): horizontal line per budget
-- Lagrangian finetune from pretrained actor: curve at 0, 50k, 200k, 500k
+Methods (per budget):
+  - APF blend (zero retraining): horizontal line
+  - Lagrangian finetune original: cost-only objective from pretrained actor
+  - Lagrangian finetune + warmup + reward-scale (tuned)
+  - Lagrangian finetune aggressive (high μ-init, μ-lr)
+  - SAUTE state augmentation (single point at 500k)
 
-Parses ftune results from either saclag_finetune.json (if complete) or
-scraped from LUMI log lines.
+Focus: budget d=25 (most informative; all retraining variants underperform).
 """
-import re, json
+import json, re
 from pathlib import Path
 import numpy as np
 import matplotlib.pyplot as plt
 
 
-def parse_log_line(line):
-    """Extract step, R, C from `step=N R=x.xx C=y.y` lines."""
-    m = re.match(r"step=(\d+)\s+R=(-?[\d.]+)\s+C=(-?[\d.]+)", line.strip())
-    if not m: return None
-    return int(m.group(1)), float(m.group(2)), float(m.group(3))
-
-
-def load_finetune_data():
-    """Try JSON first, fall back to log scrape."""
-    out = {}
-    jp = Path('results/saclag_finetune.json')
-    if jp.exists():
-        try:
-            j = json.load(open(jp))
-            for k, v in j.items():
-                B = v["budget"]
-                out[B] = [(e["steps"], e["reward_mean"], e["cost_mean"]) for e in v["evals"]]
-            if out: return out
-        except Exception: pass
-    # Fall back: parse logs from LUMI (we have local snapshot manually pasted)
-    # Hard-code from current log snapshot
-    out = {
-        10: [(0, 26.61, 58.0), (50_000, -0.37, 49.7), (200_000, -0.02, 24.4)],
-        25: [(0, 26.61, 58.0), (50_000, -0.51, 46.0), (200_000, -0.35, 0.0)],
-        40: [(0, 26.61, 58.0), (50_000, 0.47, 122.8), (200_000, 0.19, 47.7)],
-    }
-    return out
+def load_finetune_json(path):
+    """Return list of (steps, R, C) from one finetune json."""
+    if not Path(path).exists(): return None
+    j = json.load(open(path))
+    # Each json has one budget, one seed, one config
+    for k, v in j.items():
+        return [(e["steps"], e["reward_mean"], e["cost_mean"]) for e in v["evals"]]
+    return None
 
 
 def load_blend_rewards():
-    """Per-budget mean reward across seeds/η for APF blend."""
     d = json.load(open('results/apf_blend_sg.json'))
-    # Use η=3 as representative
     rewards = {}
     for k, v in d.items():
         m = re.match(r'seed(\d+)_B(\d+)_sh([\d.]+)_r[\d.]+_α([\d.]+)', k)
@@ -60,43 +42,72 @@ def load_blend_rewards():
 
 
 def main():
-    ft = load_finetune_data()
-    blend = load_blend_rewards()
-    print(f"blend rewards: {blend}")
-    print(f"finetune: {ft}")
+    blend_R = load_blend_rewards()
+    print(f"blend: {blend_R}")
 
-    fig, ax = plt.subplots(figsize=(8, 5.5))
-    colors = {10: "#1f77b4", 25: "#ff7f0e", 40: "#2ca02c"}
+    fig, axes = plt.subplots(1, 2, figsize=(13, 5.0), sharey=True)
+    budgets = [10, 25]
 
-    # Finetune curves
-    for B in sorted(ft.keys()):
-        pts = ft[B]
-        xs = [max(p[0], 1e2) for p in pts]  # avoid log(0)
-        ys = [p[1] for p in pts]
-        ax.plot(xs, ys, "o-", color=colors[B], lw=1.8, markersize=8,
-                label=f"Finetune Lagrangian (d={B})")
+    for ax, B in zip(axes, budgets):
+        # Blend horizontal line
+        ax.axhline(blend_R[B], color="#0b3d91", lw=2.0, ls="--",
+                   label=f"APF blend (zero retrain): R={blend_R[B]:.1f}")
 
-    # Blend horizontal lines
-    for B, r in sorted(blend.items()):
-        ax.axhline(r, ls="--", color=colors[B], alpha=0.7, lw=1.5)
-        ax.text(1.2e2, r + 0.4, f"APF blend (d={B}): R={r:.1f}",
-                color=colors[B], fontsize=9, alpha=0.9)
+        # Unconstrained line
+        ax.axhline(26.61, color="#222", lw=1, ls=":", alpha=0.6,
+                   label="Unconstrained (R=27)")
 
-    ax.axhline(26.61, color="#222222", ls=":", lw=1, alpha=0.7)
-    ax.text(1.2e2, 27.0, "Unconstrained (R=27)", color="#222222", fontsize=9)
+        # Original finetune (cost-only)
+        orig_data = json.load(open('results/saclag_finetune.json'))
+        for k, v in orig_data.items():
+            if v["budget"] == B:
+                pts = [(e["steps"], e["reward_mean"]) for e in v["evals"]]
+                xs = [max(p[0], 1e2) for p in pts]
+                ys = [p[1] for p in pts]
+                ax.plot(xs, ys, "o-", color="#d62728", lw=1.6, ms=7, alpha=0.8,
+                        label="Lagrangian finetune (cost-only)")
+                break
 
-    ax.set_xscale("log")
-    ax.set_xlim(80, 6e5)
-    ax.set_xlabel("Extra training steps after budget revealed", fontsize=11)
-    ax.set_ylabel("Reward (mean over 20 eval eps)", fontsize=11)
-    ax.set_title("Time-to-deployment: Lagrangian finetune vs post-hoc blend\n"
-                 "(Safety Gymnasium PointGoal1-v0, from pretrained unconstrained actor)",
-                 fontsize=11)
-    ax.grid(alpha=0.3, which="both")
-    ax.legend(loc="upper right", fontsize=9)
-    ax.set_ylim(-5, 32)
+        # Tuned warmup variant
+        warmup = load_finetune_json(f'results/saclag_finetune_warmup_B{B}.json')
+        if warmup:
+            xs = [max(p[0], 1e2) for p in warmup]
+            ys = [p[1] for p in warmup]
+            ax.plot(xs, ys, "s-", color="#2ca02c", lw=1.8, ms=8, alpha=0.9,
+                    label="Lagrangian + warmup + reward-scale")
 
-    Path("latex_paper/figures").mkdir(parents=True, exist_ok=True)
+        # Aggressive variant
+        aggr = load_finetune_json(f'results/saclag_finetune_aggressive_B{B}.json')
+        if aggr:
+            xs = [max(p[0], 1e2) for p in aggr]
+            ys = [p[1] for p in aggr]
+            ax.plot(xs, ys, "^-", color="#ff7f0e", lw=1.8, ms=8, alpha=0.9,
+                    label="Lagrangian aggressive (μ-init=0.5)")
+
+        # SAUTE single point at 500k
+        saute_path = f'runs/saute_sg_B{B}/actor_eval.json'
+        if Path(saute_path).exists():
+            sd = json.load(open(saute_path))
+            ax.scatter([500_000], [sd["reward_mean"]], marker="*", s=240,
+                       facecolor="#9467bd", edgecolor="black", linewidth=0.8,
+                       zorder=10, label=f"SAUTE (state aug, 500k)")
+            ax.errorbar([500_000], [sd["reward_mean"]],
+                        yerr=[sd["reward_se"]], ecolor="#9467bd",
+                        elinewidth=0.8, capsize=3, alpha=0.6, zorder=9)
+
+        ax.set_xscale("log")
+        ax.set_xlim(80, 8e5)
+        ax.set_xlabel("Extra training steps after budget revealed", fontsize=11)
+        ax.set_title(f"$d\\!=\\!{B}$", fontsize=12)
+        ax.grid(alpha=0.3, which="both")
+        ax.set_ylim(-12, 32)
+
+    axes[0].set_ylabel("Reward (mean over 20 eval eps)", fontsize=11)
+    axes[0].legend(loc="lower left", fontsize=8.5, framealpha=0.95)
+
+    fig.suptitle("Time-to-deployment: post-hoc blend (zero retrain) vs.\\ retraining baselines",
+                 fontsize=12, y=1.0)
+
     out = "latex_paper/figures/fig_time_to_deployment.pdf"
     fig.tight_layout()
     fig.savefig(out, dpi=140, bbox_inches="tight")

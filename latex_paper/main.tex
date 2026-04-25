@@ -336,19 +336,26 @@ Blend ($\eta\!=\!3$)              & 40 & $19.1\!\pm\!0.8$ & 71\%  & $34.5\!\pm\!
 \end{table}
 
 \textbf{Comparison: time-to-deployment.}
-The right operator-side baseline is \emph{Lagrangian finetune from the same pretrained actor}---the most favourable retraining path given the deployed policy.
-Figure~\ref{fig:time_to_deployment} plots reward vs.\ additional training steps after the constraint is revealed.
-At step 0 the pretrained actor achieves $R\!=\!26.6, C\!=\!58$ (violates all tested budgets).
-Within 50k steps Lagrangian finetune collapses reward to $R\!\approx\!0$ across all three budgets and remains there at 200k and 500k: the dual penalty destroys goal-seeking before budget satisfaction emerges.
-The APF blend sits at $R\!=\!12.3, 15.8, 19.1$ with \emph{zero} extra training.
-Under operator-relevant retraining budgets, post-hoc blending is not just convenient---it is strictly better.
+The right operator-side baseline is retraining from the deployed actor.
+Figure~\ref{fig:time_to_deployment} plots reward vs.\ additional training steps after the constraint is revealed, comparing the APF blend (zero retrain) against four CMDP baselines starting from the same pretrained actor:
+\textbf{(i)}~Lagrangian finetune (cost-only, default hyperparameters);
+\textbf{(ii)}~Lagrangian finetune \emph{with $\mu$-warmup} (50k pure-reward steps before dual ascent) and reward scaling (5$\times$) for stable Lagrangian dynamics;
+\textbf{(iii)}~aggressive Lagrangian ($\mu_0=0.5$, $\mu_{\mathrm{lr}}=0.05$, no warmup);
+\textbf{(iv)}~SAUTE~\citep{sootla2022saute}, state-augmentation with $\rho_t$ (the same urgency variable our schedule uses), trained from the pretrained actor with reward masking when $\rho<0$.
+The pretrained actor achieves $R\!=\!26.6, C\!=\!58$ (violates all tested budgets).
 
 \begin{figure}[h]
     \centering
-    \includegraphics[width=0.85\linewidth]{figures/fig_time_to_deployment.pdf}
-    \caption{Time-to-deployment. Dashed horizontal lines: APF-blend reward at each budget $d$ (zero retraining). Curves: Lagrangian finetune starting from the same pretrained unconstrained actor, evaluated at 0, 50k, 200k, 500k additional training steps. Finetune destroys reward within 50k steps and does not recover; the blend preserves 45--71\% of unconstrained reward \emph{instantly}.}
+    \includegraphics[width=\linewidth]{figures/fig_time_to_deployment.pdf}
+    \caption{Time-to-deployment. Blue dashed: APF-blend reward at each budget $d$ (zero retraining). Curves: four retraining-baseline variants starting from the same pretrained actor, evaluated at $0, 50k, 200k, 500k$ extra training steps. Star: SAUTE state-augmentation (CMDP retraining with the same $\rho_t$ variable as our schedule).
+    Across both budgets ($d\!=\!10, 25$) and both compute regimes (intermediate, converged), \emph{none} of the retraining baselines reach the post-hoc blend's reward.
+    The best retraining variant (warmup at $d\!=\!25$, peak $R\!=\!8.1$ at $200$k steps with $C\!=\!83$ violating the budget) gets within $52\%$ of the blend's reward but does not satisfy the constraint; SAUTE at $500$k satisfies the constraint ($d\!=\!25$: $C\!=\!0$, $\mathrm{sat}\!=\!100\%$) but drives reward to $R\!=\!-9.5$.}
     \label{fig:time_to_deployment}
 \end{figure}
+
+Across both budgets, every retraining variant we tested either (a) violates the budget while preserving some reward (warmup variants at the intermediate checkpoints) or (b) satisfies the budget while collapsing reward to $\approx\!0$ (aggressive Lagrangian, SAUTE).
+The post-hoc blend dominates at every compute checkpoint we measured; on this benchmark, retraining with the operator-realistic compute we tested is not only \emph{not faster} than post-hoc deployment, it is also Pareto-dominated.
+We do not claim retraining cannot \emph{eventually} reach a better reward-cost frontier; we claim that, at the compute budgets a deployed-system operator can realistically afford, post-hoc blending is the better operating point.
 
 %----------------------------------------------------------------------
 \section{Related Work}
