@@ -125,20 +125,25 @@ Our schedule turns $\alpha$ into a time-varying $\alpha(u_t) = (1-\sigma(u_t))\,
 \label{sec:theory}
 %----------------------------------------------------------------------
 
-\begin{proposition}[Idealized-Boltzmann motivation]
+\begin{proposition}[Pacing motivation]
 \label{prop:optimal}
-If the performance policy responds to a scalar penalty $\lambda$ via $P(\mathrm{risky}\mid\lambda)=P_0\exp(-\alpha\lambda)$, then the penalty maintaining budget balance takes the multiplicative form $w^*(u) = 1/u$.
+Under an idealized Boltzmann response $P(\mathrm{risky}\mid\lambda)=P_0\exp(-\alpha\lambda)$, the penalty weight that maintains budget-rate balance takes the multiplicative form $w^*(u) = 1/u$ relative to the TWAP baseline ($u\!=\!1$).
 \end{proposition}
 
 \textit{Proof sketch.}
 Balance $(T-t)P(\mathrm{risky}\mid\lambda)=d-C_t$ with the Boltzmann substitution gives $\lambda=\tfrac{1}{\alpha}\ln\frac{(T-t)P_0}{d-C_t}$.
-The multiplicative weight relative to TWAP ($u=1$) reduces to $\tau/\rho=1/u$.
+The multiplicative weight relative to TWAP reduces to $\tau/\rho=1/u$.
 Full derivation in Appendix~\ref{app:proof}.\hfill$\square$
+
+This is a \emph{motivating} pacing argument, not a derivation of the actual schedule we deploy.
+The Boltzmann-response model is a strong assumption; real RL policies do not respond linearly in log-probability to scalar penalties.
+What we use from Prop.~\ref{prop:optimal} is the \emph{state-variable identification}: the urgency ratio $u$ is the natural argument and the schedule should be monotone-decreasing in $u$.
+The specific functional form below is a parametric choice with one tunable scalar.
 
 \textbf{Practical schedule.}
 Since $1/u\!\to\!\infty$ as $u\!\to\!0$, we use the parametric family
 $w(u)=\exp(\eta(1/u-1))$ with $\eta\!\ge\!0$, clamped at $\lambda_{\max}\!=\!10^6$.
-It agrees with $u^{-\eta}$ within $5\%$ for $u\!\in\![0.7, 1.3]$ (Appendix~Fig.~\ref{fig:approx}).
+It agrees with $u^{-\eta}$ within $5\%$ for $u\!\in\![0.7, 1.3]$ (Appendix~Fig.~\ref{fig:approx}); outside that band the schedule is a deliberate heuristic chosen for smooth bounded transitions.
 
 \textbf{Blend weight.}
 For Eq.~\ref{eq:blend} we map $w(u)$ to a bounded $\sigma\!\in\![0,1]$:

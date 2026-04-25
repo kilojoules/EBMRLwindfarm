@@ -85,7 +85,11 @@ def main():
     p.add_argument("--lr", type=float, default=1e-4)   # lower for finetune
     p.add_argument("--mu-lr", type=float, default=0.005)
     p.add_argument("--mu-init", type=float, default=0.1)
+    p.add_argument("--mu-warmup", type=int, default=0,
+                   help="hold μ at 0 for first K steps (warm start reward learning)")
     p.add_argument("--alpha-ent", type=float, default=0.2)
+    p.add_argument("--reward-scale", type=float, default=1.0,
+                   help="scale reward to roughly equal cost magnitudes for stable Lagrangian")
     p.add_argument("--eval-at", type=int, nargs="+", default=[0, 50000, 200000, 500000])
     p.add_argument("--out", default="results/saclag_finetune.json")
     args = p.parse_args()
@@ -137,7 +141,7 @@ def main():
             obs2, r, term, trunc, info = ret
             c = info.get("cost", 0.0)
         done = float(term or trunc)
-        rb.add(obs, a.squeeze(0).cpu().numpy(), float(r), float(c), obs2, done)
+        rb.add(obs, a.squeeze(0).cpu().numpy(), float(r) * args.reward_scale, float(c), obs2, done)
         obs = obs2
         ep_ret += r; ep_cost += c; ep_len += 1
         if term or trunc:
@@ -164,15 +168,20 @@ def main():
             qr_min = torch.minimum(q1n, q2n).squeeze(-1)
             q1cn, q2cn = qc(s_b, a_new)
             qc_max = torch.maximum(q1cn, q2cn).squeeze(-1)
-            mu = torch.exp(log_mu).detach()
+            # μ warmup: hold at 0 (pure reward learning) for first K steps
+            if step < args.mu_warmup:
+                mu = torch.zeros((), device=DEVICE)
+            else:
+                mu = torch.exp(log_mu).detach()
             actor_loss = -(qr_min - args.alpha_ent * logp_new.squeeze(-1) - mu * qc_max).mean()
             opt_a.zero_grad(); actor_loss.backward(); opt_a.step()
 
             with torch.no_grad():
                 q1cn2, q2cn2 = qc(s_b, a_new.detach())
                 qc_eval = torch.maximum(q1cn2, q2cn2).mean().item()
-            mu_loss = -log_mu * (qc_eval - args.budget)
-            opt_mu.zero_grad(); mu_loss.backward(); opt_mu.step()
+            if step >= args.mu_warmup:
+                mu_loss = -log_mu * (qc_eval - args.budget)
+                opt_mu.zero_grad(); mu_loss.backward(); opt_mu.step()
             with torch.no_grad():
                 log_mu.clamp_(max=np.log(50.0))
 
