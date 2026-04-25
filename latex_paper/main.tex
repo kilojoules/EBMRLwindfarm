@@ -36,15 +36,12 @@ DTU Wind Energy, Technical University of Denmark}
 \maketitle
 
 \begin{abstract}
-We consider the common deployment scenario in which a \emph{pre-trained, unconstrained} RL policy faces a new cumulative operational constraint after deployment: a damage budget per year, a duty-cycle limit, a spending cap.
-Retraining the policy to satisfy the constraint is the standard answer, but on the standard Safety Gymnasium benchmark even Lagrangian finetune starting from the deployed actor collapses reward to $\approx\!0$ within 50{,}000 steps and fails to recover after 500{,}000---the dual penalty destroys goal-seeking before budget satisfaction emerges.
-We propose instead a closed-form schedule that \emph{blends two existing controllers at inference}: the deployed performance policy $\pi_{\mathrm{perf}}$ and a certified safety controller $\pi_{\mathrm{safe}}$ (e.g., a factory wind-tracking yaw controller, an artificial-potential-field navigator).
-The blend weight $\sigma(u)\in[0,1]$ is a monotone function of the \emph{urgency ratio} $u=\rho/\tau$ (remaining budget fraction over remaining time fraction).
-On pace ($u\ge1$): run the performance policy.
-Budget deficit ($u\!\to\!0$): shift to the safety controller.
-A single scalar $\eta$ controls sharpness; a single policy serves any budget $d$ instantly.
-On wind-farm yaw control ($\kappa\!\approx\!0.72$), the schedule retains $99.3$--$101.8\%$ of unconstrained power while satisfying a $15$-step neg-yaw budget across 4 training seeds.
-On Safety Gymnasium ($\kappa\!\approx\!0.02$), the APF-blend variant retains $45$--$71\%$ of unconstrained reward while paying down the budget, where Lagrangian finetune retains $<\!2\%$ even with 500k extra steps.
+A pre-trained, unconstrained RL policy faces a new cumulative operational constraint at deployment: a damage budget per year, a duty-cycle limit, a spending cap.
+We test four retraining baselines starting from the deployed actor on Safety Gymnasium PointGoal1 (SAC-Lagrangian at default, $\mu$-warmup, and aggressive-dual settings; SAUTE state-augmentation~\citep{sootla2022saute} which uses the same urgency variable as our schedule); at $500$k extra training steps, the best of them attains $R\!=\!2.3$ at $C\!=\!24$ ($d\!=\!25$), against the unconstrained $R\!=\!27$.
+We instead propose a closed-form schedule $\sigma(u)$ that \emph{blends two existing controllers at inference}: the deployed performance policy $\pi_{\mathrm{perf}}$ and a certified safety controller $\pi_{\mathrm{safe}}$ (a factory wind-tracking yaw setpoint, an artificial-potential-field navigator).
+The blend weight $\sigma(u)\!\in\![0,1]$ is a monotone function of the \emph{urgency ratio} $u=\rho/\tau$ (remaining-budget / remaining-time fractions): on pace ($u\!\ge\!1$) the performance policy runs; in deficit ($u\!\to\!0$) the safety controller takes over.
+On wind-farm yaw control ($\kappa\!\approx\!0.72$) the schedule retains $99.3$--$101.8\%$ of unconstrained power while satisfying a $15$-step neg-yaw budget across 4 training seeds.
+On Safety Gymnasium ($\kappa\!\approx\!0.02$) it retains $45$--$71\%$ of unconstrained reward, dominating every retraining baseline we tested at every checkpoint $\in\{0, 50\text{k}, 200\text{k}, 500\text{k}\}$.
 A gradient-correction variant of the same schedule works when the action-to-cost coupling strength $\kappa = \mathbb{E}\|\nabla_a Q_c\|/\mathbb{E}\|\nabla_s Q_c\|$ is large; when it is small, the explicit-$\pi_{\mathrm{safe}}$ blend is required.
 \end{abstract}
 
@@ -54,20 +51,19 @@ A gradient-correction variant of the same schedule works when the action-to-cost
 %----------------------------------------------------------------------
 
 \textbf{Scenario.}
-A wind-farm operator deploys an RL controller that maximizes power via coordinated yaw wake steering; it was trained unconstrained and works well.
-Six months later, a bearing inspection tightens the maintenance schedule: turbine 2's yaw may be negative for at most 15~hours per year.
-Retraining the RL controller is expensive and slow; swapping controllers is disruptive; \emph{doing nothing} violates the constraint.
-The operator already has a certified wake-steering fallback (e.g., WakeAdapt~\citep{siemensWakeAdapt}, a calibrated yaw-setpoint table).
-What they need is a way to \emph{pace between} the aggressive RL policy and the certified safety controller so that the cumulative constraint is satisfied, without retraining either.
+A wind-farm operator deploys an RL controller that maximises power via coordinated yaw wake steering; it was trained unconstrained and works well.
+Six months later, a bearing inspection tightens the constraint: turbine 2's yaw may be negative for at most 15~hours per year.
+Retraining the RL controller is expensive and slow; the operator already has a certified wake-steering fallback (e.g., WakeAdapt~\citep{siemensWakeAdapt}, a calibrated yaw-setpoint table).
+What the operator needs is a way to \emph{pace between} the aggressive RL policy and the certified safety controller so the cumulative constraint is satisfied, without retraining either.
 
-\textbf{This scenario is pervasive.}
+\textbf{The pattern is pervasive.}
 Wind turbines have load budgets~\citep{dijk2025load}; grid batteries have cycle-life limits; fleet vehicles have maintenance intervals; advertisers have spending caps~\citep{balseiro2023budget}.
-Unlike an instantaneous safety constraint, a \emph{lifetime budget} requires choosing \emph{when} to spend limited capacity in a risky regime.
-A fixed scalarization $\alpha P - (1-\alpha) D$ is memoryless: it cannot tighten in response to a realized-damage trajectory exceeding the planned path.
+Unlike an instantaneous safety constraint, a \emph{lifetime budget} requires choosing \emph{when} to spend limited capacity in a risky regime---and a fixed scalarisation $\alpha P - (1-\alpha) D$ is memoryless.
 
-\textbf{Why retraining is not the default answer.}
-We find experimentally (Figure~\ref{fig:time_to_deployment}, \S\ref{sec:sg_results}) that finetuning the pretrained Safety-Gymnasium actor with SAC-Lagrangian destroys the reward within 50{,}000 extra steps and stays collapsed at 500{,}000: the Lagrangian dual drives the policy toward a "stand still" safe minimum before useful budget-aware behaviour emerges.
-The problem is not that CMDP is impossible---it is that under operator-relevant compute budgets, CMDP retraining replaces a useful policy with a useless-but-safe one.
+\textbf{Retraining is not the operator-realistic answer.}
+We test four standard retraining baselines starting from the deployed Safety-Gymnasium actor: SAC-Lagrangian at default settings, with $\mu$-warmup + reward scaling, with aggressive dual ascent, and SAUTE~\citep{sootla2022saute} (state augmentation with $\rho_t$).
+At $500{,}000$ extra training steps---more than the original unconstrained training---every variant either violates the budget while preserving partial reward or satisfies the budget by collapsing the policy's reward to $\approx\!0$ (Figure~\ref{fig:time_to_deployment}, Table~\ref{tab:baselines}).
+The Lagrangian dual destroys goal-seeking before budget-aware behaviour emerges; SAUTE's $\rho$-augmentation does not by itself recover usefulness.
 
 \textbf{Our proposal: urgency-ratio controller blending.}
 Borrowing the pacing intuition from optimal execution~\citep{almgren2001optimal}, define
@@ -82,21 +78,22 @@ and blend two pre-existing controllers at inference:
     a_t = (1-\sigma(u_t))\,\pi_{\mathrm{perf}}(s_t) + \sigma(u_t)\,\pi_{\mathrm{safe}}(s_t).
 \label{eq:blend}
 \end{equation}
-$\sigma : \mathbb{R}_{\ge 0}\!\to\![0,1]$ is monotone decreasing in $u$ (Section~\ref{sec:theory}).
+$\sigma : \mathbb{R}_{\ge 0}\!\to\![0,1]$ is monotone-decreasing in $u$ (Section~\ref{sec:theory}).
 On pace $\Rightarrow$ performance; deficit $\Rightarrow$ safety.
 
 \begin{figure}[t]
     \centering
     \includegraphics[width=\linewidth]{figures/fig1_blend_overview.pdf}
-    \caption{Two domains, two safety controllers, one schedule. (a)~Wind farm: $\pi_{\mathrm{safe}}$ is a zero-yaw (no wake-steering) setpoint; the Jensen wake field shows the farm under a budget-satisfying blend ($d\!=\!5$, neg-yaw $[5,5,5]$). (b)~Safety Gymnasium: $\pi_{\mathrm{safe}}$ is an artificial-potential-field navigator. The trajectory is color-coded by blend weight $\sigma(u)$: blue where the RL actor drives ($\sigma\!\to\!0$), orange where the APF safety controller drives ($\sigma\!\to\!1$). The $\sigma(u)$ track (middle) rises sharply when the cumulative cost (bottom) approaches the budget, pulling the agent off the goal-seeking path into hazard-avoiding APF mode until the urgency ratio recovers.}
+    \caption{Two domains, two safety controllers, one schedule. (a)~Wind farm: $\pi_{\mathrm{safe}}$ is a zero-yaw setpoint (Jensen wake field shown for the budget-satisfying blend, $d\!=\!5$, neg-yaw $[5,5,5]$). (b)~Safety Gymnasium: $\pi_{\mathrm{safe}}$ is an artificial-potential-field navigator. The trajectory is colour-coded by blend weight $\sigma(u)$: navy when the RL actor drives ($\sigma\!\to\!0$), crimson when the APF safety controller drives ($\sigma\!\to\!1$). The faded gray trace shows the unconstrained baseline plowing through hazards on the same seed; the blend curves around them as $\sigma$ rises in budget deficit.}
     \label{fig:kappa_diag}
 \end{figure}
 
 \textbf{Contributions.}
-(1)~A \emph{closed-form urgency-ratio schedule} $\sigma(u)$ with a single sharpness parameter, derived from budget-balanced allocation under an idealized Boltzmann response (\S\ref{sec:theory}; Prop.~\ref{prop:optimal}).
-(2)~\emph{Two-controller blending} that treats an existing safety controller as first-class primitive rather than retraining the policy (\S\ref{sec:method}).
-(3)~A \emph{gradient-correction variant} (\S\ref{sec:gradient}) in which $\pi_{\mathrm{safe}}$ is implicitly defined by a step of $-\nabla_a Q_c$; this variant works precisely when the coupling strength $\kappa=\mathbb{E}\|\nabla_a Q_c\|/\mathbb{E}\|\nabla_s Q_c\|$ is large (Table~\ref{tab:coupling}).
-(4)~\emph{Empirical validation} on wind-farm yaw control ($\kappa\!\approx\!0.72$) and Safety Gymnasium ($\kappa\!\approx\!0.02$): under the \emph{same} schedule with \emph{different} safety controllers chosen by $\kappa$, both domains satisfy the budget. A Lagrangian-finetune baseline, starting from the same pretrained actor, is dominated at every compute checkpoint we measured through 500k steps (\S\ref{sec:results}).
+(1)~A \emph{closed-form urgency-ratio schedule} $\sigma(u)$ with one sharpness parameter, derived from a budget-balanced pacing argument (\S\ref{sec:theory}; Prop.~\ref{prop:optimal}).
+(2)~\emph{Two-controller blending} that treats an existing safety controller as a first-class primitive rather than retraining the policy (\S\ref{sec:method}).
+(3)~A \emph{gradient-correction variant} (\S\ref{sec:gradient}) where $\pi_{\mathrm{safe}}$ is implicitly a step of $-\nabla_a Q_c$; this works when the coupling strength $\kappa = \mathbb{E}\|\nabla_a Q_c\|/\mathbb{E}\|\nabla_s Q_c\|$ is large (Table~\ref{tab:coupling}).
+(4)~\emph{Empirical validation} on wind-farm yaw control ($\kappa\!\approx\!0.72$) and Safety Gymnasium ($\kappa\!\approx\!0.02$), under the \emph{same} schedule with \emph{different} safety controllers chosen by $\kappa$.
+The post-hoc blend dominates four distinct retraining baselines (SAC-Lagrangian at three hyperparameter settings, plus SAUTE) on SG at every compute checkpoint we measured (\S\ref{sec:sg_results}).
 
 \textbf{Deployment claim.}
 The method drops into systems that already have an RL performance policy, a certified safety controller, and a damage estimator---none of which are retrained.
@@ -107,18 +104,21 @@ The safety layer is already certified; the urgency schedule decides when to fall
 \label{sec:background}
 %----------------------------------------------------------------------
 
-\textbf{Constrained MDPs.}
-A CMDP~\citep{altman1999constrained} adds cost-return constraints to the MDP objective: $\max_\pi \mathbb{E}_\pi[\sum_t r_t]$ subject to $\mathbb{E}_\pi[\sum_t c_t] \leq d$ (standard notation~\citep{ray2019safetygym, achiam2017cpo}).
-Lagrangian methods~\citep{stooke2020responsive} learn a dual $\mu$ \emph{during training}; changing $d$ requires a new policy.
-SAUTE~\citep{sootla2022saute} augments state with $\rho_t$ (the same variable we use) but still retrains per budget.
+\textbf{Constrained MDPs and Lagrangian methods.}
+A CMDP~\citep{altman1999constrained} adds cost-return constraints to the MDP objective: $\max_\pi \mathbb{E}_\pi[\sum_t r_t]$ subject to $\mathbb{E}_\pi[\sum_t c_t] \leq d$~\citep{ray2019safetygym, achiam2017cpo}.
+SAC-Lagrangian~\citep{stooke2020responsive} learns a dual variable $\mu$ during training; PID-Lag and CPO~\citep{achiam2017cpo} add stability tweaks.
+None of these are post-hoc: changing $d$ requires a new policy.
+
+\textbf{SAUTE} \citep{sootla2022saute} augments the state with $\rho_t$---the very urgency variable our schedule uses---and trains SAC on the augmented MDP with a budget-violation penalty.
+This is the closest CMDP method to ours conceptually, and we run it as a baseline (\S\ref{sec:sg_results}).
 
 \textbf{Post-hoc composition.}
-Energy composition~\citep{urain2023composable, gladstone2025ebt}, classifier guidance~\citep{zhang2025constrained}, CBFs~\citep{xiao2023safediffuser}, and input-convex corrections~\citep{durkin2025picnn} modify pre-trained policies at inference to satisfy \emph{instantaneous} constraints.
+Energy composition~\citep{urain2023composable, gladstone2025ebt}, classifier guidance~\citep{zhang2025constrained}, control-barrier functions~\citep{xiao2023safediffuser}, and input-convex corrections~\citep{durkin2025picnn} modify pre-trained policies at inference for \emph{instantaneous} constraints.
 We extend this tradition to \emph{cumulative} budgets via a time-varying weight.
 
-\textbf{Multi-objective scalarization.}
+\textbf{Multi-objective scalarisation.}
 A fixed $\alpha P - (1-\alpha)D$ trade-off is memoryless.
-Our schedule turns $\alpha$ into a time-varying $\alpha(u_t) = (1-\sigma(u_t))\,\alpha_{\mathrm{perf}} + \sigma(u_t)\,\alpha_{\mathrm{safe}}$ by pacing against realized damage.
+Our schedule turns $\alpha$ into a time-varying weight that paces against the realised damage trajectory.
 
 %----------------------------------------------------------------------
 \section{Urgency-Ratio Schedule}
@@ -127,7 +127,7 @@ Our schedule turns $\alpha$ into a time-varying $\alpha(u_t) = (1-\sigma(u_t))\,
 
 \begin{proposition}[Pacing motivation]
 \label{prop:optimal}
-Under an idealized Boltzmann response $P(\mathrm{risky}\mid\lambda)=P_0\exp(-\alpha\lambda)$, the penalty weight that maintains budget-rate balance takes the multiplicative form $w^*(u) = 1/u$ relative to the TWAP baseline ($u\!=\!1$).
+Under an idealised Boltzmann response $P(\mathrm{risky}\mid\lambda)=P_0\exp(-\alpha\lambda)$, the penalty weight that maintains budget-rate balance takes the multiplicative form $w^*(u) = 1/u$ relative to the TWAP baseline ($u\!=\!1$).
 \end{proposition}
 
 \textit{Proof sketch.}
@@ -135,18 +135,14 @@ Balance $(T-t)P(\mathrm{risky}\mid\lambda)=d-C_t$ with the Boltzmann substitutio
 The multiplicative weight relative to TWAP reduces to $\tau/\rho=1/u$.
 Full derivation in Appendix~\ref{app:proof}.\hfill$\square$
 
-This is a \emph{motivating} pacing argument, not a derivation of the actual schedule we deploy.
-The Boltzmann-response model is a strong assumption; real RL policies do not respond linearly in log-probability to scalar penalties.
-What we use from Prop.~\ref{prop:optimal} is the \emph{state-variable identification}: the urgency ratio $u$ is the natural argument and the schedule should be monotone-decreasing in $u$.
-The specific functional form below is a parametric choice with one tunable scalar.
+This is a \emph{motivating} pacing argument, not a derivation of the actual schedule.
+The Boltzmann response is a strong assumption; real policies do not respond linearly in log-probability to scalar penalties.
+What we use from Prop.~\ref{prop:optimal} is the \emph{state-variable identification}: $u$ is the natural argument and the schedule should be monotone-decreasing in $u$.
 
 \textbf{Practical schedule.}
-Since $1/u\!\to\!\infty$ as $u\!\to\!0$, we use the parametric family
-$w(u)=\exp(\eta(1/u-1))$ with $\eta\!\ge\!0$, clamped at $\lambda_{\max}\!=\!10^6$.
-It agrees with $u^{-\eta}$ within $5\%$ for $u\!\in\![0.7, 1.3]$ (Appendix~Fig.~\ref{fig:approx}); outside that band the schedule is a deliberate heuristic chosen for smooth bounded transitions.
-
-\textbf{Blend weight.}
-For Eq.~\ref{eq:blend} we map $w(u)$ to a bounded $\sigma\!\in\![0,1]$:
+We use the parametric family
+$w(u)=\exp(\eta(1/u-1))$ with $\eta\!\ge\!0$, clamped at $\lambda_{\max}\!=\!10^6$ (Appendix~Fig.~\ref{fig:approx}).
+For Eq.~\ref{eq:blend} we map $w(u)$ to a bounded $\sigma\in[0,1]$:
 \begin{equation}
     \sigma(u) = \begin{cases}
         0 & u \ge 1, \\
@@ -154,8 +150,8 @@ For Eq.~\ref{eq:blend} we map $w(u)$ to a bounded $\sigma\!\in\![0,1]$:
     \end{cases}
 \label{eq:sigma}
 \end{equation}
-On pace ($u\ge1$): pure performance policy. Deficit ($u<1$): sigmoid-like ramp toward pure safety controller, with sharpness $\eta$.
-A hard-wall backstop drives $\sigma\!\to\!1$ for $u<0.05$.
+On pace ($u\!\ge\!1$): pure performance policy. Deficit ($u\!<\!1$): smooth ramp toward pure safety controller, sharpness $\eta$.
+A hard-wall backstop drives $\sigma\!\to\!1$ for $u\!<\!0.05$.
 
 %----------------------------------------------------------------------
 \section{Method}
@@ -163,53 +159,48 @@ A hard-wall backstop drives $\sigma\!\to\!1$ for $u<0.05$.
 %----------------------------------------------------------------------
 
 The method has three independent components:
-\textbf{(i)}~the schedule $\sigma(u)$ (how much safety);
+\textbf{(i)}~the schedule $\sigma(u)$ (\emph{how much} safety);
 \textbf{(ii)}~the performance policy $\pi_{\mathrm{perf}}$ (what we deploy on pace);
-\textbf{(iii)}~the safety controller $\pi_{\mathrm{safe}}$ (what we revert to on deficit).
-\emph{Any} $\pi_{\mathrm{safe}}$ composes with \emph{any} $\pi_{\mathrm{perf}}$ under the \emph{same} schedule.
+\textbf{(iii)}~the safety controller $\pi_{\mathrm{safe}}$ (what we revert to in deficit).
 
-\subsection{Explicit Safety-Controller Blend (primary formulation)}
+\subsection{Two-Controller Blend (primary formulation)}
 \label{sec:blend}
-
 \begin{equation}
     a_t = (1-\sigma(u_t))\,\pi_{\mathrm{perf}}(s_t) + \sigma(u_t)\,\pi_{\mathrm{safe}}(s_t) .
 \label{eq:blend2}
 \end{equation}
 
 \textbf{Wind-farm instantiation.}
-$\pi_{\mathrm{perf}}$ is an Energy-Based Transformer (EBT) actor trained unconstrained with SAC for $100$k steps.
-$\pi_{\mathrm{safe}}\!\equiv\!0$ is a zero-yaw (no wake-steering) setpoint.
-Under the per-turbine fatigue surrogate $c=(|y|/\bar{y})^p(v/v_{\mathrm{ref}})^q$ ($p\!=\!2$, $q\!=\!3$), this minimizes the instantaneous cost; in deployment $\pi_{\mathrm{safe}}$ would be a WakeAdapt-style~\citep{siemensWakeAdapt} lookup table minimising farm-level DEL.
+$\pi_{\mathrm{perf}}$ is an Energy-Based Transformer (EBT) actor trained unconstrained with SAC for 100k steps.
+$\pi_{\mathrm{safe}}\!\equiv\!0$ is a zero-yaw setpoint, minimising our per-turbine fatigue surrogate $c=(|y|/\bar{y})^p(v/v_{\mathrm{ref}})^q$ ($p\!=\!2$, $q\!=\!3$).
+In production, $\pi_{\mathrm{safe}}$ would be a WakeAdapt-style~\citep{siemensWakeAdapt} setpoint table minimising farm-level DEL.
 
 \textbf{Safety Gymnasium instantiation.}
 $\pi_{\mathrm{perf}}$ is a SAC/MLP actor trained unconstrained for 200k steps.
-$\pi_{\mathrm{safe}}$ is an artificial-potential-field navigator: $F_{\mathrm{goal}}=\mathrm{norm}(g-x)$ and $F_{\mathrm{rep}}=k_r\sum_{i:\|x-h_i\|<r+r_{\mathrm{inf}}} (x-h_i)/\|x-h_i\|^3$, mapped to body-frame $(\mathrm{thrust},\mathrm{turn})$.
-No learning; uses only the hazard/goal geometry every CBF-based safe-RL method assumes access to.
+$\pi_{\mathrm{safe}}$ is an artificial-potential-field navigator: $F_{\mathrm{goal}}=\mathrm{norm}(g-x)$ + $F_{\mathrm{rep}}=k_r\sum_i (x-h_i)/\|x-h_i\|^3$, mapped to body-frame $(\mathrm{thrust},\mathrm{turn})$.
+No learning; uses only the hazard/goal geometry that every CBF-based safe-RL method assumes access to.
 
 \subsection{Gradient-Correction Variant}
 \label{sec:gradient}
-
-When an action-dependent cost gradient $\nabla_a c$ or $\nabla_a Q_c$ is available, a lightweight alternative replaces the explicit $\pi_{\mathrm{safe}}$ with a single gradient step:
+When an action-dependent cost $\nabla_a c$ or $\nabla_a Q_c$ is available, a single gradient step replaces the explicit $\pi_{\mathrm{safe}}$:
 \begin{equation}
     a_t \leftarrow \pi_{\mathrm{perf}}(s_t) - \lambda_{\mathrm{gs}}\cdot w(u_t)\cdot \alpha_{\mathrm{g}}\cdot \nabla_a c(s_t, a_t),
 \label{eq:gradient_correction}
 \end{equation}
-iterated for $K$ steps.
-This is Eq.~\ref{eq:blend2} with $\pi_{\mathrm{safe}}(s) \approx \pi_{\mathrm{perf}}(s) - \alpha_{\mathrm{g}}\nabla_a c(s,\pi_{\mathrm{perf}}(s))$ implicitly defined.
+iterated $K$ steps. This is Eq.~\ref{eq:blend2} with $\pi_{\mathrm{safe}}(s)\!\approx\!\pi_{\mathrm{perf}}(s) - \alpha_{\mathrm{g}}\nabla_a c$ implicitly defined.
 
 \subsection{Coupling Strength \texorpdfstring{$\kappa$}{kappa}: Which Variant?}
 \label{sec:scope}
 
 The gradient variant requires a non-trivial $\nabla_a Q_c$.
-We quantify this via
+We quantify this by
 \begin{equation}
     \kappa := \mathbb{E}_{(s,a)\sim\pi}\|\nabla_a Q_c(s,a)\|_2 \,\big/\, \mathbb{E}_{(s,a)\sim\pi}\|\nabla_s Q_c(s,a)\|_2,
 \label{eq:kappa}
 \end{equation}
 measured on logged rollouts.
-Large $\kappa$: gradient correction of $\pi_{\mathrm{perf}}$ suffices.
-Small $\kappa$: action gradient is weak; explicit $\pi_{\mathrm{safe}}$ is required.
-The $36\times$ gap between our domains (Table~\ref{tab:coupling}) predicts which variant to deploy \emph{before} any experiment.
+Large $\kappa$: gradient correction suffices.
+Small $\kappa$: action-gradient is weak; explicit $\pi_{\mathrm{safe}}$ is required.
 
 \begin{table}[h]
 \centering
@@ -249,16 +240,17 @@ Safety Gym (PointGoal) & $0.99\!\pm\!0.69$ & $49.8\!\pm\!12.5$ & $\mathbf{0.02}$
 \label{sec:wf_results}
 
 \textbf{Setup.}
-WindGym~\citep{windgym} with PyWake~\citep{pywake} backend; 3-turbine row; wind speed 10--14 m/s, direction 225--315$^\circ$; budget $d$ = negative-yaw timesteps per turbine per episode (200 steps); cost $c = (|y|/\bar{y})^p(v/v_{\mathrm{ref}})^q$.
+WindGym~\citep{windgym} with PyWake~\citep{pywake} backend; 3-turbine row; wind speed 10--14~m/s, direction 225--315$^\circ$; budget $d$ = neg-yaw timesteps per turbine per episode (200 steps).
+$\pi_{\mathrm{perf}}$ is an EBT actor trained unconstrained with SAC for 100k steps.
 
 \textbf{Gradient-correction variant} (Table~\ref{tab:main_results}).
-Since $\kappa\!\approx\!0.72$, gradient correction (Eq.~\ref{eq:gradient_correction}) is effective.
-At $(\eta\!=\!5, \lambda_{\mathrm{gs}}\!=\!0.1)$ it achieves $98.9\%$ of unconstrained power single-seed and $95.9\!\pm\!3.1\%$ across 4 training seeds, with all seeds satisfying the budget.
-An oracle-tuned constant penalty (15-step bisection per budget) achieves only $96.7\%$ and must be re-tuned every time $d$ changes.
+Since $\kappa\!\approx\!0.72$, gradient correction is effective.
+At $(\eta\!=\!5, \lambda_{\mathrm{gs}}\!=\!0.1)$: $98.9\%$ of unconstrained power single-seed and $95.9\!\pm\!3.1\%$ across 4 training seeds, with all seeds satisfying the budget.
+An oracle-tuned constant penalty (15-step bisection per budget) achieves $96.7\%$ and must be re-tuned every time $d$ changes.
 
 \begin{table}[h]
 \centering
-\caption{Wind-farm gradient-correction variant (3-turbine, $d\!=\!15$/200 steps, 50 ep). Baseline power differs across tables because each uses independently sampled episodes and different wind-condition ranges; within-table comparisons use the same episodes.}
+\caption{Wind-farm gradient-correction variant (3-turbine, $d\!=\!15$/200 steps, 50 ep). Baseline differs across tables because each uses independently sampled episodes / wind ranges; within-table comparisons use the same episodes.}
 \label{tab:main_results}
 \begin{tabular}{lcccl}
 \toprule
@@ -268,18 +260,18 @@ Unconstrained (seed 1)            & $27.1\!\pm\!0.6$ & 100\%    & $[49,56,61]$ &
 Oracle constant ($k\!=\!5.86$)    & $26.2\!\pm\!0.7$ & 96.7\%   & $[11,13,14]$ & 15-step bisection \\
 AC ($\eta\!=\!5$, gs$=\!0.1$)     & $26.9\!\pm\!0.5$ & \textbf{98.9\%} & $[8,9,10]$ & Zero per-budget tuning \\
 \midrule
-AC ($\eta\!=\!5$, gs$=\!0.1$)---4 seeds & $25.7\!\pm\!0.5$ & $\mathbf{95.9\!\pm\!3.1\%}$ & $[11,12,12]$ & All seeds satisfy \\
+AC ($\eta\!=\!5$, gs$=\!0.1$) --- 4 seeds & $25.7\!\pm\!0.5$ & $\mathbf{95.9\!\pm\!3.1\%}$ & $[11,12,12]$ & All seeds satisfy \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \textbf{Explicit zero-yaw blend variant} (Table~\ref{tab:wf_blend}).
-Replacing the gradient step with $\pi_{\mathrm{safe}}\!\equiv\!0$ and the urgency blend gives comparable results with one fewer hyperparameter ($\eta$ only, no $\lambda_{\mathrm{gs}}$).
+Replacing the gradient step with $\pi_{\mathrm{safe}}\!\equiv\!0$ and the urgency blend gives matching results with one fewer hyperparameter ($\eta$ only).
 Across 4 seeds and three $\eta\!\in\!\{1,3,10\}$ values, the blend satisfies the budget every time and retains $99.3$--$101.8\%$ of unconstrained power.
 
 \begin{table}[h]
 \centering
-\caption{Wind-farm zero-yaw blend variant (3-turbine, $d\!=\!15$, 50 ep, 4 training seeds). $\bar\sigma$: mean blend weight; $\pi_{\mathrm{safe}}\!\equiv\!0$. Matches the gradient variant with a simpler mechanism; $\pi_{\mathrm{safe}}$ would be a calibrated WakeAdapt table in production.}
+\caption{Wind-farm zero-yaw blend variant (3-turbine, $d\!=\!15$, 50 ep, 4 training seeds). $\bar\sigma$: mean blend weight; $\pi_{\mathrm{safe}}\!\equiv\!0$.}
 \label{tab:wf_blend}
 \begin{tabular}{lccccc}
 \toprule
@@ -294,68 +286,85 @@ Blend ($\eta\!=\!10$)      & $99.3\!\pm\!2.4\%$ & $[11.0, 11.3, 11.3]$ & 0.59 & 
 \end{table}
 
 \textbf{Cost function matters (Appendix~\ref{app:nonlinear}).}
-A naive binary cost $c\!=\!\mathbf{1}[y\!<\!0]$ \emph{inflates} fatigue $4.2\times$ over unconstrained by pushing the agent to large positive yaw.
-The nonlinear surrogate avoids this trap, achieving $1.6\times$ fatigue reduction at $98\%$ power, or $6.8\times$ lower fatigue than the binary-cost AC trap.
+A binary cost $c\!=\!\mathbf{1}[y\!<\!0]$ \emph{inflates} fatigue $4.2\times$ over unconstrained; the nonlinear surrogate avoids this trap.
 
-\subsection{Safety Gymnasium: Low Coupling, Explicit Blend is Necessary}
+\subsection{Safety Gymnasium: Low Coupling, Explicit Blend Beats All Retraining Baselines}
 \label{sec:sg_results}
 
 \textbf{Setup.}
-SafetyPointGoal1-v0~\citep{ji2023safetygym}: point robot navigates among fixed hazard disks to reach moving goals.
-Cost $c\!=\!\mathbf{1}[\text{in hazard}]$ is position-dependent; action is 2D (thrust, turn).
-$\pi_{\mathrm{perf}}$: SAC/MLP actor trained unconstrained for 200k steps (5 seeds).
+SafetyPointGoal1-v0~\citep{ji2023safetygym}: point robot navigates among fixed hazard disks to reach a moving goal.
+Cost $c\!=\!\mathbf{1}[\text{in hazard}]$ is position-dependent; action is 2D.
+$\pi_{\mathrm{perf}}$ is a SAC/MLP actor trained unconstrained for 200k steps (5 seeds).
 
 \textbf{Why the gradient variant fails here.}
 $\kappa\!\approx\!0.02$: $\nabla_a Q_c$ is $\sim\!50\times$ smaller than $\nabla_s Q_c$.
-Appendix~\ref{app:sg_rescues} documents nine attempted gradient-based rescues---pessimistic $Q_c$, online $Q_c$ refit, learned-dynamics MPC, true-env MPC (cost-only, reward-weighted, feasibility-filtered), full MBRL post-hoc, 1- and multi-step CBF---all fail to move the cost distribution meaningfully without catastrophic reward collapse.
-The failure is structural, not a matter of tuning.
+Appendix~\ref{app:sg_rescues} documents nine attempted gradient-based rescues (pessimistic $Q_c$, online $Q_c$ refit, learned-dynamics MPC, true-env MPC in three configurations, full MBRL, 1-step and multi-step CBF), all failing structurally.
 
-\textbf{Explicit-$\pi_{\mathrm{safe}}$ blend works} (Table~\ref{tab:safetygym}).
-The APF blend reduces cost by 59--68\% at $d\!=\!10$ while retaining 45\% of the unconstrained reward; at $d\!=\!40$ it retains 71\% of the reward and satisfies the budget in 56\% of episodes.
-At $\eta\!=\!0$ the blend is a no-op and recovers the unconstrained actor exactly, confirming that the non-trivial effect at $\eta\!>\!0$ is the mechanism, not a random seed.
+\textbf{Explicit-$\pi_{\mathrm{safe}}$ blend results} (Table~\ref{tab:safetygym}).
+The APF blend reduces cost by 59--68\% at $d\!=\!10$ while retaining 45\% of unconstrained reward; at $d\!=\!40$ it retains 71\% of reward and satisfies the budget in 56\% of episodes.
 
 \begin{table}[h]
 \centering
-\caption{Safety Gymnasium with urgency-ratio APF blend (5 seeds $\times$ 20 ep). Unconstrained actor accumulates 49.4 cost / 27.1 reward. Blending with APF under increasing sharpness $\eta$ trades reward for cost; at $d\!=\!40$ the budget is satisfied in 56\% of episodes with 71\% of unconstrained reward retained.}
+\caption{Safety Gymnasium with urgency-ratio APF blend (5 seeds $\times$ 20 ep). Unconstrained: 49.4 cost / 27.1 reward. Blend trades reward for cost as $\eta$ increases; at $d\!=\!40$ the budget is satisfied in 56\% of episodes with 71\% of unconstrained reward retained.}
 \label{tab:safetygym}
 \begin{tabular}{lccccc}
 \toprule
 Method & Budget $d$ & Reward & \% Uncon & Cost (mean$\pm$SE) & Sat rate \\
 \midrule
 Unconstrained                     & --- & $27.1\!\pm\!0.1$ & 100\% & $49.4\!\pm\!3.4$ & 12\% at $d\!=\!10$ \\
-\midrule
-Blend ($\eta\!=\!0$, control)     & 10 & $27.1\!\pm\!0.1$ & 100\% & $49.4\!\pm\!3.4$ & 12\% \\
+Blend ($\eta\!=\!0$, no-op control) & 10 & $27.1\!\pm\!0.1$ & 100\% & $49.4\!\pm\!3.4$ & 12\% \\
 Blend ($\eta\!=\!1$)              & 10 & $12.1\!\pm\!0.9$ & 45\%  & $\mathbf{15.3\!\pm\!1.0}$ & 25\% \\
 Blend ($\eta\!=\!3$)              & 10 & $12.3\!\pm\!0.9$ & 45\%  & $18.6\!\pm\!1.2$ & 23\% \\
 Blend ($\eta\!=\!10$)             & 10 & $12.0\!\pm\!0.9$ & 44\%  & $17.8\!\pm\!1.3$ & 28\% \\
-\midrule
 Blend ($\eta\!=\!3$)              & 25 & $15.8\!\pm\!0.8$ & 58\%  & $28.6\!\pm\!1.6$ & 39\% \\
 Blend ($\eta\!=\!3$)              & 40 & $19.1\!\pm\!0.8$ & 71\%  & $34.5\!\pm\!2.0$ & \textbf{56\%} \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\textbf{Comparison: time-to-deployment.}
+\textbf{Comparison: time-to-deployment under four retraining baselines.}
 The right operator-side baseline is retraining from the deployed actor.
-Figure~\ref{fig:time_to_deployment} plots reward vs.\ additional training steps after the constraint is revealed, comparing the APF blend (zero retrain) against four CMDP baselines starting from the same pretrained actor:
-\textbf{(i)}~Lagrangian finetune (cost-only, default hyperparameters);
-\textbf{(ii)}~Lagrangian finetune \emph{with $\mu$-warmup} (50k pure-reward steps before dual ascent) and reward scaling (5$\times$) for stable Lagrangian dynamics;
-\textbf{(iii)}~aggressive Lagrangian ($\mu_0=0.5$, $\mu_{\mathrm{lr}}=0.05$, no warmup);
-\textbf{(iv)}~SAUTE~\citep{sootla2022saute}, state-augmentation with $\rho_t$ (the same urgency variable our schedule uses), trained from the pretrained actor with reward masking when $\rho<0$.
-The pretrained actor achieves $R\!=\!26.6, C\!=\!58$ (violates all tested budgets).
+Figure~\ref{fig:time_to_deployment} plots reward vs.\ extra training steps after the constraint is revealed.
+Four retraining variants share the same starting actor as the blend:
+\textbf{(i)}~Lagrangian finetune at default settings (cost-only objective);
+\textbf{(ii)}~Lagrangian + $\mu$-warmup (50k pure-reward steps before dual ascent) and reward scaling (5$\times$) for stable Lagrangian dynamics;
+\textbf{(iii)}~aggressive Lagrangian ($\mu_0\!=\!0.5$, $\mu_{\mathrm{lr}}\!=\!0.05$, no warmup);
+\textbf{(iv)}~SAUTE~\citep{sootla2022saute} state augmentation with $\rho_t$ (the same urgency variable our schedule uses) and reward masking when $\rho\!<\!0$.
+At $500$k extra steps, the best of these baselines (warmup at $d\!=\!25$) reaches $R\!=\!2.32$ at $C\!=\!24.1$; the APF blend sits at $R\!=\!15.8$ with \emph{zero} extra training.
 
 \begin{figure}[h]
     \centering
     \includegraphics[width=\linewidth]{figures/fig_time_to_deployment.pdf}
-    \caption{Time-to-deployment. Blue dashed: APF-blend reward at each budget $d$ (zero retraining). Curves: four retraining-baseline variants starting from the same pretrained actor, evaluated at $0, 50k, 200k, 500k$ extra training steps. Star: SAUTE state-augmentation (CMDP retraining with the same $\rho_t$ variable as our schedule).
-    Across both budgets ($d\!=\!10, 25$) and both compute regimes (intermediate, converged), \emph{none} of the retraining baselines reach the post-hoc blend's reward.
-    The best retraining variant (warmup at $d\!=\!25$, peak $R\!=\!8.1$ at $200$k steps with $C\!=\!83$ violating the budget) gets within $52\%$ of the blend's reward but does not satisfy the constraint; SAUTE at $500$k satisfies the constraint ($d\!=\!25$: $C\!=\!0$, $\mathrm{sat}\!=\!100\%$) but drives reward to $R\!=\!-9.5$.}
+    \caption{Time-to-deployment on Safety Gymnasium PointGoal1, two budgets $d\!=\!10$ (left), $d\!=\!25$ (right). Blue dashed: APF-blend reward at zero retraining. Curves: four CMDP retraining variants starting from the same pretrained actor. Star: SAUTE state augmentation~\citep{sootla2022saute} at 500k. Across both budgets and every checkpoint $\in\{0, 50\text{k}, 200\text{k}, 500\text{k}\}$, no retraining variant matches the blend. The best at $d\!=\!25$ (warmup, peak $R\!=\!8.1$ at $200$k with $C\!=\!83$ violating the budget) is dominated; SAUTE satisfies the budget tightly ($d\!=\!25$: $C\!=\!0$, $\mathrm{sat}\!=\!100\%$) but at $R\!=\!-9.5$.}
     \label{fig:time_to_deployment}
 \end{figure}
 
-Across both budgets, every retraining variant we tested either (a) violates the budget while preserving some reward (warmup variants at the intermediate checkpoints) or (b) satisfies the budget while collapsing reward to $\approx\!0$ (aggressive Lagrangian, SAUTE).
-The post-hoc blend dominates at every compute checkpoint we measured; on this benchmark, retraining with the operator-realistic compute we tested is not only \emph{not faster} than post-hoc deployment, it is also Pareto-dominated.
-We do not claim retraining cannot \emph{eventually} reach a better reward-cost frontier; we claim that, at the compute budgets a deployed-system operator can realistically afford, post-hoc blending is the better operating point.
+\begin{table}[h]
+\centering
+\caption{Final-step ($500$k) baseline summary on Safety Gymnasium. The APF blend (zero retrain) dominates every retraining variant on reward.}
+\label{tab:baselines}
+\begin{tabular}{lcccc}
+\toprule
+Method & $d$ & Reward & Cost & Budget OK \\
+\midrule
+\textbf{APF blend (zero retraining)} & 10 & $\mathbf{12.3}$ & $18.6$ & --- \\
+\textbf{APF blend (zero retraining)} & 25 & $\mathbf{15.8}$ & $28.6$ & --- \\
+\midrule
+SAC-Lag default                      & 10 & $-0.41$ & $65.0$ & \textcolor{red}{$\times$} \\
+SAC-Lag default                      & 25 & $-0.10$ & $12.5$ & \checkmark \\
+SAC-Lag warmup + reward-scale        & 10 & $-0.24$ & $10.4$ & \checkmark \\
+SAC-Lag warmup + reward-scale        & 25 & $2.32$  & $24.1$ & \checkmark \\
+SAC-Lag aggressive                   & 10 & $0.07$  & $23.6$ & \textcolor{red}{$\times$} \\
+SAC-Lag aggressive                   & 25 & $-0.32$ & $3.1$  & \checkmark \\
+SAUTE (state aug, uses $\rho_t$)     & 10 & $-1.0$  & $4.8$  & \checkmark \\
+SAUTE (state aug, uses $\rho_t$)     & 25 & $-9.5$  & $0.0$  & \checkmark \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Across both budgets, every retraining variant either violates the budget while preserving partial reward (warmup at intermediate checkpoints) or satisfies the budget by collapsing reward to $\approx\!0$ (aggressive Lagrangian, SAUTE).
+The post-hoc blend dominates at every compute checkpoint we measured.
+We do not claim retraining cannot \emph{eventually} reach a better reward-cost frontier with sufficient compute and tuning; we claim that, at the compute budgets a deployed-system operator can realistically afford, post-hoc blending is the better operating point.
 
 %----------------------------------------------------------------------
 \section{Related Work}
@@ -364,25 +373,25 @@ We do not claim retraining cannot \emph{eventually} reach a better reward-cost f
 
 \textbf{Constrained MDPs.}
 Lagrangian methods~\citep{altman1999constrained, achiam2017cpo, stooke2020responsive, chen2025predictive} learn dual variables during training.
-SAUTE~\citep{sootla2022saute} augments state with $\rho_t$ but retrains per budget.
-TREBI~\citep{lin2023trebi} handles real-time budget changes via diffusion models with diffusion-specific training.
+SAUTE~\citep{sootla2022saute} augments state with $\rho_t$ but retrains per budget; we run it as a baseline (\S\ref{sec:sg_results}).
+TREBI~\citep{lin2023trebi} handles real-time budget changes via diffusion-specific training.
 We freeze both controllers and use a closed-form $\sigma(u)$ at inference.
 
 \textbf{Post-hoc composition.}
-Energy composition~\citep{urain2023composable}, classifier guidance~\citep{zhang2025constrained}, CBFs~\citep{xiao2023safediffuser}, and input-convex corrections~\citep{durkin2025picnn} handle \emph{instantaneous} constraints.
-Blending with an \emph{explicit} safety controller is long-standing in robotics (reactive hierarchies, shielding, override layers); our contribution is the \emph{budget-aware temporal weighting}.
+Energy composition~\citep{urain2023composable}, classifier guidance~\citep{zhang2025constrained}, CBFs~\citep{xiao2023safediffuser}, and input-convex corrections~\citep{durkin2025picnn} handle instantaneous constraints.
+Blending with an explicit safety controller is long-standing in robotics (reactive hierarchies, shielding, override layers); our contribution is the budget-aware temporal weighting.
 
 \textbf{Budget pacing.}
 Budget allocation in advertising~\citep{balseiro2023budget} and bandits with knapsacks~\citep{agrawal2014bandits} share the allocation-across-time structure.
 We adopt the urgency-ratio framework from optimal execution~\citep{almgren2001optimal}.
 
 \textbf{Wind-farm wake steering.}
-WakeAdapt~\citep{siemensWakeAdapt} and related commercial load-aware controllers compute calibrated yaw setpoints minimizing farm-level damage.
-Our framework sits above such controllers: $\pi_{\mathrm{perf}}$ squeezes more power when the budget allows; $\pi_{\mathrm{safe}}$ is the calibrated, certified fallback.
+WakeAdapt~\citep{siemensWakeAdapt} and related load-aware controllers compute calibrated yaw setpoints minimising farm-level damage.
+Our framework sits above such controllers: $\pi_{\mathrm{perf}}$ squeezes more power when the budget allows; $\pi_{\mathrm{safe}}$ is the certified fallback.
 
 \textbf{Coupling-strength scope.}
 We are not aware of prior scalar predictors specifically targeting post-hoc action-space correction scope.
-Critic-gradient magnitudes have been studied in offline-RL distributional work; $\kappa$ is the gradient \emph{ratio}, usable as a cheap \emph{a-priori} diagnostic on logged data.
+$\kappa$ is the gradient \emph{ratio} between state and action, usable as an a-priori diagnostic on logged data.
 
 %----------------------------------------------------------------------
 \section{Discussion}
@@ -390,14 +399,15 @@ Critic-gradient magnitudes have been studied in offline-RL distributional work; 
 %----------------------------------------------------------------------
 
 \textbf{What we are \emph{not} claiming.}
-We are not proposing a replacement for fully-converged CMDP methods, which at $\sim\!10\times$ our compute budget can attain better Pareto points.
-We are proposing a method for the common deployment case in which retraining is either impossible (frozen/certified policy) or prohibitively expensive.
+We do not claim CMDP retraining cannot work; we claim that under the operator-realistic compute budgets we tested ($\le\!500$k extra steps from the pretrained actor, four hyperparameter settings), every retraining variant we tried is dominated on reward by post-hoc blending.
+A fully-converged CMDP method at $\sim\!10\times$ our compute may reach a better Pareto frontier, but does so at a cost the deployment scenario cannot tolerate.
 
 \textbf{Limitations.}
-(1)~The wind-farm cost is a per-turbine fatigue surrogate; real deployment needs DEL-calibrated farm-level cost~\citep{wes2024DEL, jpcs2024wakeDEL} and a $\pi_{\mathrm{safe}}$ like WakeAdapt that minimizes farm DEL, not per-turbine yaw.
+(1)~The wind-farm cost is a per-turbine fatigue surrogate; real deployment needs a DEL-calibrated farm-level cost~\citep{wes2024DEL, jpcs2024wakeDEL} and a $\pi_{\mathrm{safe}}$ like WakeAdapt that minimises farm DEL.
 (2)~Our sim uses analytical wakes (Jensen) and 200-step episodes, not FAST.Farm aeroelastics over a year.
-(3)~The APF navigator on SG is a simple reactive heuristic; a learned safety policy would likely improve $\pi_{\mathrm{safe}}$'s own reward at fixed $\sigma\!=\!1$.
+(3)~The APF navigator on SG is a simple reactive heuristic; a learned safety policy would likely improve $\pi_{\mathrm{safe}}$'s reward at fixed $\sigma\!=\!1$.
 (4)~We test 4 seeds on WF and 5 on SG; effect sizes are large enough that more seeds would mainly tighten error bars.
+(5)~The retraining baselines use a single seed each at one warmup/dual-lr setting; we did not perform a full hyperparameter sweep, but covered three qualitatively different Lagrangian regimes (default, warmup, aggressive) plus SAUTE.
 
 \textbf{Path to deployment.}
 Minimum-viable bridge from simulation to field operation: (a)~replace the fatigue surrogate with a DEL-calibrated model; (b)~precompute a WakeAdapt-equivalent setpoint table to use as $\pi_{\mathrm{safe}}$; (c)~retrospective SCADA counterfactual on real operational data; (d)~online refit of $Q_c$ / the DEL surrogate under non-stationary wind.
@@ -405,8 +415,8 @@ All four leverage the same schedule; none require retraining $\pi_{\mathrm{perf}
 
 \textbf{Summary.}
 A single closed-form schedule composes a pre-trained performance policy with a certified safety controller to enforce cumulative damage budgets at inference.
-The coupling strength $\kappa$ diagnoses which variant to use (gradient or explicit blend).
-On both domains we tested, post-hoc blending is not dominated by Lagrangian finetune at the compute budgets an operator can realistically afford, and it gives up the single-budget training commitment: one model, any $d$, instantly.
+$\kappa$ diagnoses which variant to use.
+On both domains, post-hoc blending is not dominated by Lagrangian finetune at the compute budgets an operator can realistically afford---and it gives up the single-budget training commitment: one model, any $d$, instantly.
 Code and checkpoints: \url{[anonymized]}.
 
 %----------------------------------------------------------------------
@@ -420,8 +430,7 @@ Code and checkpoints: \url{[anonymized]}.
 \begin{proof}
 Budget balance: $(T-t)\cdot P(\mathrm{risky}\mid\lambda) = d-C_t$.
 With $P(\mathrm{risky}\mid\lambda) = P_0\exp(-\alpha\lambda)$: $\lambda=\tfrac{1}{\alpha}\ln\frac{(T-t)P_0}{d-C_t}$.
-At TWAP ($u\!=\!1$, $(d-C_t)/d=(T-t)/T$), $\lambda_0=\tfrac{1}{\alpha}\ln\frac{TP_0}{d}$.
-The multiplicative weight relative to TWAP:
+At TWAP ($u\!=\!1$), $\lambda_0=\tfrac{1}{\alpha}\ln\frac{TP_0}{d}$.
 $w = \exp(\alpha(\lambda-\lambda_0)) = \frac{(T-t)/T}{(d-C_t)/d} = \tau/\rho = 1/u$.
 \end{proof}
 
@@ -439,14 +448,14 @@ $w = \exp(\alpha(\lambda-\lambda_0)) = \frac{(T-t)/T}{(d-C_t)/d} = \tau/\rho = 1
 \label{app:apf}
 
 \textbf{APF navigator (Safety Gym).}
-For agent position $x$, goal $g$, hazard centres $\{h_i\}$ with radius $r$, influence distance $r_{\mathrm{inf}}$:
+Agent position $x$, goal $g$, hazard centres $\{h_i\}$ with radius $r$, influence distance $r_{\mathrm{inf}}$:
 $F_{\mathrm{goal}}=(g-x)/\|g-x\|$, $F_{\mathrm{rep}}=k_r\sum_{i:\|x-h_i\|<r+r_{\mathrm{inf}}}(x-h_i)/\|x-h_i\|^3$, $d^\star=\mathrm{norm}(\alpha F_{\mathrm{goal}} + (1-\alpha)F_{\mathrm{rep}})$.
 Mapped to body-frame action: $\mathrm{thrust}=\langle d^\star,\hat{\mathbf{e}}_{\mathrm{fwd}}\rangle$, $\mathrm{turn}=\mathrm{clip}(\Delta\theta/(\pi/2),-1,1)$.
 We use $\alpha\!=\!0.5$, $r_{\mathrm{inf}}\!=\!0.6$ m, $k_r\!=\!1.0$.
 
 \textbf{Zero-yaw / WakeAdapt (wind farm).}
-$\pi_{\mathrm{safe}}(s)\equiv 0$ in normalized yaw-action space, minimising our per-turbine surrogate cost.
-Deployment replaces with a precomputed table $T(\bar v,\bar\phi)\to\{y_i\}$ minimizing farm-level DEL.
+$\pi_{\mathrm{safe}}(s)\equiv 0$ in normalized yaw-action space, minimising the per-turbine surrogate cost.
+Deployment replaces with a precomputed table $T(\bar v,\bar\phi)\to\{y_i\}$ minimising farm-level DEL.
 
 \subsection{Binary vs Nonlinear Cost (Wind Farm)}
 \label{app:nonlinear}
@@ -470,7 +479,7 @@ Nonlinear AC ($\eta\!=\!5$)  & \textbf{29.2} & $[80,81,83]$ & \textbf{12.8} \\
 
 \begin{table}[h]
 \centering
-\caption{Learned $Q_c$ on 3-turbine wind farm (10 ep). $Q_c$ trained on 100 ep with the nonlinear fatigue cost; the resulting gradient-correction variant rediscovers the physics from data.}
+\caption{Learned $Q_c$ on 3-turbine wind farm (10 ep). $Q_c$ trained on 100 ep with the nonlinear fatigue cost.}
 \label{tab:qc_windfarm}
 \begin{tabular}{lcccc}
 \toprule
@@ -484,20 +493,20 @@ Analytical surrogate ($\eta\!=\!5$)          & $29.2$ & $[80,81,83]$ & $12.8$ & 
 \end{tabular}
 \end{table}
 
-\subsection{Reward--Cost Scatter: from-scratch SAC-Lag (ablation)}
+\subsection{Reward--Cost Scatter: from-scratch SAC-Lag (additional ablation)}
 \label{app:fromscratch_saclag}
 
 \begin{figure}[h]
     \centering
     \includegraphics[width=0.75\linewidth]{figures/fig_sg_comparison.pdf}
-    \caption{Reward-cost Pareto. Black X: unconstrained pretrained actor. Blue/orange/green: post-hoc APF blend at $d\!=\!10, 25, 40$. Red stars: from-scratch SAC-Lagrangian trained for 500k steps per budget. SAC-Lag satisfies the budget ($\sim\!80\%$) but collapses to $R\!\approx\!0$---a qualitatively similar failure mode to the finetune collapse (main body), but starting from random initialization instead of the pretrained actor.}
+    \caption{From-scratch SAC-Lag (red stars), 500k steps per budget, vs.\ APF blend (blue/orange/green) and unconstrained (X). Same qualitative failure mode as the from-pretrained Lagrangian finetune in Figure~\ref{fig:time_to_deployment}; the choice of warm-start does not rescue CMDP at this compute.}
     \label{fig:sg_comparison}
 \end{figure}
 
 \subsection{Nine Attempted Gradient-Variant Rescues on SG}
 \label{app:sg_rescues}
 
-When the gradient variant is forced to work on SG (low $\kappa$), the following fail:
+When the gradient variant is forced to work on SG (low $\kappa$), the following all fail:
 \begin{enumerate}[leftmargin=*]
     \item \textbf{Pessimistic $Q_c$ ensemble.} 10 heads, $\nabla_a(\bar Q+q\sigma_Q)$ with $q\!\in\!\{0,1,4\}$. $q\!=\!0$ ties or wins at every budget.
     \item \textbf{Online $Q_c$ refit.} Episode-boundary MC refit with L2 anchor; no improvement.
@@ -506,23 +515,32 @@ When the gradient variant is forced to work on SG (low $\kappa$), the following 
     \item \textbf{MPC true-env reward-weighted.} $\lambda$ (to $10^6$) dominates $\beta\cdot r$; same outcome.
     \item \textbf{MPC true-env feasibility-filtered.} Few feasible candidates; falls back to min-violation; same outcome.
     \item \textbf{Full MBRL post-hoc.} Ensemble $f_\theta$ + $Q_r$ + $Q_c$ + CEM + online refit. Cost $\approx$ uncon, reward $\approx$ uncon, sat $\approx$ uncon.
-    \item \textbf{CBF 1-step kinematic.} Reward preserved, cost barely drops (47--54 vs.\ 52 uncon); 1-step insufficient for momentum.
+    \item \textbf{CBF 1-step kinematic.} Reward preserved, cost barely drops; 1-step insufficient for momentum.
     \item \textbf{CBF multi-step (constant-action rollout).} Errors compound; reward degrades, cost rises.
 \end{enumerate}
-The explicit $\pi_{\mathrm{safe}}$ blend succeeds precisely because $\pi_{\mathrm{safe}}$ is \emph{not} constrained to lie near $\pi_{\mathrm{perf}}$'s action distribution.
+The explicit $\pi_{\mathrm{safe}}$ blend (main body) succeeds because $\pi_{\mathrm{safe}}$ is \emph{not} constrained to lie near $\pi_{\mathrm{perf}}$'s action distribution.
 When the performance policy was trained for short-path navigation, its action support does not cover the safe-corridor actions; a local gradient correction cannot reach them. An APF navigator can.
 
 \subsection{Coupling-Strength Measurement Protocol}
 \label{app:coupling_protocol}
 
-20 episodes per domain under the frozen policy; uniform subsample of 2000 $(s,a)$ pairs; $\|\nabla_a Q_c(s,a)\|_2$ and $\|\nabla_s Q_c(s,a)\|_2$ via autodiff; $\kappa$ = ratio of sample means; nonparametric bootstrap with 1000 resamples for CIs.
+20 episodes per domain under the frozen policy; uniform subsample of 2000 $(s,a)$ pairs; $\|\nabla_a Q_c\|_2$ and $\|\nabla_s Q_c\|_2$ via autodiff; $\kappa$ = ratio of sample means; nonparametric bootstrap with 1000 resamples for CIs.
+
+\subsection{Retraining-Baseline Hyperparameters}
+\label{app:baselines}
+
+\textbf{SAC-Lagrangian default}: $\mu_0\!=\!0.1$, $\mu_{\mathrm{lr}}\!=\!0.005$, no warmup, no reward scaling.
+\textbf{Warmup variant}: $\mu$ held at 0 for the first $50$k steps (pure-reward warmup), $\mu_0\!=\!0.05$ after, $\mu_{\mathrm{lr}}\!=\!0.005$, reward$\times 5$.
+\textbf{Aggressive}: $\mu_0\!=\!0.5$, $\mu_{\mathrm{lr}}\!=\!0.05$, reward$\times 5$, no warmup.
+All start from the pretrained unconstrained actor; $\alpha_{\mathrm{ent}}\!=\!0.2$ fixed.
+\textbf{SAUTE}: state-augmentation with $\rho_t$, reward replaced with $-1/(1-\gamma)$ when $\rho_t\!<\!0$; otherwise standard SAC; trained from the pretrained actor for 500k steps.
 
 \subsection{Path to Wind-Farm Deployment}
 \label{app:deployment}
 
 \begin{enumerate}[leftmargin=*]
-    \item \textbf{DEL-calibrated cost}: replace the per-turbine surrogate with a control-oriented DEL model~\citep{wes2024DEL, jpcs2024wakeDEL}.
-    \item \textbf{WakeAdapt-equivalent $\pi_{\mathrm{safe}}$}: precompute a yaw setpoint table $T(\bar{v}, \bar{\phi})\to\{y_i\}$ minimizing farm DEL.
+    \item \textbf{DEL-calibrated cost}: replace per-turbine surrogate with a control-oriented DEL model~\citep{wes2024DEL, jpcs2024wakeDEL}.
+    \item \textbf{WakeAdapt-equivalent $\pi_{\mathrm{safe}}$}: precompute $T(\bar v, \bar\phi)\to\{y_i\}$ minimising farm DEL.
     \item \textbf{SCADA counterfactual}: retrospective evaluation on real operational data.
     \item \textbf{Non-stationary wind}: online refit of $Q_c$ / DEL surrogate; concept-drift detection.
     \item \textbf{High-fidelity validation}: FAST.Farm calibrated to SCADA.
