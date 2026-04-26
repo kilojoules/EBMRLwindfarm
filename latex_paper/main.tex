@@ -40,7 +40,7 @@ A pre-trained, unconstrained RL policy faces a new cumulative operational constr
 We propose a closed-form schedule $\sigma(u)$ that \emph{blends two existing controllers at inference}: the deployed performance policy $\pi_{\mathrm{perf}}$ and a domain-specific safety controller $\pi_{\mathrm{safe}}$ (a factory wind-tracking yaw setpoint, an artificial-potential-field navigator).
 The blend weight $\sigma(u)\!\in\![0,1]$ is a monotone function of the \emph{urgency ratio} $u=\rho/\tau$ (remaining-budget / remaining-time fractions): on pace ($u\!\ge\!1$) the performance policy runs; in deficit ($u\!\to\!0$) the safety controller takes over.
 \textbf{This is a budget-aware \emph{pacing} mechanism, not a hard enforcement guarantee.}
-On wind-farm yaw control ($\kappa\!\approx\!0.72$) the schedule retains $99.3$--$101.8\%$ of unconstrained power while satisfying a $15$-step neg-yaw surrogate budget across 4 training seeds.
+On wind-farm yaw control ($\kappa\!\approx\!0.72$) the schedule satisfies a $15$-step neg-yaw surrogate budget across 4 training seeds with $99.3$--$101.8\%$ of unconstrained power; in our 3-turbine setting zero yaw alone is power-competitive with the unconstrained policy, so WF validates budget tracking rather than preservation of a large wake-steering advantage.
 On Safety Gymnasium ($\kappa\!\approx\!0.02$) the explicit blend gives a favorable reward-cost trade-off (cost from $49.4$ to $15.3$ at $d\!=\!10$, retaining $45\%$ of unconstrained reward) but does not reliably satisfy expected cost at tight budgets.
 We compare against retraining baselines (SAC-Lagrangian at three hyperparameter settings; SAUTE~\citep{sootla2022saute}, which uses the same urgency variable our schedule does); the best retraining variant tested attains $R\!=\!2.3$, $C\!=\!24$ at $500$k steps, putting the blend on the Pareto-favorable side of the reward axis but \emph{not} dominating in the constrained sense (some baselines satisfy budget more tightly at the cost of reward).
 A gradient-correction variant of the same schedule works when the action-to-cost coupling strength $\kappa = \mathbb{E}\|\nabla_a Q_c\|/\mathbb{E}\|\nabla_s Q_c\|$ is large; when it is small, the explicit-$\pi_{\mathrm{safe}}$ blend is required.
@@ -55,7 +55,7 @@ A gradient-correction variant of the same schedule works when the action-to-cost
 A wind-farm operator deploys an RL controller that maximises power via coordinated yaw wake steering; it was trained unconstrained and works well.
 Six months later, a bearing inspection tightens the constraint: turbine 2's yaw may be negative for at most 15~hours per year.
 Retraining the RL controller is expensive and slow; the operator already has a certified wake-steering fallback (e.g., WakeAdapt~\citep{siemensWakeAdapt}, a calibrated yaw-setpoint table).
-What the operator needs is a way to \emph{pace between} the aggressive RL policy and the domain-specific safety controller so the cumulative constraint is satisfied, without retraining either.
+What the operator needs is a way to \emph{pace between} the aggressive RL policy and the domain-specific safety controller so cumulative cost can be tracked toward a budget target, without retraining either.
 
 \textbf{The pattern is pervasive.}
 Wind turbines have load budgets~\citep{dijk2025load}; grid batteries have cycle-life limits; fleet vehicles have maintenance intervals; advertisers have spending caps~\citep{balseiro2023budget}.
@@ -64,7 +64,7 @@ Unlike an instantaneous safety constraint, a \emph{lifetime budget} requires cho
 \textbf{Retraining is not the operator-realistic answer.}
 We test four standard retraining baselines starting from the deployed Safety-Gymnasium actor: SAC-Lagrangian at default settings, with $\mu$-warmup + reward scaling, with aggressive dual ascent, and SAUTE~\citep{sootla2022saute} (state augmentation with $\rho_t$).
 At $500{,}000$ extra training steps---more than the original unconstrained training---every variant either violates the budget while preserving partial reward or satisfies the budget by collapsing the policy's reward to $\approx\!0$ (Figure~\ref{fig:time_to_deployment}, Table~\ref{tab:baselines}).
-The Lagrangian dual destroys goal-seeking before budget-aware behaviour emerges; SAUTE's $\rho$-augmentation does not by itself recover usefulness.
+In our tested settings, the Lagrangian variants either preserve partial reward while violating the budget or drive cost down by collapsing goal-seeking; SAUTE's $\rho$-augmentation in our run does not by itself recover usefulness.
 
 \textbf{Our proposal: urgency-ratio controller blending.}
 Borrowing the pacing intuition from optimal execution~\citep{almgren2001optimal}, define
@@ -92,7 +92,7 @@ On pace $\Rightarrow$ performance; deficit $\Rightarrow$ safety.
 \textbf{Contributions.}
 (1)~A \emph{closed-form urgency-ratio schedule} $\sigma(u)$ with one sharpness parameter, derived from a budget-balanced pacing argument (\S\ref{sec:theory}; Prop.~\ref{prop:optimal}).
 (2)~\emph{Two-controller blending} that treats an existing safety controller as a first-class primitive rather than retraining the policy (\S\ref{sec:method}).
-(3)~A \emph{gradient-correction variant} (\S\ref{sec:gradient}) where $\pi_{\mathrm{safe}}$ is implicitly a step of $-\nabla_a Q_c$; this works when the coupling strength $\kappa = \mathbb{E}\|\nabla_a Q_c\|/\mathbb{E}\|\nabla_s Q_c\|$ is large (Table~\ref{tab:coupling}).
+(3)~A \emph{gradient-correction variant} (\S\ref{sec:gradient}) where $\pi_{\mathrm{safe}}$ is implicitly a step of $-\nabla_a Q_c$. We propose the coupling strength $\kappa = \mathbb{E}\|\nabla_a Q_c\|/\mathbb{E}\|\nabla_s Q_c\|$ as a \emph{preliminary diagnostic} for when this variant is likely to fail (Table~\ref{tab:coupling}); we observe a $36\times$ gap between our two domains aligning with the qualitative outcome but do not claim broader validation.
 (4)~\emph{Empirical validation} on wind-farm yaw control ($\kappa\!\approx\!0.72$) and Safety Gymnasium ($\kappa\!\approx\!0.02$), under the \emph{same} schedule with \emph{different} safety controllers chosen by $\kappa$.
 On the reward axis, the post-hoc blend is Pareto-favorable to four distinct retraining baselines (SAC-Lagrangian at three hyperparameter settings, plus SAUTE) on SG at every compute checkpoint we measured; on the cost axis some baselines satisfy the constraint more tightly at the cost of reward (\S\ref{sec:sg_results}).
 
@@ -313,7 +313,12 @@ A binary cost $c\!=\!\mathbf{1}[y\!<\!0]$ \emph{inflates} fatigue $4.2\times$ ov
 Mirroring the SG ablation, we sweep five alternative blend modes sharing $\pi_{\mathrm{perf}}$ and $\pi_{\mathrm{safe}}\!\equiv\!0$.
 Constant $\sigma\!\in\!\{0.3, 0.5, 0.7\}$ violates the budget at all values: linearly scaling the actor's output toward zero does not suppress the negative-yaw fraction enough to satisfy $d\!=\!15$.
 Hard threshold switching ($\sigma\!=\!1$ if $u\!<\!\theta$ else $0$) and projected-budget override both satisfy the budget across all seeds with power retention statistically indistinguishable from the urgency schedule (98.7--100.9\% vs.\ urgency's 99.5\%).
-Pure $\pi_{\mathrm{safe}}$ (zero yaw, no wake-steering) also retains 100.7\% of unconstrained power across 4 seeds---an unexpected finding that suggests the unconstrained actor's negative-yaw use is not contributing meaningful wake-steering benefit in this setting; we discuss this in \S\ref{sec:discussion}.
+
+\textbf{Important caveat: pure $\pi_{\mathrm{safe}}$ (zero yaw, no wake-steering) also retains $100.7\!\pm\!2.5\%$ of unconstrained power.}
+This means our trained EBT actor is not Pareto-optimal on the power axis in this setting---turning off wake-steering entirely costs essentially nothing.
+The wind-farm experiments should therefore be read as validating that the urgency mechanism \emph{tracks per-turbine cumulative budgets} under high action-cost coupling, \emph{not} as evidence that the blend preserves a large RL wake-steering benefit.
+A stronger $\pi_{\mathrm{perf}}$ (longer training, multi-layout, DEL-aware reward) would be required to demonstrate the latter; the blend mechanism would compose with it identically.
+The Safety Gymnasium experiments (\S\ref{sec:sg_results}), where the unconstrained actor genuinely outperforms $\pi_{\mathrm{safe}}$ ($R\!=\!27$ vs.\ $R\!=\!3.1$), are the more decisive validation of preserving useful policy reward.
 
 \begin{table}[h]
 \centering
@@ -504,16 +509,18 @@ A fully-converged CMDP method at $\sim\!10\times$ our compute may reach a better
 (5)~We test 4 seeds on WF and 5 on SG; retraining baselines use a single seed each at one hyperparameter setting per regime, covering three qualitatively different Lagrangian configurations (default, warmup, aggressive) plus SAUTE. Lagrangian methods are sensitive to reward scale and dual learning rate; we explored three settings, not a full sweep.
 (6)~$\kappa$ depends on state and action scaling and on the quality of the learned $Q_c$. Comparing across two domains is suggestive, not definitive; broader validation across continuously varying coupling regimes (e.g.\ synthetic gridworlds) would strengthen the diagnostic claim.
 (7)~Hard budget enforcement is not provided. A safe-future-cost upper bound $B_{\mathrm{safe}}(t)$ giving $C_t + B_{\mathrm{safe}}(t)\!\le\!d$ would be required and is left as future work.
-(8)~The unconstrained EBT actor's wake-steering benefit appears small in our experiments: pure $\pi_{\mathrm{safe}}$ (zero yaw) retains 100.7\% of unconstrained power (Table~\ref{tab:wf_ablation}). This indicates the actor we trained is not Pareto-optimal on the power axis, so the wind-farm experiments should be read as validating the \emph{blend mechanism's correctness} (correct fatigue budget tracking under various $\sigma$ choices) rather than as a demonstration that RL wake-steering yields large power gains here. A stronger $\pi_{\mathrm{perf}}$ (longer training, multi-layout, DEL-aware reward) would be required for that demonstration; the blend mechanism would compose with it identically.
+(8)~The unconstrained EBT actor we trained does not Pareto-dominate zero yaw on power in this 3-turbine setting (\S\ref{sec:wf_results}); WF therefore validates budget tracking, not preservation of a large wake-steering benefit.
 
 \textbf{Path to deployment.}
 Minimum-viable bridge from simulation to field operation: (a)~replace the fatigue surrogate with a DEL-calibrated model; (b)~precompute a WakeAdapt-equivalent setpoint table to use as $\pi_{\mathrm{safe}}$; (c)~retrospective SCADA counterfactual on real operational data; (d)~online refit of $Q_c$ / the DEL surrogate under non-stationary wind.
 All four leverage the same schedule; none require retraining $\pi_{\mathrm{perf}}$.
 
 \textbf{Summary.}
-A single closed-form schedule composes a pre-trained performance policy with a domain-specific safety controller to enforce cumulative damage budgets at inference.
-$\kappa$ diagnoses which variant to use.
-On both domains, post-hoc blending is not dominated by Lagrangian finetune at the compute budgets an operator can realistically afford---and it gives up the single-budget training commitment: one model, any $d$, instantly.
+A simple urgency variable $u=\rho/\tau$ provides a useful interface for post-hoc budget-aware arbitration between a pre-trained performance policy and a domain-specific safety controller.
+The smooth closed-form schedule is one convenient single-parameter implementation; hard threshold switching is a competitive alternative (Tables~\ref{tab:wf_ablation}, \ref{tab:ablations}).
+$\kappa$ provides a preliminary diagnostic for when local action-gradient correction is likely to fail, motivating explicit safety-controller blending.
+At the compute budgets an operator can realistically afford, post-hoc blending preserves higher reward than the Lagrangian retraining baselines we tested---without their single-budget commitment.
+The mechanism paces cumulative cost; hard enforcement requires an additional safe-future-cost bound (future work).
 Code and checkpoints: \url{[anonymized]}.
 
 %----------------------------------------------------------------------
