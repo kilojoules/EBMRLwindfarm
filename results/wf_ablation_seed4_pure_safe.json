@@ -1,0 +1,30 @@
+{
+  "unconstrained": {
+    "power_mean": 26721862.901322924,
+    "power_se": 691636.3119460889,
+    "neg_yaw_mean": [
+      52.68,
+      54.5,
+      62.86
+    ]
+  },
+  "blend": {
+    "power_mean": 27014591.685115084,
+    "power_se": 669311.3047943306,
+    "neg_yaw_mean": [
+      0.44,
+      0.4,
+      0.46
+    ],
+    "sigma_mean": 1.0,
+    "budget_satisfied": true
+  },
+  "pct_uncon": 101.09546548035642,
+  "meta": {
+    "budget": 15,
+    "sharpness": 3.0,
+    "sigma_max": 1.0,
+    "n_episodes": 50,
+    "checkpoint": "runs/ebt_wf_seed4/checkpoints/step_100000.pt"
+  }
+}

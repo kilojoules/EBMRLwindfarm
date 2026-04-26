@@ -309,6 +309,32 @@ Blend ($\eta\!=\!10$)      & $99.3\!\pm\!2.4\%$ & $[11.0, 11.3, 11.3]$ & 0.59 & 
 \textbf{Cost function matters (Appendix~\ref{app:nonlinear}).}
 A binary cost $c\!=\!\mathbf{1}[y\!<\!0]$ \emph{inflates} fatigue $4.2\times$ over unconstrained; the nonlinear surrogate avoids this trap.
 
+\textbf{Wind-farm ablation: schedule vs simpler blends} (Table~\ref{tab:wf_ablation}).
+Mirroring the SG ablation, we sweep five alternative blend modes sharing $\pi_{\mathrm{perf}}$ and $\pi_{\mathrm{safe}}\!\equiv\!0$.
+Constant $\sigma\!\in\!\{0.3, 0.5, 0.7\}$ violates the budget at all values: linearly scaling the actor's output toward zero does not suppress the negative-yaw fraction enough to satisfy $d\!=\!15$.
+Hard threshold switching ($\sigma\!=\!1$ if $u\!<\!\theta$ else $0$) and projected-budget override both satisfy the budget across all seeds with power retention statistically indistinguishable from the urgency schedule (98.7--100.9\% vs.\ urgency's 99.5\%).
+Pure $\pi_{\mathrm{safe}}$ (zero yaw, no wake-steering) also retains 100.7\% of unconstrained power across 4 seeds---an unexpected finding that suggests the unconstrained actor's negative-yaw use is not contributing meaningful wake-steering benefit in this setting; we discuss this in \S\ref{sec:discussion}.
+
+\begin{table}[h]
+\centering
+\caption{Wind-farm ablation matching the SG counterpart (Table~\ref{tab:ablations}). Five alternative blend modes share $\pi_{\mathrm{perf}}$ + $\pi_{\mathrm{safe}}\!\equiv\!0$; only the $\sigma$ schedule changes. Hard threshold switching matches the urgency schedule; constant $\sigma$ blends violate the budget; pure $\pi_{\mathrm{safe}}$ is feasible and retains nominal power.}
+\label{tab:wf_ablation}
+\begin{tabular}{lcccc}
+\toprule
+Mode & \% Uncon power & NegYaw & $\bar\sigma$ & Seeds sat. \\
+\midrule
+$\pi_{\mathrm{safe}}$ alone (zero yaw) & $100.7\!\pm\!2.5\%$ & $[0.4, 0.6, 0.5]$ & 1.00 & $\mathbf{4/4}$ \\
+const $\sigma\!=\!0.3$                  & $100.9\!\pm\!2.1\%$ & $[75.0, 72.9, 77.4]$ & 0.30 & 0/4 \\
+const $\sigma\!=\!0.5$                  & $100.6\!\pm\!2.5\%$ & $[67.9, 66.8, 68.6]$ & 0.50 & 0/4 \\
+const $\sigma\!=\!0.7$                  & $98.7\!\pm\!0.9\%$  & $[64.9, 64.8, 68.5]$ & 0.70 & 0/4 \\
+switch $u\!<\!0.5$                      & $98.8\!\pm\!1.6\%$  & $[11.1, 11.1, 11.5]$ & 0.49 & $\mathbf{4/4}$ \\
+switch $u\!<\!0.8$                      & $98.7\!\pm\!1.7\%$  & $[10.9, 11.1, 11.8]$ & 0.49 & $\mathbf{4/4}$ \\
+projected override                      & $100.9\!\pm\!3.6\%$ & $[11.6, 11.5, 12.0]$ & 0.56 & 2/2 \\
+\textbf{urgency $\eta\!=\!3$ (ours)}    & $99.5\!\pm\!2.2\%$  & $[11.5, 12.1, 12.2]$ & 0.63 & $\mathbf{4/4}$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
 \subsection{Safety Gymnasium: Low Coupling, Reward-Favorable Soft-Budget Operating Point}
 \label{sec:sg_results}
 
@@ -478,6 +504,7 @@ A fully-converged CMDP method at $\sim\!10\times$ our compute may reach a better
 (5)~We test 4 seeds on WF and 5 on SG; retraining baselines use a single seed each at one hyperparameter setting per regime, covering three qualitatively different Lagrangian configurations (default, warmup, aggressive) plus SAUTE. Lagrangian methods are sensitive to reward scale and dual learning rate; we explored three settings, not a full sweep.
 (6)~$\kappa$ depends on state and action scaling and on the quality of the learned $Q_c$. Comparing across two domains is suggestive, not definitive; broader validation across continuously varying coupling regimes (e.g.\ synthetic gridworlds) would strengthen the diagnostic claim.
 (7)~Hard budget enforcement is not provided. A safe-future-cost upper bound $B_{\mathrm{safe}}(t)$ giving $C_t + B_{\mathrm{safe}}(t)\!\le\!d$ would be required and is left as future work.
+(8)~The unconstrained EBT actor's wake-steering benefit appears small in our experiments: pure $\pi_{\mathrm{safe}}$ (zero yaw) retains 100.7\% of unconstrained power (Table~\ref{tab:wf_ablation}). This indicates the actor we trained is not Pareto-optimal on the power axis, so the wind-farm experiments should be read as validating the \emph{blend mechanism's correctness} (correct fatigue budget tracking under various $\sigma$ choices) rather than as a demonstration that RL wake-steering yields large power gains here. A stronger $\pi_{\mathrm{perf}}$ (longer training, multi-layout, DEL-aware reward) would be required for that demonstration; the blend mechanism would compose with it identically.
 
 \textbf{Path to deployment.}
 Minimum-viable bridge from simulation to field operation: (a)~replace the fatigue surrogate with a DEL-calibrated model; (b)~precompute a WakeAdapt-equivalent setpoint table to use as $\pi_{\mathrm{safe}}$; (c)~retrospective SCADA counterfactual on real operational data; (d)~online refit of $Q_c$ / the DEL surrogate under non-stationary wind.
