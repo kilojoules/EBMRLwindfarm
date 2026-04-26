@@ -318,6 +318,7 @@ Hard threshold switching ($\sigma\!=\!1$ if $u\!<\!\theta$ else $0$) and project
 This means our trained EBT actor is not Pareto-optimal on the power axis in this setting---turning off wake-steering entirely costs essentially nothing.
 The wind-farm experiments should therefore be read as validating that the urgency mechanism \emph{tracks per-turbine cumulative budgets} under high action-cost coupling, \emph{not} as evidence that the blend preserves a large RL wake-steering benefit.
 A stronger $\pi_{\mathrm{perf}}$ (longer training, multi-layout, DEL-aware reward) would be required to demonstrate the latter; the blend mechanism would compose with it identically.
+\emph{Zero-shot transfer to 9-turbine $3\!\times\!3$ grid (Appendix~\ref{app:wf_9turb}) shows the same pattern}: pure $\pi_{\mathrm{safe}}$ retains $97.8\!\pm\!1.2\%$ of unconstrained power; the limitation is in the actor's wake-steering training, not in the 3-turbine geometry.
 The Safety Gymnasium experiments (\S\ref{sec:sg_results}), where the unconstrained actor genuinely outperforms $\pi_{\mathrm{safe}}$ ($R\!=\!27$ vs.\ $R\!=\!3.1$), are the more decisive validation of preserving useful policy reward.
 
 \begin{table}[h]
@@ -638,6 +639,28 @@ When the performance policy was trained for short-path navigation, its action su
 \textbf{Aggressive}: $\mu_0\!=\!0.5$, $\mu_{\mathrm{lr}}\!=\!0.05$, reward$\times 5$, no warmup.
 All start from the pretrained unconstrained actor; $\alpha_{\mathrm{ent}}\!=\!0.2$ fixed.
 \textbf{SAUTE}: state-augmentation with $\rho_t$, reward replaced with $-1/(1-\gamma)$ when $\rho_t\!<\!0$; otherwise standard SAC; trained from the pretrained actor for 500k steps.
+
+\subsection{9-Turbine Zero-Shot Transfer Ablation}
+\label{app:wf_9turb}
+
+We zero-shot-transfer the pretrained 3-turbine EBT actor to the 9-turbine $3\!\times\!3$ \texttt{square\_3x3} layout (the transformer is permutation-equivariant) and re-run a subset of the ablation modes (3 seeds $\times$ 30 ep). Pure $\pi_{\mathrm{safe}}$ retains $97.8\%$ of unconstrained power, mirroring the 3-turbine result; uncon power varies $\sim\!2$ MW seed-to-seed and the wake-steering advantage of $\pi_{\mathrm{perf}}$ is not visible above this variance. The same pattern across both layouts indicates the limitation is in actor training, not farm geometry.
+
+\begin{table}[h]
+\centering
+\caption{Wind-farm 9-turbine zero-shot ablation. Pretrained 3-turbine EBT actor transferred to $3\!\times\!3$ grid. Pattern matches 3-turbine: pure $\pi_{\mathrm{safe}}$ is power-competitive with uncon RL.}
+\label{tab:wf_9turb}
+\begin{tabular}{lcccc}
+\toprule
+Mode & \% Uncon power & Blend (MW) & Uncon (MW) & Seeds sat \\
+\midrule
+$\pi_{\mathrm{safe}}$ alone (zero yaw) & $97.8\!\pm\!1.2\%$  & 76.9 & 78.7 & 3/3 \\
+const $\sigma\!=\!0.5$                  & $101.8\!\pm\!1.6\%$ & 78.0 & 76.7 & 0/3 \\
+const $\sigma\!=\!0.7$                  & $103.5\!\pm\!2.5\%$ & 78.2 & 75.7 & 0/3 \\
+switch $u\!<\!0.8$                      & $104.2\!\pm\!0.9\%$ & 79.2 & 76.0 & 3/3 \\
+urgency $\eta\!=\!3$                    & $96.9\!\pm\!4.7\%$  & 73.9 & 76.4 & 3/3 \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 \subsection{Path to Wind-Farm Deployment}
 \label{app:deployment}

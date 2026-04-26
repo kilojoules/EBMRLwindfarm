@@ -77,12 +77,17 @@ def main():
     p.add_argument("--const-sigma", type=float, default=0.0)
     p.add_argument("--switch-thresh", type=float, default=0.5)
     p.add_argument("--n-episodes", type=int, default=50)
+    p.add_argument("--layouts-override", default=None,
+                   help="override training layouts (e.g. square_3x3)")
     p.add_argument("--output", required=True)
     args = p.parse_args()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     ckpt = torch.load(args.checkpoint, map_location=device, weights_only=False)
     tr_args = Args(**{k: v for k, v in ckpt["args"].items() if hasattr(Args, k)})
+    if args.layouts_override:
+        print(f"  override layouts: {tr_args.layouts} -> {args.layouts_override}")
+        tr_args.layouts = args.layouts_override
 
     from ebt_sac_windfarm import setup_env
     from helpers.agent import WindFarmAgent
