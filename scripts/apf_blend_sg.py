@@ -101,7 +101,35 @@ def world_to_action(dir_world, heading, act_limit=1.0):
     return np.array([thrust, turn]) * act_limit
 
 
-def urgency_blend_sigma(t, T, C, budget, sharpness=3.0, sigma_max=1.0):
+def urgency_blend_sigma(t, T, C, budget, sharpness=3.0, sigma_max=1.0,
+                          mode="urgency", const_sigma=0.0, switch_thresh=0.5):
+    """Compute σ via one of several modes.
+
+    mode:
+      'urgency'  - default: σ = 1 - exp(-η(1/u-1)) when u<1, else 0
+      'const'    - constant σ = const_sigma (ablation: tests value of urgency adaptation)
+      'switch'   - hard switch: σ = sigma_max if u < switch_thresh else 0
+      'pure_safe'- always σ = 1 (use π_safe only, ignores budget)
+      'projected'- projected-budget enforcement: σ = 1 if predicted final cost > d, else 0
+    """
+    if mode == "pure_safe":
+        return float(sigma_max)
+    if mode == "const":
+        return float(const_sigma)
+    if mode == "switch":
+        if t >= T or budget <= 0: return 0.0
+        rho = (budget - C) / max(budget, 1e-9)
+        tau = (T - t) / T
+        if tau <= 1e-6: return 0.0
+        u = rho / max(tau, 1e-6)
+        return float(sigma_max if u < switch_thresh else 0.0)
+    if mode == "projected":
+        # Use current cost rate to project final cost
+        if t < 5: return 0.0   # warmup before projecting
+        cost_rate = C / max(t, 1)
+        proj_cost = cost_rate * T
+        return float(sigma_max if proj_cost > budget else 0.0)
+    # default: urgency
     """σ ∈ [0, σ_max]. Small σ → trust actor. Large σ → trust safety controller.
     Uses the urgency ratio u = ρ/τ from the paper; σ = σ_max · (1 − exp(−s · max(0, 1/u − 1))).
     At u ≥ 1 (on pace or ahead): σ = 0. At u → 0 (exhausted): σ → σ_max."""
@@ -120,7 +148,8 @@ def urgency_blend_sigma(t, T, C, budget, sharpness=3.0, sigma_max=1.0):
 
 def run_episode(env, actor, budget, ep_idx, horizon=1000,
                 sharpness=3.0, r_repel=0.6, alpha_apf=0.5,
-                sigma_max=1.0, k_rep=1.0, act_limit=1.0):
+                sigma_max=1.0, k_rep=1.0, act_limit=1.0,
+                mode="urgency", const_sigma=0.0, switch_thresh=0.5):
     obs, _ = env.reset(seed=ep_idx * 101 + 7)
     C = 0.0; R = 0.0
     for t in range(horizon):
@@ -139,9 +168,11 @@ def run_episode(env, actor, budget, ep_idx, horizon=1000,
                                      r_repel=r_repel, alpha=alpha_apf, k_rep=k_rep)
         a_safe = world_to_action(dir_w, heading, act_limit=act_limit)
 
-        # Urgency-based blend
+        # Blend weight (mode-dependent)
         sigma = urgency_blend_sigma(t, horizon, C, budget,
-                                     sharpness=sharpness, sigma_max=sigma_max)
+                                     sharpness=sharpness, sigma_max=sigma_max,
+                                     mode=mode, const_sigma=const_sigma,
+                                     switch_thresh=switch_thresh)
         a_exec = (1.0 - sigma) * a_task + sigma * a_safe
         a_exec = np.clip(a_exec, -act_limit, act_limit)
 
@@ -170,6 +201,11 @@ def main():
     p.add_argument("--alpha-apf", type=float, default=0.5,
                    help="weight of goal attractor vs repulsor (0=pure-repel)")
     p.add_argument("--k-rep", type=float, default=1.0)
+    p.add_argument("--mode", choices=["urgency", "const", "switch", "pure_safe", "projected"],
+                   default="urgency",
+                   help="blend-weight mode: urgency (default), const σ, hard switch, pure safety, projected enforcement")
+    p.add_argument("--const-sigma", type=float, default=0.0)
+    p.add_argument("--switch-thresh", type=float, default=0.5)
     p.add_argument("--out", default="results/apf_blend_sg.json")
     args = p.parse_args()
 
@@ -189,7 +225,9 @@ def main():
                         sharpness=args.sigma_sharpness,
                         r_repel=args.r_repel, alpha_apf=args.alpha_apf,
                         sigma_max=args.sigma_max, k_rep=args.k_rep,
-                        act_limit=ac["act_limit"])
+                        act_limit=ac["act_limit"],
+                        mode=args.mode, const_sigma=args.const_sigma,
+                        switch_thresh=args.switch_thresh)
         per_ep.append(r)
         print(f"  ep {ep}: R={r['reward']:.1f} C={r['cost']:.1f} "
               f"steps={r['steps']}", flush=True)
@@ -215,7 +253,13 @@ def main():
     if Path(args.out).exists():
         try: data = json.load(open(args.out))
         except Exception: pass
-    key = f"seed{args.seed}_B{args.budget}_sh{args.sigma_sharpness}_r{args.r_repel}_α{args.alpha_apf}"
+    if args.mode == "urgency":
+        key = f"seed{args.seed}_B{args.budget}_sh{args.sigma_sharpness}_r{args.r_repel}_α{args.alpha_apf}"
+    else:
+        tag = args.mode
+        if args.mode == "const": tag += f"{args.const_sigma}"
+        if args.mode == "switch": tag += f"{args.switch_thresh}"
+        key = f"seed{args.seed}_B{args.budget}_mode_{tag}_r{args.r_repel}_α{args.alpha_apf}"
     data[key] = summary
     with open(args.out, "w") as f:
         json.dump(data, f, indent=2)

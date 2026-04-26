@@ -26,7 +26,7 @@
 \newcommand{\cf}{\textit{cf.}}
 \newcommand{\etal}{\textit{et al.}}
 
-\title{Budget-Aware Controller Blending: Post-Hoc Damage-Budget Enforcement for Pre-Trained RL Policies}
+\title{Budget-Aware Controller Blending: Post-Hoc Damage-Budget Pacing for Pre-Trained RL Policies}
 
 \author{Julian Quick\thanks{\texttt{juqu@dtu.dk}} \\ Marcus Binder Nilsen \\
 DTU Wind Energy, Technical University of Denmark}
@@ -37,11 +37,12 @@ DTU Wind Energy, Technical University of Denmark}
 
 \begin{abstract}
 A pre-trained, unconstrained RL policy faces a new cumulative operational constraint at deployment: a damage budget per year, a duty-cycle limit, a spending cap.
-We test four retraining baselines starting from the deployed actor on Safety Gymnasium PointGoal1 (SAC-Lagrangian at default, $\mu$-warmup, and aggressive-dual settings; SAUTE state-augmentation~\citep{sootla2022saute} which uses the same urgency variable as our schedule); at $500$k extra training steps, the best of them attains $R\!=\!2.3$ at $C\!=\!24$ ($d\!=\!25$), against the unconstrained $R\!=\!27$.
-We instead propose a closed-form schedule $\sigma(u)$ that \emph{blends two existing controllers at inference}: the deployed performance policy $\pi_{\mathrm{perf}}$ and a certified safety controller $\pi_{\mathrm{safe}}$ (a factory wind-tracking yaw setpoint, an artificial-potential-field navigator).
+We propose a closed-form schedule $\sigma(u)$ that \emph{blends two existing controllers at inference}: the deployed performance policy $\pi_{\mathrm{perf}}$ and a domain-specific safety controller $\pi_{\mathrm{safe}}$ (a factory wind-tracking yaw setpoint, an artificial-potential-field navigator).
 The blend weight $\sigma(u)\!\in\![0,1]$ is a monotone function of the \emph{urgency ratio} $u=\rho/\tau$ (remaining-budget / remaining-time fractions): on pace ($u\!\ge\!1$) the performance policy runs; in deficit ($u\!\to\!0$) the safety controller takes over.
-On wind-farm yaw control ($\kappa\!\approx\!0.72$) the schedule retains $99.3$--$101.8\%$ of unconstrained power while satisfying a $15$-step neg-yaw budget across 4 training seeds.
-On Safety Gymnasium ($\kappa\!\approx\!0.02$) it retains $45$--$71\%$ of unconstrained reward, dominating every retraining baseline we tested at every checkpoint $\in\{0, 50\text{k}, 200\text{k}, 500\text{k}\}$.
+\textbf{This is a budget-aware \emph{pacing} mechanism, not a hard enforcement guarantee.}
+On wind-farm yaw control ($\kappa\!\approx\!0.72$) the schedule retains $99.3$--$101.8\%$ of unconstrained power while satisfying a $15$-step neg-yaw surrogate budget across 4 training seeds.
+On Safety Gymnasium ($\kappa\!\approx\!0.02$) the explicit blend gives a favorable reward-cost trade-off (cost from $49.4$ to $15.3$ at $d\!=\!10$, retaining $45\%$ of unconstrained reward) but does not reliably satisfy expected cost at tight budgets.
+We compare against retraining baselines (SAC-Lagrangian at three hyperparameter settings; SAUTE~\citep{sootla2022saute}, which uses the same urgency variable our schedule does); the best retraining variant tested attains $R\!=\!2.3$, $C\!=\!24$ at $500$k steps, putting the blend on the Pareto-favorable side of the reward axis but \emph{not} dominating in the constrained sense (some baselines satisfy budget more tightly at the cost of reward).
 A gradient-correction variant of the same schedule works when the action-to-cost coupling strength $\kappa = \mathbb{E}\|\nabla_a Q_c\|/\mathbb{E}\|\nabla_s Q_c\|$ is large; when it is small, the explicit-$\pi_{\mathrm{safe}}$ blend is required.
 \end{abstract}
 
@@ -54,7 +55,7 @@ A gradient-correction variant of the same schedule works when the action-to-cost
 A wind-farm operator deploys an RL controller that maximises power via coordinated yaw wake steering; it was trained unconstrained and works well.
 Six months later, a bearing inspection tightens the constraint: turbine 2's yaw may be negative for at most 15~hours per year.
 Retraining the RL controller is expensive and slow; the operator already has a certified wake-steering fallback (e.g., WakeAdapt~\citep{siemensWakeAdapt}, a calibrated yaw-setpoint table).
-What the operator needs is a way to \emph{pace between} the aggressive RL policy and the certified safety controller so the cumulative constraint is satisfied, without retraining either.
+What the operator needs is a way to \emph{pace between} the aggressive RL policy and the domain-specific safety controller so the cumulative constraint is satisfied, without retraining either.
 
 \textbf{The pattern is pervasive.}
 Wind turbines have load budgets~\citep{dijk2025load}; grid batteries have cycle-life limits; fleet vehicles have maintenance intervals; advertisers have spending caps~\citep{balseiro2023budget}.
@@ -93,11 +94,16 @@ On pace $\Rightarrow$ performance; deficit $\Rightarrow$ safety.
 (2)~\emph{Two-controller blending} that treats an existing safety controller as a first-class primitive rather than retraining the policy (\S\ref{sec:method}).
 (3)~A \emph{gradient-correction variant} (\S\ref{sec:gradient}) where $\pi_{\mathrm{safe}}$ is implicitly a step of $-\nabla_a Q_c$; this works when the coupling strength $\kappa = \mathbb{E}\|\nabla_a Q_c\|/\mathbb{E}\|\nabla_s Q_c\|$ is large (Table~\ref{tab:coupling}).
 (4)~\emph{Empirical validation} on wind-farm yaw control ($\kappa\!\approx\!0.72$) and Safety Gymnasium ($\kappa\!\approx\!0.02$), under the \emph{same} schedule with \emph{different} safety controllers chosen by $\kappa$.
-The post-hoc blend dominates four distinct retraining baselines (SAC-Lagrangian at three hyperparameter settings, plus SAUTE) on SG at every compute checkpoint we measured (\S\ref{sec:sg_results}).
+On the reward axis, the post-hoc blend is Pareto-favorable to four distinct retraining baselines (SAC-Lagrangian at three hyperparameter settings, plus SAUTE) on SG at every compute checkpoint we measured; on the cost axis some baselines satisfy the constraint more tightly at the cost of reward (\S\ref{sec:sg_results}).
 
 \textbf{Deployment claim.}
-The method drops into systems that already have an RL performance policy, a certified safety controller, and a damage estimator---none of which are retrained.
-The safety layer is already certified; the urgency schedule decides when to fall back to it.
+The method drops into systems that already have an RL performance policy, a domain-specific safety controller, and a damage estimator---none of which are retrained.
+The schedule decides when to pace toward the safety controller as budget pressure builds.
+We \emph{do not} claim hard budget enforcement: APF on Safety Gym is reactive and can still incur cost (\S\ref{sec:sg_results}); true enforcement requires a backup invariant such as $C_t + B_{\mathrm{safe}}(t)\!\le\!d$ where $B_{\mathrm{safe}}$ upper-bounds future $\pi_{\mathrm{safe}}$ cost, which we leave to future work.
+
+\textbf{Constraint type.}
+We adopt the \emph{expected-cost CMDP} formulation: $\mathbb{E}_\pi[\sum_t c_t]\!\le\!d$.
+Expected-cost feasibility is what tables score; per-episode satisfaction rate is reported as a separate operational-reliability metric.
 
 %----------------------------------------------------------------------
 \section{Background}
@@ -217,15 +223,21 @@ Safety Gym (PointGoal) & $0.99\!\pm\!0.69$ & $49.8\!\pm\!12.5$ & $\mathbf{0.02}$
 \end{table}
 
 \begin{algorithm}[t]
-\caption{Urgency-Ratio Controller Blending}
+\caption{Urgency-Ratio Controller Blending (with safeguards)}
 \label{alg:budget}
 \begin{algorithmic}[1]
-\REQUIRE Performance policy $\pi_{\mathrm{perf}}$, safety controller $\pi_{\mathrm{safe}}$, budget $d$, horizon $T$, sharpness $\eta$
+\REQUIRE Performance policy $\pi_{\mathrm{perf}}$, safety controller $\pi_{\mathrm{safe}}$, budget $d>0$, horizon $T$, sharpness $\eta$, hard-wall threshold $u_{\mathrm{hw}}\!=\!0.05$, action bounds $[a_{\min}, a_{\max}]$
 \STATE $C_0 \gets 0$
 \FOR{$t = 0, 1, \ldots, T-1$}
-    \STATE $u_t \gets \tfrac{(d-C_t)/d}{(T-t)/T}$
-    \STATE $\sigma_t \gets 0$ if $u_t \ge 1$ else $1 - \exp(-\eta(1/u_t - 1))$
-    \STATE $a_t \gets (1-\sigma_t)\,\pi_{\mathrm{perf}}(s_t) + \sigma_t\,\pi_{\mathrm{safe}}(s_t)$
+    \STATE $\rho_t \gets \max((d - C_t)/d,\, 0)$;\quad $\tau_t \gets \max((T-t)/T,\, 1/T)$
+    \IF{$\rho_t = 0$ \textbf{or} $\tau_t \le 1/T$}
+        \STATE $\sigma_t \gets 1$ \COMMENT{budget exhausted or last step: $\pi_{\mathrm{safe}}$ takes over}
+    \ELSE
+        \STATE $u_t \gets \rho_t / \tau_t$
+        \STATE $\sigma_t \gets 0$ if $u_t \ge 1$ else $1 - \exp(-\eta(1/u_t - 1))$
+        \STATE \textbf{if} $u_t < u_{\mathrm{hw}}$ \textbf{then} $\sigma_t \gets 1$ \COMMENT{hard-wall backstop}
+    \ENDIF
+    \STATE $a_t \gets \mathrm{clip}((1-\sigma_t)\,\pi_{\mathrm{perf}}(s_t) + \sigma_t\,\pi_{\mathrm{safe}}(s_t),\; a_{\min},\, a_{\max})$
     \STATE Execute $a_t$; observe $c_t$; $C_{t+1} \gets C_t + c_t$
 \ENDFOR
 \end{algorithmic}
@@ -305,22 +317,27 @@ The APF blend reduces cost by 59--68\% at $d\!=\!10$ while retaining 45\% of unc
 
 \begin{table}[h]
 \centering
-\caption{Safety Gymnasium with urgency-ratio APF blend (5 seeds $\times$ 20 ep). Unconstrained: 49.4 cost / 27.1 reward. Blend trades reward for cost as $\eta$ increases; at $d\!=\!40$ the budget is satisfied in 56\% of episodes with 71\% of unconstrained reward retained.}
+\caption{Safety Gymnasium with urgency-ratio APF blend (5 seeds $\times$ 20 ep). \textbf{$\mathbb{E}[C]\!\le\!d$}: expected-cost CMDP feasibility (mean cost vs.\ budget). \textbf{Sat}: per-episode satisfaction rate. Unconstrained: $C\!=\!49.4$, $R\!=\!27.1$. The blend reduces expected cost substantially but \emph{does not reliably enforce} tight budgets ($d\!\le\!25$); only $d\!=\!40$ is feasible in expectation.}
 \label{tab:safetygym}
-\begin{tabular}{lccccc}
+\begin{tabular}{lcccccc}
 \toprule
-Method & Budget $d$ & Reward & \% Uncon & Cost (mean$\pm$SE) & Sat rate \\
+Method & $d$ & Reward & \% Uncon & Cost (mean$\pm$SE) & $\mathbb{E}[C]\!\le\!d$ & Sat \\
 \midrule
-Unconstrained                     & --- & $27.1\!\pm\!0.1$ & 100\% & $49.4\!\pm\!3.4$ & 12\% at $d\!=\!10$ \\
-Blend ($\eta\!=\!0$, no-op control) & 10 & $27.1\!\pm\!0.1$ & 100\% & $49.4\!\pm\!3.4$ & 12\% \\
-Blend ($\eta\!=\!1$)              & 10 & $12.1\!\pm\!0.9$ & 45\%  & $\mathbf{15.3\!\pm\!1.0}$ & 25\% \\
-Blend ($\eta\!=\!3$)              & 10 & $12.3\!\pm\!0.9$ & 45\%  & $18.6\!\pm\!1.2$ & 23\% \\
-Blend ($\eta\!=\!10$)             & 10 & $12.0\!\pm\!0.9$ & 44\%  & $17.8\!\pm\!1.3$ & 28\% \\
-Blend ($\eta\!=\!3$)              & 25 & $15.8\!\pm\!0.8$ & 58\%  & $28.6\!\pm\!1.6$ & 39\% \\
-Blend ($\eta\!=\!3$)              & 40 & $19.1\!\pm\!0.8$ & 71\%  & $34.5\!\pm\!2.0$ & \textbf{56\%} \\
+Unconstrained                     & --- & $27.1\!\pm\!0.1$ & 100\% & $49.4\!\pm\!3.4$ & --- & --- \\
+Blend ($\eta\!=\!0$, control)      & 10 & $27.1\!\pm\!0.1$ & 100\% & $49.4\!\pm\!3.4$ & \textcolor{red}{$\times$} & 12\% \\
+Blend ($\eta\!=\!1$)              & 10 & $12.1\!\pm\!0.9$ & 45\%  & $\mathbf{15.3\!\pm\!1.0}$ & \textcolor{red}{$\times$} & 25\% \\
+Blend ($\eta\!=\!3$)              & 10 & $12.3\!\pm\!0.9$ & 45\%  & $18.6\!\pm\!1.2$ & \textcolor{red}{$\times$} & 23\% \\
+Blend ($\eta\!=\!10$)             & 10 & $12.0\!\pm\!0.9$ & 44\%  & $17.8\!\pm\!1.3$ & \textcolor{red}{$\times$} & 28\% \\
+Blend ($\eta\!=\!3$)              & 25 & $15.8\!\pm\!0.8$ & 58\%  & $28.6\!\pm\!1.6$ & \textcolor{red}{$\times$} & 39\% \\
+Blend ($\eta\!=\!3$)              & 40 & $19.1\!\pm\!0.8$ & 71\%  & $34.5\!\pm\!2.0$ & \checkmark & \textbf{56\%} \\
 \bottomrule
 \end{tabular}
 \end{table}
+
+\textbf{Honest reading.} The APF blend is a useful post-hoc cost-reduction mechanism: at $d\!=\!10$ it cuts expected cost from $49$ to $15$ (a $3.2\times$ reduction) at the price of half the unconstrained reward.
+But it \emph{does not enforce} tight budgets in expectation: $\mathbb{E}[C]\!=\!15.3 > 10$.
+At $d\!=\!40$ expected-cost feasibility is achieved.
+The mechanism gives a favorable reward-cost trade-off, not a hard budget guarantee; for hard guarantees a backup invariant (e.g., projected-budget override; \S\ref{sec:sg_results}) or a cost-zero $\pi_{\mathrm{safe}}$ is needed.
 
 \textbf{Comparison: time-to-deployment under four retraining baselines.}
 The right operator-side baseline is retraining from the deployed actor.
@@ -341,14 +358,14 @@ At $500$k extra steps, the best of these baselines (warmup at $d\!=\!25$) reache
 
 \begin{table}[h]
 \centering
-\caption{Final-step ($500$k) baseline summary on Safety Gymnasium. The APF blend (zero retrain) dominates every retraining variant on reward.}
+\caption{Final-step ($500$k) baseline summary on Safety Gymnasium. \textbf{$\mathbb{E}[C]\!\le\!d$}: expected-cost feasibility. The APF blend dominates the retraining baselines \emph{on the reward axis} at the same compute budget. Some retraining baselines satisfy the cost constraint more tightly at the price of near-zero reward.}
 \label{tab:baselines}
 \begin{tabular}{lcccc}
 \toprule
-Method & $d$ & Reward & Cost & Budget OK \\
+Method & $d$ & Reward & Cost & $\mathbb{E}[C]\!\le\!d$ \\
 \midrule
-\textbf{APF blend (zero retraining)} & 10 & $\mathbf{12.3}$ & $18.6$ & --- \\
-\textbf{APF blend (zero retraining)} & 25 & $\mathbf{15.8}$ & $28.6$ & --- \\
+\textbf{APF blend (zero retraining)} & 10 & $\mathbf{12.3}$ & $18.6$ & \textcolor{red}{$\times$} \\
+\textbf{APF blend (zero retraining)} & 25 & $\mathbf{15.8}$ & $28.6$ & \textcolor{red}{$\times$} \\
 \midrule
 SAC-Lag default                      & 10 & $-0.41$ & $65.0$ & \textcolor{red}{$\times$} \\
 SAC-Lag default                      & 25 & $-0.10$ & $12.5$ & \checkmark \\
@@ -362,9 +379,12 @@ SAUTE (state aug, uses $\rho_t$)     & 25 & $-9.5$  & $0.0$  & \checkmark \\
 \end{tabular}
 \end{table}
 
-Across both budgets, every retraining variant either violates the budget while preserving partial reward (warmup at intermediate checkpoints) or satisfies the budget by collapsing reward to $\approx\!0$ (aggressive Lagrangian, SAUTE).
-The post-hoc blend dominates at every compute checkpoint we measured.
-We do not claim retraining cannot \emph{eventually} reach a better reward-cost frontier with sufficient compute and tuning; we claim that, at the compute budgets a deployed-system operator can realistically afford, post-hoc blending is the better operating point.
+Two distinct operating regimes appear.
+The post-hoc blend gives the highest reward at every compute checkpoint but violates the cost constraint in expectation at $d\!\in\!\{10, 25\}$ (it is feasible at $d\!=\!40$, Table~\ref{tab:safetygym}).
+Retraining baselines either violate the budget while preserving partial reward (warmup at intermediate checkpoints) or satisfy it by collapsing reward to $\approx\!0$ (aggressive Lagrangian, SAUTE).
+\textbf{Neither method dominates in the strict constrained-optimisation sense; they occupy different points on the reward-cost frontier.}
+A practitioner should choose based on whether their constraint is operationally a soft pacing target (favour the blend, retain useful policy) or a hard expected-cost limit (favour SAC-Lag warmup or SAUTE, accept reward collapse).
+We do not claim retraining cannot eventually reach better operating points with more compute; under the budgets we tested, the blend offers a competitive position on the reward axis with zero retraining.
 
 %----------------------------------------------------------------------
 \section{Related Work}
@@ -414,7 +434,7 @@ Minimum-viable bridge from simulation to field operation: (a)~replace the fatigu
 All four leverage the same schedule; none require retraining $\pi_{\mathrm{perf}}$.
 
 \textbf{Summary.}
-A single closed-form schedule composes a pre-trained performance policy with a certified safety controller to enforce cumulative damage budgets at inference.
+A single closed-form schedule composes a pre-trained performance policy with a domain-specific safety controller to enforce cumulative damage budgets at inference.
 $\kappa$ diagnoses which variant to use.
 On both domains, post-hoc blending is not dominated by Lagrangian finetune at the compute budgets an operator can realistically afford---and it gives up the single-budget training commitment: one model, any $d$, instantly.
 Code and checkpoints: \url{[anonymized]}.
