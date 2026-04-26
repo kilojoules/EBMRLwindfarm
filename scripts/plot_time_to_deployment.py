@@ -45,10 +45,13 @@ def main():
     blend_R = load_blend_rewards()
     print(f"blend: {blend_R}")
 
-    fig, axes = plt.subplots(1, 2, figsize=(13, 5.0), sharey=True)
+    fig, axes = plt.subplots(2, 2, figsize=(13, 8.5),
+                              sharex='col', gridspec_kw={'hspace': 0.15})
     budgets = [10, 25]
 
-    for ax, B in zip(axes, budgets):
+    # Top row: reward; bottom row: cost
+    for col, B in enumerate(budgets):
+        ax = axes[0, col]
         # Blend horizontal line
         ax.axhline(blend_R[B], color="#0b3d91", lw=2.0, ls="--",
                    label=f"APF blend (zero retrain): R={blend_R[B]:.1f}")
@@ -97,16 +100,61 @@ def main():
 
         ax.set_xscale("log")
         ax.set_xlim(80, 8e5)
-        ax.set_xlabel("Extra training steps after budget revealed", fontsize=11)
         ax.set_title(f"$d\\!=\\!{B}$", fontsize=12)
         ax.grid(alpha=0.3, which="both")
         ax.set_ylim(-12, 32)
 
-    axes[0].set_ylabel("Reward (mean over 20 eval eps)", fontsize=11)
-    axes[0].legend(loc="lower left", fontsize=8.5, framealpha=0.95)
+        # Bottom row: cost
+        ax_c = axes[1, col]
+        # Blend cost line
+        blend_C = {10: 18.6, 25: 28.6}
+        ax_c.axhline(blend_C[B], color="#0b3d91", lw=2.0, ls="--",
+                     label=f"APF blend cost: {blend_C[B]:.1f}")
+        ax_c.axhline(B, color="#222", lw=1.5, ls="-", alpha=0.7,
+                     label=f"budget $d={B}$")
 
-    fig.suptitle("Time-to-deployment: post-hoc blend (zero retrain) vs.\\ retraining baselines",
-                 fontsize=12, y=1.0)
+        # Original finetune cost
+        for k, v in orig_data.items():
+            if v["budget"] == B:
+                pts = [(e["steps"], e["cost_mean"]) for e in v["evals"]]
+                xs = [max(p[0], 1e2) for p in pts]; ys = [p[1] for p in pts]
+                ax_c.plot(xs, ys, "o-", color="#d62728", lw=1.6, ms=7, alpha=0.8,
+                          label="Lagrangian (cost-only)")
+                break
+        # Warmup cost
+        warmup = load_finetune_json(f'results/saclag_finetune_warmup_B{B}.json')
+        if warmup:
+            xs = [max(p[0], 1e2) for p in warmup]; ys = [p[2] for p in warmup]
+            ax_c.plot(xs, ys, "s-", color="#2ca02c", lw=1.8, ms=8, alpha=0.9,
+                      label="Lagrangian + warmup")
+        # Aggressive cost
+        aggr = load_finetune_json(f'results/saclag_finetune_aggressive_B{B}.json')
+        if aggr:
+            xs = [max(p[0], 1e2) for p in aggr]; ys = [p[2] for p in aggr]
+            ax_c.plot(xs, ys, "^-", color="#ff7f0e", lw=1.8, ms=8, alpha=0.9,
+                      label="Lagrangian aggressive")
+        # SAUTE
+        saute_path = f'runs/saute_sg_B{B}/actor_eval.json'
+        if Path(saute_path).exists():
+            sd = json.load(open(saute_path))
+            ax_c.scatter([500_000], [sd["cost_mean"]], marker="*", s=240,
+                         facecolor="#9467bd", edgecolor="black", linewidth=0.8,
+                         zorder=10, label="SAUTE (500k)")
+
+        ax_c.set_xscale("log")
+        ax_c.set_xlim(80, 8e5)
+        ax_c.set_xlabel("Extra training steps after budget revealed", fontsize=11)
+        ax_c.grid(alpha=0.3, which="both")
+        ax_c.set_yscale("symlog", linthresh=10)
+        ax_c.set_ylim(-2, 200)
+
+    axes[0, 0].set_ylabel("Reward", fontsize=11)
+    axes[1, 0].set_ylabel("Cost", fontsize=11)
+    axes[0, 0].legend(loc="lower left", fontsize=8.5, framealpha=0.95)
+    axes[1, 0].legend(loc="upper right", fontsize=8.5, framealpha=0.95)
+
+    fig.suptitle("Time-to-deployment: reward (top) and cost (bottom) over training",
+                 fontsize=12, y=0.995)
 
     out = "latex_paper/figures/fig_time_to_deployment.pdf"
     fig.tight_layout()

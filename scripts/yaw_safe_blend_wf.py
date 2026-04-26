@@ -31,9 +31,15 @@ sys.path.insert(0, ".")
 from config import Args
 
 
-def urgency_sigma(t, T, C_per_turb, budget, sharpness=3.0, sigma_max=1.0):
+def urgency_sigma(t, T, C_per_turb, budget, sharpness=3.0, sigma_max=1.0,
+                   mode="urgency", const_sigma=0.0, switch_thresh=0.5):
     """Per-turbine σ ∈ [0, σ_max]. C_per_turb is array (n_turb,)."""
-    out = np.zeros_like(C_per_turb, dtype=float)
+    n = len(C_per_turb)
+    out = np.zeros(n, dtype=float)
+    if mode == "pure_safe":
+        return np.full(n, sigma_max)
+    if mode == "const":
+        return np.full(n, const_sigma)
     tau = max((T - t) / T, 1e-6)
     for i, c in enumerate(C_per_turb):
         rho = (budget - c) / max(budget, 1e-9)
@@ -41,6 +47,15 @@ def urgency_sigma(t, T, C_per_turb, budget, sharpness=3.0, sigma_max=1.0):
             out[i] = sigma_max
             continue
         u = rho / tau
+        if mode == "switch":
+            out[i] = sigma_max if u < switch_thresh else 0.0
+            continue
+        if mode == "projected":
+            cost_rate = c / max(t, 1)
+            proj = cost_rate * T
+            out[i] = sigma_max if proj > budget else 0.0
+            continue
+        # urgency (default)
         if u >= 1:
             out[i] = 0.0
         else:
@@ -57,6 +72,10 @@ def main():
     p.add_argument("--horizon", type=int, default=200)
     p.add_argument("--sharpness", type=float, default=3.0)
     p.add_argument("--sigma-max", type=float, default=1.0)
+    p.add_argument("--mode", choices=["urgency", "const", "switch", "pure_safe", "projected"],
+                   default="urgency")
+    p.add_argument("--const-sigma", type=float, default=0.0)
+    p.add_argument("--switch-thresh", type=float, default=0.5)
     p.add_argument("--n-episodes", type=int, default=50)
     p.add_argument("--output", required=True)
     args = p.parse_args()
@@ -154,7 +173,10 @@ def main():
             act_safe = np.zeros_like(act_actor)
             sigma = urgency_sigma(t, args.horizon, nc, args.budget,
                                    sharpness=args.sharpness,
-                                   sigma_max=args.sigma_max).astype(np.float32)
+                                   sigma_max=args.sigma_max,
+                                   mode=args.mode,
+                                   const_sigma=args.const_sigma,
+                                   switch_thresh=args.switch_thresh).astype(np.float32)
             # Align σ (n_turb,) with act_actor's turbine axis.
             # WindGym vector env: act shape is (num_envs=1, n_turb, [act_dim])
             if act_actor.ndim == 2:

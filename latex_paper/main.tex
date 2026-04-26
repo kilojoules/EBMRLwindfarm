@@ -252,8 +252,15 @@ Safety Gym (PointGoal) & $0.99\!\pm\!0.69$ & $49.8\!\pm\!12.5$ & $\mathbf{0.02}$
 \label{sec:wf_results}
 
 \textbf{Setup.}
-WindGym~\citep{windgym} with PyWake~\citep{pywake} backend; 3-turbine row; wind speed 10--14~m/s, direction 225--315$^\circ$; budget $d$ = neg-yaw timesteps per turbine per episode (200 steps).
+WindGym~\citep{windgym} with PyWake~\citep{pywake} backend; 3-turbine row; wind speed 10--14~m/s, direction 225--315$^\circ$.
+We use \emph{per-turbine} budgets: each turbine $i$ has its own $d^i\!=\!d$, $C_t^i$, $u_t^i$, and $\sigma_t^i$, computed independently.
+A turbine in budget deficit pulls only its own action toward $\pi_{\mathrm{safe}}$; other turbines remain unaffected.
 $\pi_{\mathrm{perf}}$ is an EBT actor trained unconstrained with SAC for 100k steps.
+
+\textbf{Cost variables.}
+Throughout this section, "cost" refers to the cumulative quantity governed by the urgency schedule.
+We test two cost choices: (a)~the binary \emph{NegYaw} cost $c\!=\!\mathbf{1}[y\!<\!0]$ used in the main budget tables (Tables~\ref{tab:main_results}, \ref{tab:wf_blend}); and (b)~the \emph{nonlinear fatigue} surrogate $c\!=\!(|y|/\bar{y})^p(v/v_{\mathrm{ref}})^q$ used in Tables~\ref{tab:nonlinear} (App.~\ref{app:nonlinear}) and~\ref{tab:qc_windfarm}.
+Reported NegYaw arrays are diagnostics, not the cost in the latter tables.
 
 \textbf{Gradient-correction variant} (Table~\ref{tab:main_results}).
 Since $\kappa\!\approx\!0.72$, gradient correction is effective.
@@ -280,6 +287,8 @@ AC ($\eta\!=\!5$, gs$=\!0.1$) --- 4 seeds & $25.7\!\pm\!0.5$ & $\mathbf{95.9\!\p
 \textbf{Explicit zero-yaw blend variant} (Table~\ref{tab:wf_blend}).
 Replacing the gradient step with $\pi_{\mathrm{safe}}\!\equiv\!0$ and the urgency blend gives matching results with one fewer hyperparameter ($\eta$ only).
 Across 4 seeds and three $\eta\!\in\!\{1,3,10\}$ values, the blend satisfies the budget every time and retains $99.3$--$101.8\%$ of unconstrained power.
+The blend power exceeding $100\%$ at $\eta\!=\!1$ is within seed variance ($\pm 0.9\%$) and likely reflects mild over-yawing in the unconstrained actor: the constraint nudge happens to also remove sub-optimal yaw excursions.
+We do not interpret this as the blend universally outperforming an ideal $\pi_{\mathrm{perf}}$; we interpret it as evidence that the actor was not Pareto-optimal on the power axis to begin with.
 
 \begin{table}[h]
 \centering
@@ -300,7 +309,7 @@ Blend ($\eta\!=\!10$)      & $99.3\!\pm\!2.4\%$ & $[11.0, 11.3, 11.3]$ & 0.59 & 
 \textbf{Cost function matters (Appendix~\ref{app:nonlinear}).}
 A binary cost $c\!=\!\mathbf{1}[y\!<\!0]$ \emph{inflates} fatigue $4.2\times$ over unconstrained; the nonlinear surrogate avoids this trap.
 
-\subsection{Safety Gymnasium: Low Coupling, Explicit Blend Beats All Retraining Baselines}
+\subsection{Safety Gymnasium: Low Coupling, Reward-Favorable Soft-Budget Operating Point}
 \label{sec:sg_results}
 
 \textbf{Setup.}
@@ -391,7 +400,7 @@ At $500$k extra steps, the best of these baselines (warmup at $d\!=\!25$) reache
 \begin{figure}[h]
     \centering
     \includegraphics[width=\linewidth]{figures/fig_time_to_deployment.pdf}
-    \caption{Time-to-deployment on Safety Gymnasium PointGoal1, two budgets $d\!=\!10$ (left), $d\!=\!25$ (right). Blue dashed: APF-blend reward at zero retraining. Curves: four CMDP retraining variants starting from the same pretrained actor. Star: SAUTE state augmentation~\citep{sootla2022saute} at 500k. Across both budgets and every checkpoint $\in\{0, 50\text{k}, 200\text{k}, 500\text{k}\}$, no retraining variant matches the blend. The best at $d\!=\!25$ (warmup, peak $R\!=\!8.1$ at $200$k with $C\!=\!83$ violating the budget) is dominated; SAUTE satisfies the budget tightly ($d\!=\!25$: $C\!=\!0$, $\mathrm{sat}\!=\!100\%$) but at $R\!=\!-9.5$.}
+    \caption{Time-to-deployment on Safety Gymnasium PointGoal1, both budgets and both axes. \emph{Top row}: reward over extra training steps. \emph{Bottom row}: cost over the same axis with budget line. Blue dashed: APF-blend reward and cost at zero retraining. Curves: four CMDP retraining variants starting from the same pretrained actor (single seed each, four hyperparameter regimes); star: SAUTE~\citep{sootla2022saute} at 500k. The blend retains higher reward than every retraining variant tested at every checkpoint, but its cost (18.6 at $d\!=\!10$, 28.6 at $d\!=\!25$) exceeds the budget; some retraining variants satisfy the budget tightly at the price of $R\!\approx\!0$. The two methods occupy different points on the reward-cost frontier.}
     \label{fig:time_to_deployment}
 \end{figure}
 
@@ -408,7 +417,7 @@ Method & $d$ & Reward & Cost & $\mathbb{E}[C]\!\le\!d$ \\
 \midrule
 SAC-Lag default                      & 10 & $-0.41$ & $65.0$ & \textcolor{red}{$\times$} \\
 SAC-Lag default                      & 25 & $-0.10$ & $12.5$ & \checkmark \\
-SAC-Lag warmup + reward-scale        & 10 & $-0.24$ & $10.4$ & \checkmark \\
+SAC-Lag warmup + reward-scale        & 10 & $-0.24$ & $10.4$ & \textcolor{red}{$\times$} \\
 SAC-Lag warmup + reward-scale        & 25 & $2.32$  & $24.1$ & \checkmark \\
 SAC-Lag aggressive                   & 10 & $0.07$  & $23.6$ & \textcolor{red}{$\times$} \\
 SAC-Lag aggressive                   & 25 & $-0.32$ & $3.1$  & \checkmark \\
@@ -463,10 +472,12 @@ A fully-converged CMDP method at $\sim\!10\times$ our compute may reach a better
 
 \textbf{Limitations.}
 (1)~The wind-farm cost is a per-turbine fatigue surrogate; real deployment needs a DEL-calibrated farm-level cost~\citep{wes2024DEL, jpcs2024wakeDEL} and a $\pi_{\mathrm{safe}}$ like WakeAdapt that minimises farm DEL.
-(2)~Our sim uses analytical wakes (Jensen) and 200-step episodes, not FAST.Farm aeroelastics over a year.
-(3)~The APF navigator on SG is a simple reactive heuristic; a learned safety policy would likely improve $\pi_{\mathrm{safe}}$'s reward at fixed $\sigma\!=\!1$.
-(4)~We test 4 seeds on WF and 5 on SG; effect sizes are large enough that more seeds would mainly tighten error bars.
-(5)~The retraining baselines use a single seed each at one warmup/dual-lr setting; we did not perform a full hyperparameter sweep, but covered three qualitatively different Lagrangian regimes (default, warmup, aggressive) plus SAUTE.
+(2)~Our sim uses analytical wakes (Jensen) and 200-step episodes, not FAST.Farm aeroelastics over year-scale operation; a yearly damage budget is the operational target the urgency-ratio framing was designed for, but our experiments validate at episode scale only.
+(3)~The APF navigator on SG is a simple reactive heuristic that uses hazard/goal geometry; a learned safety policy would likely improve $\pi_{\mathrm{safe}}$'s reward at fixed $\sigma\!=\!1$. The APF benefits from privileged geometry that the RL policy and retraining baselines do not directly use; the ablation table shares this privilege across all blend modes.
+(4)~Action blending assumes meaningful convex combinations of $\pi_{\mathrm{perf}}$ and $\pi_{\mathrm{safe}}$ outputs. This holds for our continuous yaw and thrust/turn action spaces but may not for systems with discrete or non-convex action sets; in those cases a hard switch (Table~\ref{tab:ablations}) is more appropriate.
+(5)~We test 4 seeds on WF and 5 on SG; retraining baselines use a single seed each at one hyperparameter setting per regime, covering three qualitatively different Lagrangian configurations (default, warmup, aggressive) plus SAUTE. Lagrangian methods are sensitive to reward scale and dual learning rate; we explored three settings, not a full sweep.
+(6)~$\kappa$ depends on state and action scaling and on the quality of the learned $Q_c$. Comparing across two domains is suggestive, not definitive; broader validation across continuously varying coupling regimes (e.g.\ synthetic gridworlds) would strengthen the diagnostic claim.
+(7)~Hard budget enforcement is not provided. A safe-future-cost upper bound $B_{\mathrm{safe}}(t)$ giving $C_t + B_{\mathrm{safe}}(t)\!\le\!d$ would be required and is left as future work.
 
 \textbf{Path to deployment.}
 Minimum-viable bridge from simulation to field operation: (a)~replace the fatigue surrogate with a DEL-calibrated model; (b)~precompute a WakeAdapt-equivalent setpoint table to use as $\pi_{\mathrm{safe}}$; (c)~retrospective SCADA counterfactual on real operational data; (d)~online refit of $Q_c$ / the DEL surrogate under non-stationary wind.
