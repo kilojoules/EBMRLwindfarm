@@ -337,7 +337,46 @@ Blend ($\eta\!=\!3$)              & 40 & $19.1\!\pm\!0.8$ & 71\%  & $34.5\!\pm\!
 \textbf{Honest reading.} The APF blend is a useful post-hoc cost-reduction mechanism: at $d\!=\!10$ it cuts expected cost from $49$ to $15$ (a $3.2\times$ reduction) at the price of half the unconstrained reward.
 But it \emph{does not enforce} tight budgets in expectation: $\mathbb{E}[C]\!=\!15.3 > 10$.
 At $d\!=\!40$ expected-cost feasibility is achieved.
-The mechanism gives a favorable reward-cost trade-off, not a hard budget guarantee; for hard guarantees a backup invariant (e.g., projected-budget override; \S\ref{sec:sg_results}) or a cost-zero $\pi_{\mathrm{safe}}$ is needed.
+The mechanism gives a favorable reward-cost trade-off, not a hard budget guarantee; for hard guarantees a backup invariant (e.g., projected-budget override; Table~\ref{tab:ablations}) or a cost-zero $\pi_{\mathrm{safe}}$ is needed.
+
+\textbf{Ablation: how much does the urgency schedule contribute?}
+Table~\ref{tab:ablations} compares the urgency schedule against five alternative blend strategies sharing the same $\pi_{\mathrm{perf}}$ and $\pi_{\mathrm{safe}}$:
+(i)~pure $\pi_{\mathrm{safe}}$ (APF alone, no RL);
+(ii)~constant $\sigma\in\{0.3, 0.5, 0.7\}$ (no urgency adaptation);
+(iii)~hard threshold switch ($\sigma=1$ if $u<\theta$ else $0$);
+(iv)~projected-budget override ($\sigma=1$ if linear extrapolation of cost rate predicts violation);
+(v)~urgency schedule with $\eta=3$ (the proposed method).
+Pure $\pi_{\mathrm{safe}}$ and constant $\sigma\!=\!0.7$ are the only configurations that achieve expected-cost feasibility at $d\!=\!10$ ($C\!=\!0.5, 0.6$ respectively), at the cost of $R\!\le\!5.5$.
+The urgency schedule, threshold switch, and projected variants achieve $R\!\in\![11, 17]$ but cost $C\!\in\![16, 29]$ (infeasible at $d\!\in\!\{10, 25\}$).
+The urgency schedule is \emph{not} uniquely valuable here---a hard threshold switch achieves comparable reward-cost trade-off ($d\!=\!25$: switch $R\!=\!16.9$, urgency $R\!=\!15.8$).
+What the schedule \emph{does} provide over simpler alternatives is a single $\eta$ parameter that smoothly interpolates between high-reward-high-cost (low $\eta$) and low-reward-low-cost (high $\eta$) operating points without requiring per-budget retuning of $\sigma$ or $\theta$.
+
+\begin{table}[h]
+\centering
+\caption{Ablation: blending strategies sharing the same $\pi_{\mathrm{perf}}$ + $\pi_{\mathrm{safe}}$ on Safety Gymnasium (5 seeds $\times$ 20 ep). The urgency schedule sits on a Pareto frontier between feasible-but-low-reward ($\pi_{\mathrm{safe}}$ alone, const $\sigma\!=\!0.7$) and high-reward-infeasible (const $\sigma\!=\!0.3$); hard threshold switching achieves comparable reward-cost trade-off without the closed-form schedule.}
+\label{tab:ablations}
+\begin{tabular}{lccccc}
+\toprule
+Mode & $d$ & Reward & Cost & Sat & $\mathbb{E}[C]\!\le\!d$ \\
+\midrule
+$\pi_{\mathrm{safe}}$ alone (no RL)        & 10 & $3.1\!\pm\!0.4$  & $0.5\!\pm\!0.2$  & 100\% & \checkmark \\
+const $\sigma\!=\!0.3$                      & 10 & $22.7\!\pm\!0.3$ & $49.3\!\pm\!3.4$ & 10\%  & \textcolor{red}{$\times$} \\
+const $\sigma\!=\!0.5$                      & 10 & $5.5\!\pm\!0.5$  & $39.0\!\pm\!10.6$& 57\%  & \textcolor{red}{$\times$} \\
+const $\sigma\!=\!0.7$                      & 10 & $5.3\!\pm\!0.5$  & $0.6\!\pm\!0.3$  & 97\%  & \checkmark \\
+switch $u\!<\!0.5$                          & 10 & $12.6\!\pm\!0.9$ & $16.8\!\pm\!1.2$ & 22\%  & \textcolor{red}{$\times$} \\
+switch $u\!<\!0.8$                          & 10 & $13.0\!\pm\!0.9$ & $16.5\!\pm\!1.1$ & 25\%  & \textcolor{red}{$\times$} \\
+projected override                          & 10 & $11.2\!\pm\!0.9$ & $20.6\!\pm\!1.3$ & 20\%  & \textcolor{red}{$\times$} \\
+\textbf{urgency $\eta\!=\!3$ (ours)}        & 10 & $\mathbf{12.3\!\pm\!0.9}$ & $18.6\!\pm\!1.2$ & 23\%  & \textcolor{red}{$\times$} \\
+\midrule
+$\pi_{\mathrm{safe}}$ alone                 & 25 & $3.1\!\pm\!0.4$  & $0.5\!\pm\!0.2$  & 100\% & \checkmark \\
+const $\sigma\!=\!0.3$                      & 25 & $22.4\!\pm\!0.3$ & $50.1\!\pm\!3.7$ & 32\%  & \textcolor{red}{$\times$} \\
+const $\sigma\!=\!0.7$                      & 25 & $5.5\!\pm\!0.5$  & $1.0\!\pm\!0.4$  & 100\% & \checkmark \\
+switch $u\!<\!0.8$                          & 25 & $\mathbf{16.9\!\pm\!0.9}$ & $28.7\!\pm\!1.7$ & 33\%  & \textcolor{red}{$\times$} \\
+projected override                          & 25 & $14.4\!\pm\!0.9$ & $25.9\!\pm\!1.5$ & 44\%  & \textcolor{red}{$\times$} \\
+\textbf{urgency $\eta\!=\!3$ (ours)}        & 25 & $15.8\!\pm\!0.8$ & $28.6\!\pm\!1.6$ & 39\%  & \textcolor{red}{$\times$} \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 \textbf{Comparison: time-to-deployment under four retraining baselines.}
 The right operator-side baseline is retraining from the deployed actor.

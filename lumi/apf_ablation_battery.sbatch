@@ -23,30 +23,20 @@ conda activate safety_env
 
 SEED=$SLURM_ARRAY_TASK_ID
 
-# Ablation battery: separate value of urgency schedule from value of π_safe
-# All run at d=10 and d=25.
-for B in 10 25; do
-    # 1. Pure π_safe (APF only, σ=1 always) — what does the safety controller do alone?
-    python -u scripts/apf_blend_sg.py --seed $SEED --budget $B --n-eps 20 \
-        --mode pure_safe --r-repel 0.6 --alpha-apf 0.5 \
-        --out results/apf_ablation.json
+# Per-seed output to avoid array race condition
+OUT=results/apf_ablation_seed${SEED}.json
 
-    # 2. Constant σ blends (no urgency adaptation): σ ∈ {0.3, 0.5, 0.7}
+for B in 10 25; do
+    python -u scripts/apf_blend_sg.py --seed $SEED --budget $B --n-eps 20 \
+        --mode pure_safe --r-repel 0.6 --alpha-apf 0.5 --out $OUT
     for SIG in 0.3 0.5 0.7; do
         python -u scripts/apf_blend_sg.py --seed $SEED --budget $B --n-eps 20 \
-            --mode const --const-sigma $SIG --r-repel 0.6 --alpha-apf 0.5 \
-            --out results/apf_ablation.json
+            --mode const --const-sigma $SIG --r-repel 0.6 --alpha-apf 0.5 --out $OUT
     done
-
-    # 3. Threshold switch (σ=1 if u<thresh else 0)
     for TH in 0.5 0.8; do
         python -u scripts/apf_blend_sg.py --seed $SEED --budget $B --n-eps 20 \
-            --mode switch --switch-thresh $TH --r-repel 0.6 --alpha-apf 0.5 \
-            --out results/apf_ablation.json
+            --mode switch --switch-thresh $TH --r-repel 0.6 --alpha-apf 0.5 --out $OUT
     done
-
-    # 4. Projected-budget enforcement: σ=1 if extrapolated final cost > d
     python -u scripts/apf_blend_sg.py --seed $SEED --budget $B --n-eps 20 \
-        --mode projected --r-repel 0.6 --alpha-apf 0.5 \
-        --out results/apf_ablation.json
+        --mode projected --r-repel 0.6 --alpha-apf 0.5 --out $OUT
 done
