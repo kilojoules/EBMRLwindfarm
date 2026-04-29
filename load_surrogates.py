@@ -610,7 +610,7 @@ class FlapDELSurrogate(nn.Module):
     Usage:
         surr = FlapDELSurrogate.from_bundle(
             "checkpoints/teodor_dlc12_torch.pt",
-            yaw_max_deg=30.0, del_ref=1019.5)
+            yaw_max_deg=30.0, del_ref=648.6)
         # each env step:
         surr.update_context(saws=arr_4, sati=arr_4, pset=arr_n)
         # then composed energy:
@@ -620,7 +620,7 @@ class FlapDELSurrogate(nn.Module):
     def __init__(self,
                  surrogate,
                  yaw_max_deg: float = 30.0,
-                 del_ref: float = 1019.5,
+                 del_ref: float = 648.6,
                  output_name: str = "wrot_Bl1Rad0FlpMnt"):
         super().__init__()
         from helpers.teodor_surrogate import TeodorDLC12Surrogate
@@ -643,7 +643,7 @@ class FlapDELSurrogate(nn.Module):
     def from_bundle(cls,
                      bundle_path: str,
                      yaw_max_deg: float = 30.0,
-                     del_ref: float = 1019.5,
+                     del_ref: float = 648.6,
                      output_name: str = "wrot_Bl1Rad0FlpMnt",
                      map_location: str = "cpu"):
         from helpers.teodor_surrogate import TeodorDLC12Surrogate
@@ -763,7 +763,7 @@ def create_load_surrogate(
     neg_yaw_risk_aversion: float = 1.0,
     neg_yaw_threshold_deg: float = 0.0,
     flap_del_bundle: str = "checkpoints/teodor_dlc12_torch.pt",
-    flap_del_ref: float = 1019.5,
+    flap_del_ref: float = 648.6,
     flap_del_yaw_max_deg: float = 30.0,
 ) -> nn.Module:
     """Factory function for load surrogates.
