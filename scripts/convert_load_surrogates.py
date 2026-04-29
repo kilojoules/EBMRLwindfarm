@@ -67,6 +67,18 @@ def keras_to_layer_list(model):
         elif cls == "Activation":
             layers.append(("activation",
                             {"name": _activation_name(L)}))
+        elif cls in ("LeakyReLU", "PReLU"):
+            # LeakyReLU: alpha (or negative_slope). PReLU: per-channel weight.
+            if cls == "LeakyReLU":
+                alpha = float(getattr(L, "negative_slope",
+                                        getattr(L, "alpha", 0.01)))
+                layers.append(("leaky_relu", {"negative_slope": alpha}))
+            else:
+                W = L.get_weights()[0]  # (..., features)
+                layers.append(("prelu",
+                                {"weight": np.asarray(W, dtype=np.float32)}))
+        elif cls in ("ReLU", "ELU"):
+            layers.append(("activation", {"name": cls.lower()}))
         elif cls in ("Dropout", "BatchNormalization", "LayerNormalization"):
             # Dropout: training-only, skip. Norm: keep weights.
             if cls == "Dropout":

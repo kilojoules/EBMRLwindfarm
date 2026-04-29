@@ -60,6 +60,16 @@ def _build_torch_module(layer_list):
             if cls is None:
                 raise ValueError(f"unknown activation {name!r}")
             layers.append(cls())
+        elif kind == "leaky_relu":
+            layers.append(nn.LeakyReLU(
+                negative_slope=float(params["negative_slope"])))
+        elif kind == "prelu":
+            w = params["weight"]
+            n = int(w.numel())
+            p = nn.PReLU(num_parameters=n)
+            with torch.no_grad():
+                p.weight.copy_(w.flatten())
+            layers.append(p)
         elif kind == "layernormalization":
             # Build LayerNorm matching keras shape.
             gamma = params.get("gamma")
