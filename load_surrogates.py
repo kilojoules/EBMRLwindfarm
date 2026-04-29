@@ -588,6 +588,156 @@ class NegativeYawBudgetSurrogate(nn.Module):
 
 
 # =============================================================================
+# DLC12 ANN-surrogate: blade-flapwise DEL (Teodor)
+# =============================================================================
+
+class FlapDELSurrogate(nn.Module):
+    """Per-turbine blade-flapwise DEL via Teodor's DLC12 ANN surrogate.
+
+    Cost c_t per turbine = DEL_flap(yaw_t, sector_flow_t) / DEL_ref.
+    The surrogate output is a 10-min DEL in kNm; we treat it as a damage
+    *rate* (per env step) and divide by a reference DEL so c_t is unitless
+    and ~O(1) at the unconstrained operating point.
+
+    Inputs that change per step (sector wind speed + TI + pset) are stored
+    in a context buffer and refreshed by the training/eval loop via
+    `update_context()`. The action (yaw) is the differentiable input used
+    for energy guidance.
+
+    Cost-only surrogate (does not depend on action_dim>1; takes the first
+    action channel as yaw). For multi-DOF actions adapt accordingly.
+
+    Usage:
+        surr = FlapDELSurrogate.from_bundle(
+            "checkpoints/teodor_dlc12_torch.pt",
+            yaw_max_deg=30.0, del_ref=1019.5)
+        # each env step:
+        surr.update_context(saws=arr_4, sati=arr_4, pset=arr_n)
+        # then composed energy:
+        e = surr.per_turbine_energy(action_norm)
+    """
+
+    def __init__(self,
+                 surrogate,
+                 yaw_max_deg: float = 30.0,
+                 del_ref: float = 1019.5,
+                 output_name: str = "wrot_Bl1Rad0FlpMnt"):
+        super().__init__()
+        from helpers.teodor_surrogate import TeodorDLC12Surrogate
+        if not isinstance(surrogate, TeodorDLC12Surrogate):
+            raise TypeError("surrogate must be a TeodorDLC12Surrogate")
+        if output_name not in surrogate.output_names:
+            raise ValueError(
+                f"output {output_name} not loaded in surrogate "
+                f"(have {surrogate.output_names})")
+        self.surrogate = surrogate
+        self.yaw_max_deg = float(yaw_max_deg)
+        self.del_ref = float(del_ref)
+        self.output_name = output_name
+        # Context: 9 flow/pset features per turbine. (n_turb, 9). Lazy alloc.
+        self.register_buffer(
+            "_ctx", torch.zeros(0, 9, dtype=torch.float32),
+            persistent=False)
+
+    @classmethod
+    def from_bundle(cls,
+                     bundle_path: str,
+                     yaw_max_deg: float = 30.0,
+                     del_ref: float = 1019.5,
+                     output_name: str = "wrot_Bl1Rad0FlpMnt",
+                     map_location: str = "cpu"):
+        from helpers.teodor_surrogate import TeodorDLC12Surrogate
+        surr = TeodorDLC12Surrogate.from_bundle(
+            bundle_path, outputs=[output_name],
+            map_location=map_location)
+        return cls(surr, yaw_max_deg=yaw_max_deg, del_ref=del_ref,
+                    output_name=output_name)
+
+    @torch.no_grad()
+    def update_context(self,
+                        saws: "torch.Tensor | list",
+                        sati: "torch.Tensor | list",
+                        pset: "torch.Tensor | list"):
+        """Refresh per-turbine flow context.
+
+        Args:
+            saws: (n_turb, 4) sector wind speed [m/s], order
+                  (left, right, up, down).
+            sati: (n_turb, 4) sector turbulence intensity [-].
+            pset: (n_turb,) power setpoint [-].
+        """
+        saws = torch.as_tensor(saws, dtype=torch.float32)
+        sati = torch.as_tensor(sati, dtype=torch.float32)
+        pset = torch.as_tensor(pset, dtype=torch.float32).reshape(-1, 1)
+        if saws.shape[1] != 4 or sati.shape[1] != 4:
+            raise ValueError(
+                "saws/sati must be (n_turb, 4); got "
+                f"{tuple(saws.shape)}, {tuple(sati.shape)}")
+        ctx = torch.cat([saws, sati, pset], dim=1)  # (n_turb, 9)
+        self._ctx = ctx.to(device=self.surrogate.in_mean.device)
+
+    def _yaw_from_action(self, action: torch.Tensor) -> torch.Tensor:
+        """Map normalized action [-1, 1] (..., n_turb, ad) -> yaw [deg] (..., n_turb)."""
+        yaw_norm = action[..., 0]                                # take 1st channel
+        return yaw_norm * self.yaw_max_deg
+
+    def _features(self, yaw_deg: torch.Tensor) -> torch.Tensor:
+        """Combine context + yaw into (..., n_turb, 10) surrogate input.
+
+        Broadcasts context (n_turb, 9) over leading dims of yaw.
+        """
+        if self._ctx.numel() == 0:
+            raise RuntimeError(
+                "FlapDELSurrogate context not initialized. "
+                "Call update_context(saws, sati, pset) once per env step.")
+        n_turb_ctx = self._ctx.shape[0]
+        n_turb_act = yaw_deg.shape[-1]
+        if n_turb_ctx != n_turb_act:
+            raise ValueError(
+                f"context has {n_turb_ctx} turbines, "
+                f"action has {n_turb_act}")
+        # Broadcast: ctx (n_turb, 9) -> (..., n_turb, 9)
+        ctx = self._ctx
+        for _ in range(yaw_deg.dim() - 1):
+            ctx = ctx.unsqueeze(0)
+        ctx = ctx.expand(*yaw_deg.shape, 9)
+        feats = torch.cat([ctx, yaw_deg.unsqueeze(-1)], dim=-1)
+        return feats
+
+    def per_turbine_energy(
+        self,
+        action: torch.Tensor,
+        key_padding_mask: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:
+        """Per-turbine DEL-derived energy.
+
+        Args:
+            action: (batch, n_turb, action_dim) in [-1, 1].
+            key_padding_mask: (batch, n_turb) True = padding.
+
+        Returns:
+            (batch, n_turb, 1) cost = DEL / del_ref (unitless, >= 0).
+        """
+        yaw_deg = self._yaw_from_action(action)
+        feats = self._features(yaw_deg)
+        # Run surrogate. Output dict with one entry.
+        out = self.surrogate.predict_one(self.output_name, feats)
+        cost = out / self.del_ref
+        if key_padding_mask is not None:
+            mask = (~key_padding_mask).unsqueeze(-1).float()
+            cost = cost * mask
+        return cost
+
+    def forward(
+        self,
+        action: torch.Tensor,
+        key_padding_mask: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:
+        per_turb = self.per_turbine_energy(action, key_padding_mask)
+        return per_turb.sum(dim=(-2, -1), keepdim=False).unsqueeze(-1)
+
+
+# =============================================================================
 # FACTORY
 # =============================================================================
 
@@ -598,6 +748,7 @@ VALID_LOAD_SURROGATE_TYPES = [
     "t1_positive_only",   # PositiveYawT1Surrogate — T1 positive yaw only
     "neg_yaw_budget",     # NegativeYawBudgetSurrogate — Almgren-Chriss neg yaw budget
     "relu",               # ReluLoadSurrogate — proof-of-concept
+    "flap_del",           # FlapDELSurrogate — Teodor DLC12 ANN, blade flap DEL
 ]
 
 
@@ -611,6 +762,9 @@ def create_load_surrogate(
     neg_yaw_horizon_steps: int = 3600,
     neg_yaw_risk_aversion: float = 1.0,
     neg_yaw_threshold_deg: float = 0.0,
+    flap_del_bundle: str = "checkpoints/teodor_dlc12_torch.pt",
+    flap_del_ref: float = 1019.5,
+    flap_del_yaw_max_deg: float = 30.0,
 ) -> nn.Module:
     """Factory function for load surrogates.
 
@@ -650,4 +804,10 @@ def create_load_surrogate(
         )
     elif surrogate_type == "relu":
         return ReluLoadSurrogate()
+    elif surrogate_type == "flap_del":
+        return FlapDELSurrogate.from_bundle(
+            flap_del_bundle,
+            yaw_max_deg=flap_del_yaw_max_deg,
+            del_ref=flap_del_ref,
+        )
     raise ValueError(f"Unhandled surrogate_type={surrogate_type!r}")
