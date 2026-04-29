@@ -151,12 +151,14 @@ def features_to_surrogate_input(per_turbine: list[dict],
     return arr
 
 
-def windgym_flow_callable(env):
+def windgym_flow_callable(env, exclude_wake_from: "list[int] | None" = None):
     """Build a flow_uti(xs, ys, zs) callable from a WindGym env.
 
     WindGym 19a6644+ exposes `env.fs` (the flow simulator). Supported backends:
       - dynamiks DWMFlowSimulation: `fs.get_windspeed(xyz=(x,y,z))` works for
-        arbitrary 3D points.
+        arbitrary 3D points. Pass `exclude_wake_from=[i]` so a query at
+        turbine i's disk returns rotor inflow (not the near-wake deficit
+        that turbine i is generating).
       - PyWakeFlowSimulationAdapter: only hub-height grid via a View — falls
         back to per-turbine rotor average broadcast across sectors. TI is
         the env-level scalar.
@@ -165,6 +167,7 @@ def windgym_flow_callable(env):
     numpy array matching the input length. TI is currently a scalar
     broadcast — extend if WindGym backends gain per-point TI.
     """
+    exclude = list(exclude_wake_from) if exclude_wake_from else []
     raw = env.unwrapped if hasattr(env, "unwrapped") else env
     fs = getattr(raw, "fs", None)
     if fs is None:
@@ -195,7 +198,9 @@ def windgym_flow_callable(env):
             u = np.empty(n, dtype=float)
             for i in range(n):
                 v = fs.get_windspeed(xyz=(xs[i], ys[i], zs[i]),
-                                      include_wakes=True, xarray=False)
+                                      include_wakes=True,
+                                      exclude_wake_from=exclude,
+                                      xarray=False)
                 arr = np.asarray(v).flatten()
                 # Use magnitude of UVW vector (matches WindProbe.read_speed_magnitude).
                 u[i] = float(np.linalg.norm(arr)) if arr.size > 0 else 0.0
@@ -255,6 +260,7 @@ def disk_features_for_env(env, turbine_idx: int,
     rd = _scalar(wts, ("rotor_diameter", "diameter", "D"), 178.0)
     if yaw_deg is None:
         yaw_deg = float(np.asarray(wts.yaw).flatten()[turbine_idx])
-    flow = windgym_flow_callable(env)
+    # Exclude this turbine's own wake so we read rotor inflow, not near-wake.
+    flow = windgym_flow_callable(env, exclude_wake_from=[turbine_idx])
     return disk_sector_features(xy, hub_h, rd, yaw_deg, flow,
                                   n_radial=n_radial, n_angular=n_angular)
