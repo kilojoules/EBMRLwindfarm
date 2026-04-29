@@ -15,6 +15,7 @@ PROJECT_DIR=/scratch/project_465002609/julian/ac_budget_experiment
 cd "$PROJECT_DIR"
 
 # 0. Ensure conversion deps in pixi env.
+pixi run python -c "import torch" 2>/dev/null || pixi run install-torch-rocm
 pixi run pip install --quiet "tensorflow-cpu" "keras" "joblib" "scikit-learn" 2>&1 | tail -3 || \
     pixi run pip install --quiet "tensorflow" "keras" "joblib" "scikit-learn"
 
