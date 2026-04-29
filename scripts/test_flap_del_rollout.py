@@ -29,6 +29,7 @@ def _load(name, path):
 
 ts = _load("helpers.teodor_surrogate", ROOT / "helpers/teodor_surrogate.py")
 rdf = _load("helpers.rotor_disk_flow", ROOT / "helpers/rotor_disk_flow.py")
+ec = _load("helpers.env_configs", ROOT / "helpers/env_configs.py")
 
 
 def main():
@@ -52,14 +53,14 @@ def main():
     turbine = IEA37_WindTurbines()
     xs = list(np.arange(args.turbines, dtype=float) * args.spacing)
     ys = [0.0] * args.turbines
-    config = {"layouts": "custom", "n_turbines": args.turbines}
+    cfg = ec.make_env_config("default")
     try:
         env = WindFarmEnv(turbine=turbine, x_pos=xs, y_pos=ys,
-                          config=config, backend="dynamiks", seed=1)
+                          config=cfg, backend="dynamiks", seed=1)
     except Exception as e:
         print(f"[fallback] dynamiks init failed: {e}\n  trying pywake...")
         env = WindFarmEnv(turbine=turbine, x_pos=xs, y_pos=ys,
-                          config=config, backend="pywake", seed=1)
+                          config=cfg, backend="pywake", seed=1)
     obs, _ = env.reset(seed=1)
     print(f"  backend = {type(env.unwrapped.fs).__name__}")
 
