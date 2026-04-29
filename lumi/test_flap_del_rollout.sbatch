@@ -14,6 +14,9 @@ set -uo pipefail
 PROJECT_DIR=/scratch/project_465002609/julian/ac_budget_experiment
 cd "$PROJECT_DIR"
 
+# Canonical wind-farm-loads + surrogates_interface (DTU canonical interface).
+pixi run pip install --quiet "wind-farm-loads" "jax" 2>&1 | tail -3
+
 # WindGym mods refresh.
 WG_DIR=/scratch/project_465002609/julian/windgym
 pixi run pip install --force-reinstall --no-deps "$WG_DIR" 2>/dev/null || true
@@ -25,3 +28,6 @@ set -e
 pixi run python -u scripts/test_flap_del_rollout.py \
     --bundle checkpoints/teodor_dlc12_torch.pt \
     --n-steps 50 --turbines 2 --spacing 800
+
+# Cross-check: canonical wind_farm_loads path vs internal torch path.
+pixi run python -u scripts/probe_canonical_flap_del.py
