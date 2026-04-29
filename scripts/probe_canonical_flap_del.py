@@ -24,8 +24,15 @@ wfl = _load("helpers.wfl_integration", ROOT / "helpers/wfl_integration.py")
 
 
 def main():
-    bundle = ROOT / "checkpoints" / "teodor_dlc12_torch.pt"
-    scalers_dir = Path("/scratch/project_465002609/julian/Teodor_surrogates/scalers")
+    import argparse, os
+    p = argparse.ArgumentParser()
+    p.add_argument("--bundle", default=str(ROOT / "checkpoints" / "teodor_dlc12_torch.pt"))
+    p.add_argument("--scalers-dir",
+        default=os.environ.get("TEODOR_SCALERS_DIR",
+            "/scratch/project_465002609/julian/Teodor_surrogates/scalers"))
+    args = p.parse_args()
+    bundle = Path(args.bundle)
+    scalers_dir = Path(args.scalers_dir)
     sensor = "wrot_Bl1Rad0FlpMnt"
 
     # Test point: 3 turbines, varied yaw.
@@ -57,7 +64,8 @@ def main():
     loads = wfl.predict_flap_del(
         surrogates, saws_teodor, sati_teodor, pset, yaw,
         sectors_order="teodor")
-    out_canonical = np.asarray(loads.sel(sensor=sensor).data).flatten()
+    sensor_dim = "name" if "name" in loads.dims else "sensor"
+    out_canonical = np.asarray(loads.sel({sensor_dim: sensor}).data).flatten()
 
     print(f"sensor: {sensor}")
     print(f"  internal:  {out_internal}")

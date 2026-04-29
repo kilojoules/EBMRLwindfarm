@@ -116,7 +116,12 @@ class _CanonicalToTeodorSectorPermuter:
         ti_perm = [4 + i for i in CANONICAL_TO_TEODOR]    # 4 idx, offset 4
         self._perm = ws_perm + ti_perm                    # 8 idx
 
-    def transform(self, x):
+    def transform(self, x, inplace=False):
+        # SurrogateModel.predict_output calls with inplace=True; we permute
+        # columns so an inplace op isn't possible. Raise so the base class
+        # falls back to inplace=False (catches ValueError).
+        if inplace:
+            raise ValueError("permutation cannot be done inplace")
         x = np.asarray(x)
         n_extra = x.shape[-1] - 8
         if n_extra < 0:
@@ -128,7 +133,7 @@ class _CanonicalToTeodorSectorPermuter:
             out[..., 8:] = x[..., 8:]
         return out
 
-    def inverse_transform(self, y):
+    def inverse_transform(self, y, inplace=False):
         # Not meaningful for input transformer in this pipeline; identity-ish.
         return np.asarray(y)
 
@@ -230,11 +235,10 @@ def make_sector_average(
             f"expected (n_turb, 4); got saws={saws.shape}, sati={sati.shape}")
 
     if sectors_order == "teodor":
-        # Reorder (L, R, U, D) -> (U, R, D, L) for canonical storage.
-        teodor_to_canonical = [TEODOR_SECTORS.index(s) for s in CANONICAL_SECTORS]
-        saws = saws[:, teodor_to_canonical]
-        sati = sati[:, teodor_to_canonical]
-    elif sectors_order != "canonical":
+        sector_labels = list(TEODOR_SECTORS)
+    elif sectors_order == "canonical":
+        sector_labels = list(CANONICAL_SECTORS)
+    else:
         raise ValueError("sectors_order must be 'canonical' or 'teodor'")
 
     n_turb = saws.shape[0]
@@ -248,7 +252,7 @@ def make_sector_average(
             "wt": np.arange(n_turb),
             "wd": [270.0],
             "ws": [10.0],
-            "sector": list(CANONICAL_SECTORS),
+            "sector": sector_labels,
             "quantity": ["WS_eff", "TI_eff"],
         },
     )
