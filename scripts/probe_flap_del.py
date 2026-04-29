@@ -10,9 +10,21 @@ Usage:
     python scripts/probe_flap_del.py --bundle checkpoints/teodor_dlc12_torch.pt
 """
 import argparse
+import sys
+from pathlib import Path
+
 import torch
 
-from helpers.teodor_surrogate import TeodorDLC12Surrogate
+# Allow running from project root without installing package.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+import importlib.util
+_spec = importlib.util.spec_from_file_location(
+    "teodor_surrogate",
+    Path(__file__).resolve().parents[1] / "helpers" / "teodor_surrogate.py")
+_ts = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_ts)
+TeodorDLC12Surrogate = _ts.TeodorDLC12Surrogate
 
 
 def main():
