@@ -231,14 +231,28 @@ def disk_features_for_env(env, turbine_idx: int,
     wts = fs.windTurbines
     xy = (float(wts.positions_xyz[0][turbine_idx]),
           float(wts.positions_xyz[1][turbine_idx]))
-    hub_h = float(getattr(wts, "hub_height",
-                            getattr(wts, "hub_height_", 119.0)))
-    if callable(hub_h):
-        hub_h = float(hub_h())
-    rd = float(getattr(wts, "rotor_diameter",
-                          getattr(wts, "diameter", 178.0)))
-    if callable(rd):
-        rd = float(rd())
+
+    def _scalar(obj, names, default):
+        for n in names:
+            v = getattr(obj, n, None)
+            if v is None:
+                continue
+            if callable(v):
+                try:
+                    v = v()
+                except Exception:
+                    continue
+            try:
+                arr = np.asarray(v).flatten()
+                if arr.size == 0:
+                    continue
+                return float(arr[turbine_idx if arr.size > 1 else 0])
+            except Exception:
+                continue
+        return float(default)
+
+    hub_h = _scalar(wts, ("hub_height", "hub_heights", "hub_height_"), 119.0)
+    rd = _scalar(wts, ("rotor_diameter", "diameter", "D"), 178.0)
     if yaw_deg is None:
         yaw_deg = float(np.asarray(wts.yaw).flatten()[turbine_idx])
     flow = windgym_flow_callable(env)
