@@ -14,6 +14,10 @@ set -euo pipefail
 PROJECT_DIR=/scratch/project_465002609/julian/ac_budget_experiment
 cd "$PROJECT_DIR"
 
+# 0. Ensure conversion deps in pixi env.
+pixi run pip install --quiet "tensorflow-cpu" "keras" "joblib" "scikit-learn" 2>&1 | tail -3 || \
+    pixi run pip install --quiet "tensorflow" "keras" "joblib" "scikit-learn"
+
 # 1. Pull latest WindGym (preserves local speed mods if uncommitted only as
 #    diff; refuses if commit conflict — fix manually then rerun).
 WG_DIR=/scratch/project_465002609/julian/windgym
