@@ -152,30 +152,95 @@ def features_to_surrogate_input(per_turbine: list[dict],
 
 
 def windgym_flow_callable(env):
-    """Build a flow_uti(xs, ys, zs) callable from a WindGym vector env.
+    """Build a flow_uti(xs, ys, zs) callable from a WindGym env.
 
-    Tries multiple WindGym APIs in order:
-      1. env.unwrapped.get_flow_at(xs, ys, zs)  -> (u, ti)
-      2. env.unwrapped.flow_field(xs, ys, zs)   -> (u, ti)
-      3. env.unwrapped.site.local_wind(xs, ys, zs) (PyWake fallback)
+    WindGym 19a6644+ exposes `env.fs` (the flow simulator). Supported backends:
+      - dynamiks DWMFlowSimulation: `fs.get_windspeed(xyz=(x,y,z))` works for
+        arbitrary 3D points.
+      - PyWakeFlowSimulationAdapter: only hub-height grid via a View — falls
+        back to per-turbine rotor average broadcast across sectors. TI is
+        the env-level scalar.
 
-    If the env does not expose flow sampling, raises with a clear message
-    pointing to the WindGym addition needed.
+    Returns: callable f(xs, ys, zs) -> (u, ti) where each output is a 1D
+    numpy array matching the input length. TI is currently a scalar
+    broadcast — extend if WindGym backends gain per-point TI.
     """
     raw = env.unwrapped if hasattr(env, "unwrapped") else env
-    for attr in ("get_flow_at", "flow_field", "sample_flow", "rotor_inflow"):
-        fn = getattr(raw, attr, None)
-        if callable(fn):
-            return fn
-    site = getattr(raw, "site", None)
-    if site is not None and hasattr(site, "local_wind"):
-        def _from_site(xs, ys, zs):
-            lw = site.local_wind(x_i=xs, y_i=ys, h_i=zs)
-            u = np.asarray(lw.WS).flatten()
-            ti = np.asarray(lw.TI).flatten()
+    fs = getattr(raw, "fs", None)
+    if fs is None:
+        raise RuntimeError(
+            "WindGym env has no `.fs` simulator handle (call reset() first?)")
+
+    # Pull a representative TI scalar; sites/configs differ.
+    def _ti_scalar():
+        for attr in ("ti", "TI", "current_ti"):
+            v = getattr(raw, attr, None)
+            if v is not None and np.isscalar(v):
+                return float(v)
+            if hasattr(v, "__len__") and len(v) > 0:
+                return float(np.mean(v))
+        # Try fs.ti
+        v = getattr(fs, "ti", None)
+        if v is not None:
+            arr = np.asarray(v).flatten()
+            if arr.size > 0:
+                return float(np.mean(arr))
+        return 0.10  # last-ditch default; warn elsewhere
+
+    backend = type(fs).__name__
+    if backend == "DWMFlowSimulation" or "DWM" in backend:
+        def _dynamiks(xs, ys, zs):
+            xs = np.asarray(xs); ys = np.asarray(ys); zs = np.asarray(zs)
+            n = xs.size
+            u = np.empty(n, dtype=float)
+            for i in range(n):
+                v = fs.get_windspeed(xyz=(xs[i], ys[i], zs[i]),
+                                      include_wakes=True, xarray=False)
+                arr = np.asarray(v).flatten()
+                # dynamiks returns u-component first; magnitude as fallback.
+                u[i] = float(arr[0]) if arr.size >= 1 else float(np.linalg.norm(arr))
+            ti = np.full(n, _ti_scalar(), dtype=float)
             return u, ti
-        return _from_site
-    raise RuntimeError(
-        "WindGym env exposes no flow-sampling API. "
-        "Add a method get_flow_at(xs, ys, zs) -> (u, TI) "
-        "(see helpers/rotor_disk_flow.py for the contract).")
+        return _dynamiks
+
+    # PyWake adapter fallback: rotor-average broadcast.
+    def _pywake_avg(xs, ys, zs):
+        n = np.asarray(xs).size
+        try:
+            avgs = np.asarray(fs.windTurbines.rotor_avg_windspeed).flatten()
+        except Exception:
+            avgs = np.array([float(getattr(raw, "ws", 9.0))])
+        u_mean = float(np.mean(avgs))
+        return (np.full(n, u_mean), np.full(n, _ti_scalar()))
+    return _pywake_avg
+
+
+def disk_features_for_env(env, turbine_idx: int,
+                            yaw_deg: float | None = None,
+                            n_radial: int = 4, n_angular: int = 16) -> dict:
+    """Convenience wrapper: 4-sector u/TI for one turbine in a WindGym env.
+
+    Args:
+        env: WindGym env (after reset).
+        turbine_idx: which turbine.
+        yaw_deg: yaw override; if None, reads from env.fs.windTurbines.yaw.
+        n_radial, n_angular: sampling density.
+    """
+    raw = env.unwrapped if hasattr(env, "unwrapped") else env
+    fs = raw.fs
+    wts = fs.windTurbines
+    xy = (float(wts.positions_xyz[0][turbine_idx]),
+          float(wts.positions_xyz[1][turbine_idx]))
+    hub_h = float(getattr(wts, "hub_height",
+                            getattr(wts, "hub_height_", 119.0)))
+    if callable(hub_h):
+        hub_h = float(hub_h())
+    rd = float(getattr(wts, "rotor_diameter",
+                          getattr(wts, "diameter", 178.0)))
+    if callable(rd):
+        rd = float(rd())
+    if yaw_deg is None:
+        yaw_deg = float(np.asarray(wts.yaw).flatten()[turbine_idx])
+    flow = windgym_flow_callable(env)
+    return disk_sector_features(xy, hub_h, rd, yaw_deg, flow,
+                                  n_radial=n_radial, n_angular=n_angular)
