@@ -197,8 +197,8 @@ def windgym_flow_callable(env):
                 v = fs.get_windspeed(xyz=(xs[i], ys[i], zs[i]),
                                       include_wakes=True, xarray=False)
                 arr = np.asarray(v).flatten()
-                # dynamiks returns u-component first; magnitude as fallback.
-                u[i] = float(arr[0]) if arr.size >= 1 else float(np.linalg.norm(arr))
+                # Use magnitude of UVW vector (matches WindProbe.read_speed_magnitude).
+                u[i] = float(np.linalg.norm(arr)) if arr.size > 0 else 0.0
             ti = np.full(n, _ti_scalar(), dtype=float)
             return u, ti
         return _dynamiks
