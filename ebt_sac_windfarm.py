@@ -158,6 +158,10 @@ def setup_env(args: Args, config_overrides: Optional[Dict[str, Any]] = None) -> 
         env = PerTurbineObservationWrapper(env)
         if args.use_wd_deviation:
             env = EnhancedPerTurbineWrapper(env, wd_scale_range=args.wd_scale_range)
+        # Expose 4-sector rotor-disk flow for stateful load surrogates
+        # (FlapDELSurrogate, FlapDELBudgetSurrogate). No-op for other surrogates.
+        from helpers.surrogate_hooks import SectorFlowExposer
+        env = SectorFlowExposer(env)
         return env
 
     def make_env_fn(seed):
@@ -502,6 +506,16 @@ def main():
             current_layout_indices = None
             current_permutations = None
 
+        # Refresh DEL-surrogate flow context BEFORE the agent computes guidance.
+        # No-op for surrogates that don't have update_context (yaw-only).
+        if hasattr(load_surrogate, "update_context"):
+            from helpers.surrogate_hooks import refresh_surrogate_context
+            try:
+                refresh_surrogate_context(envs, load_surrogate)
+            except Exception as _e:
+                if global_step <= 1:
+                    print(f"  [warn] refresh_surrogate_context failed: {_e}")
+
         if global_step < args.learning_starts:
             actions = envs.action_space.sample()
         else:
@@ -509,6 +523,20 @@ def main():
                 actions = agent.act(envs, obs)
 
         next_obs, rewards, terminations, truncations, infos = envs.step(actions)
+
+        # Accumulate realized DEL into the budget tracker.
+        if hasattr(load_surrogate, "update"):
+            from helpers.surrogate_hooks import update_surrogate_after_step
+            try:
+                update_surrogate_after_step(envs, load_surrogate, infos)
+            except Exception as _e:
+                if global_step <= 1:
+                    print(f"  [warn] update_surrogate_after_step failed: {_e}")
+            # Reset budget tracker on episode end (autoreset already gave fresh obs).
+            if hasattr(load_surrogate, "reset") and (
+                np.any(terminations) or np.any(truncations)
+            ):
+                load_surrogate.reset()
 
         step_reward_window.extend(np.array(rewards).flatten().tolist())
 
@@ -750,6 +778,8 @@ def main():
             guided_steps = args.num_eval_steps
             for lam in [0.0, 1.0, 5.0, 10.0]:
                 gfn = load_surrogate if lam > 0 else None
+                if hasattr(load_surrogate, "reset"):
+                    load_surrogate.reset()
                 ep_obs, _ = assessment_env.reset()
                 ep_reward = 0.0
                 ep_load = 0.0
@@ -758,9 +788,17 @@ def main():
                 ep_power = []
 
                 for _ in range(guided_steps):
+                    if hasattr(load_surrogate, "update_context"):
+                        from helpers.surrogate_hooks import refresh_surrogate_context
+                        try: refresh_surrogate_context(assessment_env, load_surrogate)
+                        except Exception: pass
                     with torch.no_grad():
                         act = agent.act(assessment_env, ep_obs, guidance_fn=gfn, guidance_scale=lam)
                     ep_obs, rew, _, _, ep_info = assessment_env.step(act)
+                    if hasattr(load_surrogate, "update"):
+                        from helpers.surrogate_hooks import update_surrogate_after_step
+                        try: update_surrogate_after_step(assessment_env, load_surrogate, ep_info)
+                        except Exception: pass
                     ep_reward += float(rew.mean())
 
                     if "yaw angles agent" in ep_info:
@@ -866,14 +904,24 @@ def main():
     final_env = evaluator.eval_envs
     for lam in [0.0, 1.0, 5.0, 10.0, 20.0]:
         gfn = load_surrogate if lam > 0 else None
+        if hasattr(load_surrogate, "reset"):
+            load_surrogate.reset()
         test_obs, _ = final_env.reset()
         ep_reward, ep_load = 0.0, 0.0
         ep_yaw_abs = []
         ep_yaw_per_turb: list[list[float]] = [[] for _ in range(n_turbines_max)]
         for _ in range(args.num_eval_steps):
+            if hasattr(load_surrogate, "update_context"):
+                from helpers.surrogate_hooks import refresh_surrogate_context
+                try: refresh_surrogate_context(final_env, load_surrogate)
+                except Exception: pass
             with torch.no_grad():
                 act = agent.act(final_env, test_obs, guidance_fn=gfn, guidance_scale=lam)
             test_obs, rew, _, _, step_info = final_env.step(act)
+            if hasattr(load_surrogate, "update"):
+                from helpers.surrogate_hooks import update_surrogate_after_step
+                try: update_surrogate_after_step(final_env, load_surrogate, step_info)
+                except Exception: pass
             ep_reward += float(rew.mean())
             if "yaw angles agent" in step_info:
                 yaw_arr = np.array(step_info["yaw angles agent"])
