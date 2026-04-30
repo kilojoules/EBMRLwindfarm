@@ -23,5 +23,5 @@ cp -r "$WG_DIR/WindGym/"* "$SITE/WindGym/" 2>/dev/null || true
 set -e
 pixi run python -u scripts/calibrate_flap_del_budget.py \
     --bundle checkpoints/teodor_dlc12_torch.pt \
-    --turbines 2 --spacing 800 --horizon 200 --n-episodes 3 \
-    --out-json results/flap_del_budgets.json
+    --layout multi_modal --horizon 200 --n-episodes 5 \
+    --out-json results/flap_del_budgets_multi_modal.json

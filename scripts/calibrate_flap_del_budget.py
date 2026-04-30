@@ -68,8 +68,12 @@ def rollout(env, surr, n_turb, horizon, sensor):
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("--bundle", default="checkpoints/teodor_dlc12_torch.pt")
-    p.add_argument("--turbines", type=int, default=2)
-    p.add_argument("--spacing", type=float, default=800.0)
+    p.add_argument("--turbines", type=int, default=2,
+                   help="ignored if --layout is given")
+    p.add_argument("--spacing", type=float, default=800.0,
+                   help="ignored if --layout is given")
+    p.add_argument("--layout", default=None,
+                   help="layout name from helpers/layouts.py (e.g. multi_modal)")
     p.add_argument("--horizon", type=int, default=200)
     p.add_argument("--n-episodes", type=int, default=3)
     p.add_argument("--sensor", default="wrot_Bl1Rad0FlpMnt")
@@ -83,8 +87,17 @@ def main():
     from WindGym import WindFarmEnv
     from py_wake.examples.data.iea37 import IEA37_WindTurbines
     turbine = IEA37_WindTurbines()
-    xs = list(np.arange(args.turbines, dtype=float) * args.spacing)
-    ys = [0.0] * args.turbines
+    if args.layout is not None:
+        layouts_mod = _load("helpers.layouts", ROOT / "helpers/layouts.py")
+        x_arr, y_arr = layouts_mod.get_layout_positions(args.layout, turbine)
+        xs, ys = list(map(float, x_arr)), list(map(float, y_arr))
+        n_turbines = len(xs)
+        print(f"layout={args.layout}: x={xs} y={ys}")
+    else:
+        xs = list(np.arange(args.turbines, dtype=float) * args.spacing)
+        ys = [0.0] * args.turbines
+        n_turbines = args.turbines
+    args.turbines = n_turbines  # propagate so rollout uses correct count
     cfg = ec.make_env_config("default")
 
     cums = []
