@@ -34,3 +34,8 @@ scripts/wandb_plots/
 energy_island_10y_daily_av_wind.csv
 texput.log
 checkpoints/*.pt
+
+# Proprietary — Teodor DLC12 ANN load surrogate (do not redistribute)
+checkpoints/teodor_dlc12_torch.pt
+Teodor_surrogates/
+**/Teodor_surrogates/

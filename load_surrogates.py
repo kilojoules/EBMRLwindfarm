@@ -737,6 +737,176 @@ class FlapDELSurrogate(nn.Module):
         return per_turb.sum(dim=(-2, -1), keepdim=False).unsqueeze(-1)
 
 
+class FlapDELBudgetSurrogate(nn.Module):
+    """Per-turbine DEL budget = total DEL incurred under no-yaw baseline.
+
+    Cost rate c_i,t = blade-flap DEL_i(yaw, sector_flow_i, pset). The budget
+    constraint per turbine is
+
+        Σ_{t=0}^{T-1} c_i,t  ≤  B_i = Σ_{t=0}^{T-1} c^baseline_i,t
+
+    where the baseline rollout uses zero yaw under identical inflow.
+    Wake-steering moves wind onto downstream turbines and tends to raise their
+    DEL above this baseline; the AC-inspired schedule penalises this when
+    the cumulative cost outpaces the time-weighted-average reference.
+
+    Combines two signals:
+      1. base_penalty = DEL(candidate yaw) — diff'able in action; FlapDEL
+         surrogate provides this per turbine.
+      2. λ_i(t) = AC schedule from cumulative DEL vs B_i (same form as
+         NegativeYawBudgetSurrogate); 1 at TWAP, large near depletion.
+
+    Composed energy:  c̃_i = λ_i(t) · DEL_i(action) / del_ref
+    so the agent prefers low-DEL actions (small yaw, off-wake direction) when
+    its budget is tight, and runs unconstrained when there's headroom.
+
+    Usage:
+        surr = FlapDELBudgetSurrogate.from_bundle(
+            "checkpoints/teodor_dlc12_torch.pt",
+            per_turbine_budgets=[38_900.0, 25_950.0],   # kNm-step, from baseline
+            horizon_steps=50, risk_aversion=1.0)
+        surr.reset()
+        # each env step:
+        surr.update_context(saws, sati, pset)        # refreshes flow features
+        a = agent.act(..., guidance_fn=surr)         # uses DEL gradient
+        next_obs, ... = env.step(a)
+        surr.update(saws, sati, pset, yaw_deg_taken) # accumulates realised DEL
+    """
+
+    def __init__(
+        self,
+        flap_del: "FlapDELSurrogate",
+        per_turbine_budgets: List[float],
+        horizon_steps: int,
+        risk_aversion: float = 1.0,
+        steepness: float = 10.0,
+        del_ref: Optional[float] = None,
+        schedule_type: str = "exp",
+    ):
+        super().__init__()
+        if not isinstance(flap_del, FlapDELSurrogate):
+            raise TypeError("flap_del must be a FlapDELSurrogate")
+        self.flap_del = flap_del
+        self.per_turbine_budgets = list(per_turbine_budgets)
+        self.horizon_steps = int(horizon_steps)
+        self.risk_aversion = float(risk_aversion)
+        self.steepness = float(steepness)
+        self.schedule_type = schedule_type
+        self.del_ref = (float(del_ref) if del_ref is not None
+                          else float(flap_del.del_ref))
+        # State
+        self.current_step: int = 0
+        self.cumulative_del: Optional[torch.Tensor] = None  # (n_turb, 1)
+
+    @classmethod
+    def from_bundle(
+        cls,
+        bundle_path: str,
+        per_turbine_budgets: List[float],
+        horizon_steps: int,
+        yaw_max_deg: float = 30.0,
+        del_ref: float = 648.6,
+        risk_aversion: float = 1.0,
+        steepness: float = 10.0,
+        output_name: str = "wrot_Bl1Rad0FlpMnt",
+        map_location: str = "cpu",
+        schedule_type: str = "exp",
+    ):
+        flap_del = FlapDELSurrogate.from_bundle(
+            bundle_path, yaw_max_deg=yaw_max_deg, del_ref=del_ref,
+            output_name=output_name, map_location=map_location)
+        return cls(flap_del, per_turbine_budgets, horizon_steps,
+                    risk_aversion=risk_aversion, steepness=steepness,
+                    del_ref=del_ref, schedule_type=schedule_type)
+
+    def reset(self):
+        self.current_step = 0
+        self.cumulative_del = None
+
+    @torch.no_grad()
+    def update_context(self, saws, sati, pset):
+        """Forward to the inner FlapDEL — refreshes per-turbine flow context."""
+        self.flap_del.update_context(saws, sati, pset)
+
+    @torch.no_grad()
+    def update(self, saws, sati, pset, yaw_deg):
+        """Accumulate realised DEL given the action just taken.
+
+        Args:
+            saws, sati: (n_turb, 4) sector flow at this step.
+            pset: (n_turb,)
+            yaw_deg: (n_turb,) yaw angle taken this step.
+        """
+        self.update_context(saws, sati, pset)
+        n_turb = self.flap_del._ctx.shape[0]
+        action_dim = 1
+        # Build a fake "action" with yaw already in physical degrees -> normalize.
+        yaw_norm = (torch.as_tensor(yaw_deg, dtype=torch.float32)
+                    / self.flap_del.yaw_max_deg)
+        action = yaw_norm.reshape(1, n_turb, action_dim)
+        per_turb_cost_norm = self.flap_del.per_turbine_energy(action)  # (1, n_turb, 1)
+        # cost in physical kNm = norm * del_ref
+        per_turb_del = per_turb_cost_norm.squeeze(0) * self.del_ref  # (n_turb, 1)
+        if self.cumulative_del is None:
+            self.cumulative_del = torch.zeros_like(per_turb_del)
+        self.cumulative_del = self.cumulative_del + per_turb_del
+        self.current_step += 1
+
+    def _budget_tensor(self) -> torch.Tensor:
+        b = torch.tensor(self.per_turbine_budgets, dtype=torch.float32)
+        if self.cumulative_del is not None:
+            b = b.to(self.cumulative_del.device).reshape_as(self.cumulative_del)
+        return b
+
+    def _compute_lambda(self) -> torch.Tensor:
+        if self.cumulative_del is None:
+            return torch.ones(1)
+        eps = 1e-6
+        budget_total = self._budget_tensor()
+        budget_remaining = (budget_total - self.cumulative_del).clamp(min=0)
+        time_remaining = max(self.horizon_steps - self.current_step, 1)
+
+        budget_fraction = budget_remaining / budget_total.clamp(min=1.0)
+        time_fraction = time_remaining / max(self.horizon_steps, 1)
+        urgency = (budget_fraction / max(time_fraction, eps)).clamp(min=eps)
+
+        if self.schedule_type == "inverse":
+            ac_weight = urgency.pow(-self.risk_aversion)
+        else:
+            ac_weight = torch.exp(self.risk_aversion * (1.0 / urgency - 1.0))
+
+        depletion = F.relu(1.0 - budget_fraction / 0.05)
+        hard_wall = torch.exp(self.steepness * depletion)
+        return (ac_weight * hard_wall).clamp(max=1e6)
+
+    @property
+    def budget_utilization(self) -> Optional[torch.Tensor]:
+        if self.cumulative_del is None:
+            return None
+        return (self.cumulative_del / self._budget_tensor().clamp(min=1.0)
+                ).clamp(max=1.0)
+
+    def per_turbine_energy(
+        self,
+        action: torch.Tensor,
+        key_padding_mask: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:
+        """λ_i(t) · DEL_i(action) / del_ref."""
+        base = self.flap_del.per_turbine_energy(action, key_padding_mask)
+        lam = self._compute_lambda().to(base.device)
+        if base.dim() == 3 and lam.dim() == 2:
+            lam = lam.unsqueeze(0)  # (1, n_turb, 1)
+        return lam * base
+
+    def forward(
+        self,
+        action: torch.Tensor,
+        key_padding_mask: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:
+        per_turb = self.per_turbine_energy(action, key_padding_mask)
+        return per_turb.sum(dim=(-2, -1), keepdim=False).unsqueeze(-1)
+
+
 # =============================================================================
 # FACTORY
 # =============================================================================
@@ -749,6 +919,7 @@ VALID_LOAD_SURROGATE_TYPES = [
     "neg_yaw_budget",     # NegativeYawBudgetSurrogate — Almgren-Chriss neg yaw budget
     "relu",               # ReluLoadSurrogate — proof-of-concept
     "flap_del",           # FlapDELSurrogate — Teodor DLC12 ANN, blade flap DEL
+    "flap_del_budget",    # FlapDELBudgetSurrogate — AC-scheduled DEL budget
 ]
 
 
@@ -765,6 +936,9 @@ def create_load_surrogate(
     flap_del_bundle: str = "checkpoints/teodor_dlc12_torch.pt",
     flap_del_ref: float = 648.6,
     flap_del_yaw_max_deg: float = 30.0,
+    flap_del_per_turbine_budgets: str = "",      # comma list of B_i in kNm-step
+    flap_del_horizon_steps: int = 200,
+    flap_del_risk_aversion: float = 1.0,
 ) -> nn.Module:
     """Factory function for load surrogates.
 
@@ -809,5 +983,21 @@ def create_load_surrogate(
             flap_del_bundle,
             yaw_max_deg=flap_del_yaw_max_deg,
             del_ref=flap_del_ref,
+        )
+    elif surrogate_type == "flap_del_budget":
+        if not flap_del_per_turbine_budgets:
+            raise ValueError(
+                "flap_del_budget requires --flap_del_per_turbine_budgets "
+                "(comma list of B_i in kNm-step). Compute via "
+                "scripts/calibrate_flap_del_budget.py.")
+        budgets = [float(x) for x in flap_del_per_turbine_budgets.split(",")]
+        return FlapDELBudgetSurrogate.from_bundle(
+            flap_del_bundle,
+            per_turbine_budgets=budgets,
+            horizon_steps=flap_del_horizon_steps,
+            yaw_max_deg=flap_del_yaw_max_deg,
+            del_ref=flap_del_ref,
+            risk_aversion=flap_del_risk_aversion,
+            steepness=steepness,
         )
     raise ValueError(f"Unhandled surrogate_type={surrogate_type!r}")
