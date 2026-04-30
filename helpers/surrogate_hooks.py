@@ -42,7 +42,15 @@ class SectorFlowExposer(gym.Wrapper):
 
     def get_sector_features(self) -> Dict[str, np.ndarray]:
         from helpers.rotor_disk_flow import disk_features_for_env
-        raw = self.env.unwrapped if hasattr(self.env, "unwrapped") else self.env
+        # MultiLayoutEnv hides the active WindFarmEnv behind _get_base_env / _current_env.
+        env = self.env
+        if hasattr(env, "_get_base_env"):
+            raw = env._get_base_env()
+        elif hasattr(env, "_current_env"):
+            cur = env._current_env
+            raw = cur.unwrapped if hasattr(cur, "unwrapped") else cur
+        else:
+            raw = env.unwrapped if hasattr(env, "unwrapped") else env
         fs = getattr(raw, "fs", None)
         if fs is None:
             return {"err": "no_fs"}

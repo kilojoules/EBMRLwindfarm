@@ -158,20 +158,23 @@ def setup_env(args: Args, config_overrides: Optional[Dict[str, Any]] = None) -> 
         env = PerTurbineObservationWrapper(env)
         if args.use_wd_deviation:
             env = EnhancedPerTurbineWrapper(env, wd_scale_range=args.wd_scale_range)
-        # Expose 4-sector rotor-disk flow for stateful load surrogates
-        # (FlapDELSurrogate, FlapDELBudgetSurrogate). No-op for other surrogates.
-        from helpers.surrogate_hooks import SectorFlowExposer
-        env = SectorFlowExposer(env)
         return env
 
     def make_env_fn(seed):
         def _init():
-            return MultiLayoutEnv(
+            env = MultiLayoutEnv(
                 layouts=layouts, env_factory=env_factory,
                 per_turbine_wrapper=combined_wrapper,
                 seed=seed, shuffle=args.shuffle_turbs,
                 max_episode_steps=args.max_episode_steps,
             )
+            # Expose 4-sector rotor-disk flow for stateful load surrogates
+            # (FlapDELSurrogate, FlapDELBudgetSurrogate). No-op otherwise.
+            # Wrap OUTSIDE MultiLayoutEnv so AsyncVectorEnv.call reaches the
+            # method directly.
+            from helpers.surrogate_hooks import SectorFlowExposer
+            env = SectorFlowExposer(env)
+            return env
         return _init
 
     print(f"Creating {args.num_envs} parallel environment(s)...")
