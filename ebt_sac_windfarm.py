@@ -541,6 +541,33 @@ def main():
             except Exception as _e:
                 if global_step <= 1:
                     print(f"  [warn] update_surrogate_after_step failed: {_e}")
+            # Log DEL accumulator state every 50 steps + at episode end.
+            if (global_step % 50 == 0
+                    or np.any(terminations) or np.any(truncations)):
+                cum = getattr(load_surrogate, "cumulative_del", None)
+                budgets = getattr(load_surrogate, "per_turbine_budgets", None)
+                if cum is not None and budgets is not None:
+                    cum_np = cum.detach().cpu().numpy().flatten()
+                    util = cum_np / np.maximum(np.asarray(budgets), 1.0)
+                    try:
+                        lam = load_surrogate._compute_lambda().detach().cpu().numpy().flatten()
+                    except Exception:
+                        lam = np.zeros_like(cum_np)
+                    for t, (c, u, l) in enumerate(zip(cum_np, util, lam)):
+                        writer.add_scalar(f"flap_del/cum_turb{t}", float(c), global_step)
+                        writer.add_scalar(f"flap_del/util_turb{t}", float(u), global_step)
+                        writer.add_scalar(f"flap_del/lambda_turb{t}", float(l), global_step)
+                    writer.add_scalar("flap_del/util_max", float(util.max()),
+                                      global_step)
+                    writer.add_scalar("flap_del/lambda_max", float(lam.max()),
+                                      global_step)
+                    if np.any(terminations) or np.any(truncations):
+                        viol = util > 1.0
+                        n_viol = int(viol.sum())
+                        worst = float(util.max())
+                        print(f"  [budget] ep end util={util.tolist()} "
+                              f"viol={n_viol} worst={worst:.3f}")
+
             # Reset budget tracker on episode end (autoreset already gave fresh obs).
             if hasattr(load_surrogate, "reset") and (
                 np.any(terminations) or np.any(truncations)
