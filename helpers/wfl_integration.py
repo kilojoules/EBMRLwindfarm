@@ -203,6 +203,11 @@ def load_teodor_surrogates(
             n_outputs=1,
             dtype=torch.float32,
         )
+        # Force CPU. PyTorchModel auto-detects cuda (which fires on ROCm too)
+        # and `__to_numpy` chokes on GPU tensors when cupy is absent.
+        cpu_dev = torch.device("cpu")
+        sm.device = cpu_dev
+        sm.model.to(cpu_dev)
         surrogates[name] = sm
     return surrogates
 
