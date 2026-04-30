@@ -420,6 +420,12 @@ def main():
         neg_yaw_horizon_steps=int(args.neg_yaw_horizon_hours * 3600 / args.dt_env),
         neg_yaw_risk_aversion=args.neg_yaw_risk_aversion,
         neg_yaw_threshold_deg=args.neg_yaw_threshold_deg,
+        flap_del_bundle=args.flap_del_bundle,
+        flap_del_ref=args.flap_del_ref,
+        flap_del_yaw_max_deg=args.flap_del_yaw_max_deg,
+        flap_del_per_turbine_budgets=args.flap_del_per_turbine_budgets,
+        flap_del_horizon_steps=args.flap_del_horizon_steps,
+        flap_del_risk_aversion=args.flap_del_risk_aversion,
     )
     print(f"Load surrogate: {args.load_surrogate_type} → {type(load_surrogate).__name__}")
 

@@ -158,6 +158,14 @@ class Args:
     load_del_threshold_pct: float = 0.10       # DEL increase threshold (0.10 = 10% max)
     load_del_penalty_type: str = "exponential" # DEL penalty shape: "exponential" or "quadratic"
 
+    # === Flap-DEL Surrogate (Teodor DLC12) ===
+    flap_del_bundle: str = "checkpoints/teodor_dlc12_torch.pt"
+    flap_del_ref: float = 648.6                  # Per-step DEL [kNm] used to normalize cost
+    flap_del_yaw_max_deg: float = 30.0
+    flap_del_per_turbine_budgets: str = ""       # CSV per-turbine budget B_i [kNm-step]
+    flap_del_horizon_steps: int = 200            # Horizon T for budget pacing
+    flap_del_risk_aversion: float = 1.0          # AC risk aversion for DEL budget
+
     # === Negative Yaw Budget (Almgren-Chriss) ===
     neg_yaw_budget_hours: float = 5.0          # Negative yaw time budget per turbine (hours)
     neg_yaw_horizon_hours: float = 8760.0      # Planning horizon (hours, 8760 = 1 year)

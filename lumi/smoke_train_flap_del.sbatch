@@ -34,4 +34,4 @@ pixi run python -u ebt_sac_windfarm.py \
     --flap_del_per_turbine_budgets 155215.2,173727.8,91453.8 \
     --flap_del_horizon_steps 200 \
     --flap_del_risk_aversion 1.0 --load_steepness 10 \
-    --seed 1 --exp_name smoke_flap_del_budget --track False
+    --seed 1 --exp_name smoke_flap_del_budget --no-track
