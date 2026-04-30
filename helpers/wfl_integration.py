@@ -187,6 +187,14 @@ def load_teodor_surrogates(
             mean=torch.from_numpy(s_out.mean_.astype(np.float32)),
             scale=torch.from_numpy(s_out.scale_.astype(np.float32)),
         )
+        # StandardScalerTorch auto-routes to cuda if available; pin to cpu
+        # (ROCm-as-cuda + no cupy breaks __to_numpy downstream).
+        cpu_dev = torch.device("cpu")
+        for sc in (in_scaler, out_scaler):
+            sc.device = cpu_dev
+            sc.gain_ = sc.gain_.to(cpu_dev)
+            sc.inv_gain_ = sc.inv_gain_.to(cpu_dev)
+            sc.offset_ = sc.offset_.to(cpu_dev)
 
         in_transformers = []
         if sectors_in == "canonical":
