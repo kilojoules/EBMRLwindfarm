@@ -1207,7 +1207,11 @@ def main():
         print(f"  Saved trajectories to {traj_path}")
 
     writer.close()
-    envs.close()
+    try:
+        envs.close()
+    except (BrokenPipeError, ConnectionResetError, EOFError, OSError) as _e:
+        print(f"  [warn] envs.close() raised {type(_e).__name__}; subprocess "
+              f"likely already gone, continuing")
     print("Done.")
 
 

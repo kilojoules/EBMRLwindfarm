@@ -98,11 +98,26 @@ def _aggregate_features(per_env_results: List[Dict[str, Any]]) -> Dict[str, np.n
     return {"saws": saws, "sati": sati, "pset": pset, "yaw_deg": yaw_deg}
 
 
+def _safe_call(envs, method: str):
+    """envs.env.call(method) but tolerant of broken subprocess pipes.
+
+    AsyncVectorEnv subprocess can die during long eval sweeps (Linux pipe
+    closure on shutdown / second-reset corner cases). Returns None instead
+    of propagating BrokenPipeError so the surrogate hook becomes a no-op.
+    """
+    try:
+        return envs.env.call(method)
+    except (BrokenPipeError, ConnectionResetError, EOFError, OSError) as _e:
+        return None
+
+
 def refresh_surrogate_context(envs, surr) -> None:
     """Read 4-sector flow per turbine from each sub-env, feed the surrogate."""
     if not hasattr(surr, "update_context"):
         return
-    results = envs.env.call("get_sector_features")
+    results = _safe_call(envs, "get_sector_features")
+    if results is None:
+        return
     feats = _aggregate_features(list(results))
     surr.update_context(feats["saws"], feats["sati"], feats["pset"])
 
@@ -112,7 +127,9 @@ def update_surrogate_after_step(envs, surr, infos) -> None:
     if not hasattr(surr, "update"):
         return
     # Re-read flow + yaw to capture post-step state.
-    results = envs.env.call("get_sector_features")
+    results = _safe_call(envs, "get_sector_features")
+    if results is None:
+        return
     feats = _aggregate_features(list(results))
     saws, sati, pset = feats["saws"], feats["sati"], feats["pset"]
     # Prefer the info-reported yaw if available (matches what WindGym applied).
