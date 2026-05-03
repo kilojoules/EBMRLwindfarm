@@ -41,6 +41,7 @@ We propose a closed-form schedule $\sigma(u)$ that \emph{blends two existing con
 The blend weight $\sigma(u)\!\in\![0,1]$ is a monotone function of the \emph{urgency ratio} $u=\rho/\tau$ (remaining-budget / remaining-time fractions): on pace ($u\!\ge\!1$) the performance policy runs; in deficit ($u\!\to\!0$) the safety controller takes over.
 \textbf{This is a budget-aware \emph{pacing} mechanism, not a hard enforcement guarantee.}
 On wind-farm yaw control ($\kappa\!\approx\!0.72$) the schedule satisfies a $15$-step neg-yaw surrogate budget across 4 training seeds with $99.3$--$101.8\%$ of unconstrained power; in our 3-turbine setting zero yaw alone is power-competitive with the unconstrained policy, so WF validates budget tracking rather than preservation of a large wake-steering advantage.
+We further validate against a physics-grounded blade-flap DEL surrogate (sector-averaged ANN on DLC12 simulations~\citep{guillore2024sectoravg}): a 4-point sweep of per-turbine budget scale ($B$, $B/2$, $B/3$, $B/5$ relative to a zero-yaw baseline calibration) shows a clean phase transition---$0/250$ episode violations across the feasible regime and $250/250$ at the infeasible $B/5$ point, with power retention essentially flat ($1.14$--$1.16\times$ unconstrained) where feasible.
 On Safety Gymnasium ($\kappa\!\approx\!0.02$) the explicit blend gives a favorable reward-cost trade-off (cost from $49.4$ to $15.3$ at $d\!=\!10$, retaining $45\%$ of unconstrained reward) but does not reliably satisfy expected cost at tight budgets.
 We compare against retraining baselines (SAC-Lagrangian at three hyperparameter settings; SAUTE~\citep{sootla2022saute}, which uses the same urgency variable our schedule does); the best retraining variant tested attains $R\!=\!2.3$, $C\!=\!24$ at $500$k steps, putting the blend on the Pareto-favorable side of the reward axis but \emph{not} dominating in the constrained sense (some baselines satisfy budget more tightly at the cost of reward).
 A gradient-correction variant of the same schedule works when the action-to-cost coupling strength $\kappa = \mathbb{E}\|\nabla_a Q_c\|/\mathbb{E}\|\nabla_s Q_c\|$ is large; when it is small, the explicit-$\pi_{\mathrm{safe}}$ blend is required.
@@ -340,6 +341,48 @@ projected override                      & $100.9\!\pm\!3.6\%$ & $[11.6, 11.5, 12
 \bottomrule
 \end{tabular}
 \end{table}
+
+\subsection{Physics-Grounded Validation: Blade-Flap DEL Surrogate}
+\label{sec:flap_del}
+
+The negative-yaw timestep count of \S\ref{sec:wf_results} is a discrete proxy for fatigue.
+We re-run the wind-farm experiment with a physics-grounded cost: a sector-averaged ANN load surrogate trained on DLC12 simulations~\citep{guillore2024sectoravg} that maps four-sector rotor-disk inflow $(\mathrm{WS}, \mathrm{TI})$ + power setpoint + yaw to ten-minute blade-flapwise damage-equivalent load (DEL).
+Each step the surrogate is queried per turbine with rotor-disk samples extracted via PyWake's flow handle (excluding self-wake); the realised DEL is accumulated and the per-turbine cumulative cost feeds the same urgency schedule.
+
+\textbf{Calibration.}
+We compute $B_i$ as the cumulative DEL incurred by zero-yaw operation over a $200$-step episode, averaged across $5$ episodes (multi\_modal layout, $\mathrm{TI}\!=\!0.07$):
+$B_0\!=\!155{,}215\!\pm\!134$, $B_1\!=\!173{,}728\!\pm\!17{,}419$, $B_2\!=\!91{,}454\!\pm\!17{,}638$ kNm$\cdot$step.
+Turbine~1 (partial wake at $0.4D$ lateral offset) carries the highest baseline DEL despite operating in disturbed inflow, because added turbulence dominates over the wind-speed deficit; turbine~2 (in heavy shadow at $11D$) has roughly half the upstream DEL.
+
+\textbf{Budget-tightness sweep.}
+We retrain a 3-turbine EBT-SAC actor for $50{,}000$ steps under the urgency schedule with per-turbine budgets scaled at $\{B/5, B/3, B/2, B\}$ (Table~\ref{tab:flap_del_sweep}).
+A clean phase transition is visible.
+At $B$ (no constraint pressure) the agent's natural DEL sits at $\sim\!23\%$ of budget; the schedule never engages.
+At $B/2$ and $B/3$ the schedule binds---turbine 2 utilisation reaches $0.47$ and $0.70$ respectively---with zero violations across $250$ episodes per configuration.
+At $B/5$ every episode violates: the per-step budget ($91$~kNm/step for turbine~2) sits below the agent's lowest achievable per-step DEL ($\sim\!100$~kNm/step), making the constraint structurally infeasible regardless of yaw choice.
+Power retention is essentially flat across all configurations (1.140--1.161 vs.\ unconstrained), confirming that on this layout the constraint itself is cheap to satisfy when feasible.
+
+\begin{table}[h]
+\centering
+\caption{Physics-grounded blade-flap DEL budget sweep (3-turbine multi\_modal, $T\!=\!200$, 50k training steps, 250 evaluation episodes per configuration). $B = (155215, 173728, 91454)$ kNm$\cdot$step from zero-yaw calibration. Util$_{\mathrm{max}}$ is the largest per-turbine $C_T^i / B_i$ at episode end (turbine 2, the heavy-wake turbine, in every row). Power ratio is no-guidance final-eval against an unconstrained baseline on the same layout.}
+\label{tab:flap_del_sweep}
+\begin{tabular}{lccccc}
+\toprule
+Budget scale & Reward & Power ratio & Util$_{\mathrm{max}}$ & Violations / 250 ep & Schedule binds? \\
+\midrule
+$B$ \quad(loose)   & $30.3$ & $1.151$ & $0.23$ & $\mathbf{0}$ & no \\
+$B/2$              & $27.9$ & $1.156$ & $0.47$ & $\mathbf{0}$ & weakly \\
+$B/3$              & $\mathbf{30.4}$ & $\mathbf{1.161}$ & $0.70$ & $\mathbf{0}$ & yes (sweet spot) \\
+$B/5$ \quad(infeasible) & $28.5$ & $1.140$ & $\mathbf{1.13}$ & $\mathbf{250}$ & cannot recover \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Reading.}
+The schedule successfully paces a real DEL constraint, with $0/250$ violations across the tested feasible regime ($B$ to $B/3$) and a clean failure mode below the feasibility floor ($B/5$).
+The $B/5$ behaviour is consistent with the framework's design: the AC schedule is a soft-constraint dual penalty that pre-empts overshoot but does not undo accumulated cost, so it cannot rescue a constraint that lies below the achievable per-step DEL.
+This is a reframing of \S\ref{sec:wf_results}'s yaw-time proxy: the same urgency mechanism applies to a physics-grounded fatigue surrogate, with the same per-turbine bookkeeping, identical hyperparameters, and zero domain-specific tuning.
+We do not have access to a wake-steering-effective $\pi_{\mathrm{perf}}$ for this layout (cf.\ \S\ref{sec:wf_results} caveat) so we again validate budget tracking rather than preservation of a large RL advantage on the power axis.
 
 \subsection{Safety Gymnasium: Low Coupling, Reward-Favorable Soft-Budget Operating Point}
 \label{sec:sg_results}
