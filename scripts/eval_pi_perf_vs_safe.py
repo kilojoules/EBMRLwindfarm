@@ -34,41 +34,53 @@ rdf = _load("helpers.rotor_disk_flow", ROOT / "helpers/rotor_disk_flow.py")
 ec = _load("helpers.env_configs", ROOT / "helpers/env_configs.py")
 
 
-def rollout(env, actor_fn, surr, n_turb, horizon, sensor):
-    """Run one episode. actor_fn(obs, env) -> action_array (n_turb,)."""
-    obs, _ = env.reset()
+def rollout(envs, actor_fn, surr, n_turb, horizon, sensor):
+    """One episode via vector env. envs.env.call('get_sector_features') gives
+    serializable per-turbine sector dict from inside the subprocess."""
+    obs, _ = envs.reset()
     cum_del = np.zeros(n_turb, dtype=np.float64)
     powers = []
     pset = np.full(n_turb, 0.93, dtype=np.float32)
     for t in range(horizon):
-        action = actor_fn(obs, env)
-        # Read disk features, score DEL
-        per = []
-        for i in range(n_turb):
-            try:
-                feats = rdf.disk_features_for_env(env, turbine_idx=i,
-                                                    yaw_deg=0.0)
-            except Exception:
-                feats = dict(saws_left=9.0, saws_right=9.0, saws_up=9.0,
-                              saws_down=9.0, sati_left=0.07, sati_right=0.07,
-                              sati_up=0.07, sati_down=0.07)
-            per.append(feats)
-        # Use action as yaw_deg
-        yaw_deg_world = (np.asarray(action, dtype=np.float32).flatten()
-                          * 30.0)  # action_scale ≈ 30deg per surrogate yaw_max
-        x = rdf.features_to_surrogate_input(per, pset.tolist(),
+        action = actor_fn(obs, envs)
+        try:
+            feats_list = envs.env.call("get_sector_features")
+        except Exception:
+            feats_list = None
+        if feats_list and isinstance(feats_list[0], dict) and "err" not in feats_list[0]:
+            f = feats_list[0]
+            saws = f["saws"]
+            sati = f["sati"]
+            n = saws.shape[0]
+        else:
+            saws = np.full((n_turb, 4), 9.0, dtype=np.float32)
+            sati = np.full((n_turb, 4), 0.07, dtype=np.float32)
+            n = n_turb
+        # Yaw from action; vector env action shape (1, n_turb)
+        a_arr = np.asarray(action, dtype=np.float32).reshape(-1)
+        yaw_deg_world = a_arr[:n] * 30.0
+        per = [
+            dict(saws_left=saws[i,0], saws_right=saws[i,1],
+                  saws_up=saws[i,2], saws_down=saws[i,3],
+                  sati_left=sati[i,0], sati_right=sati[i,1],
+                  sati_up=sati[i,2], sati_down=sati[i,3])
+            for i in range(n)
+        ]
+        x = rdf.features_to_surrogate_input(per, pset[:n].tolist(),
                                               yaw_deg_world.tolist())
         out = surr.predict_one(sensor, torch.from_numpy(x)).flatten().numpy()
-        cum_del += out
-        # Step env with action (zero yaw or actor)
+        cum_del[:n] += out
         try:
-            ret = env.step(action)
-            obs, _, term, trunc, info = ret if len(ret) == 5 else (
-                ret[0], ret[1], ret[2], ret[3], ret[4])
+            ret = envs.step(action)
+            obs, _, term, trunc, info = (ret if len(ret) == 5
+                                          else (ret[0], ret[1], ret[2], ret[3], ret[4]))
             if "Power agent" in info:
-                powers.append(float(np.mean(info["Power agent"])))
-            if term or trunc: break
-        except Exception:
+                p = info["Power agent"]
+                powers.append(float(np.mean(p)))
+            if np.any(term) or np.any(trunc):
+                break
+        except Exception as e:
+            print(f"  step err: {e}")
             break
     return cum_del, np.mean(powers) if powers else 0.0
 
@@ -88,31 +100,37 @@ def main():
     surr.eval()
 
     import warnings; warnings.filterwarnings("ignore")
-    from WindGym import WindFarmEnv
     from py_wake.examples.data.iea37 import IEA37_WindTurbines
-    layouts_mod = _load("helpers.layouts", ROOT / "helpers/layouts.py")
     turbine = IEA37_WindTurbines()
-    x_arr, y_arr = layouts_mod.get_layout_positions(args.layout, turbine)
-    xs, ys = list(map(float, x_arr)), list(map(float, y_arr))
-    n_turb = len(xs)
-    cfg_name = "multi_modal" if args.layout == "multi_modal" else "default"
-    cfg = ec.make_env_config(cfg_name)
 
-    # Load actor
+    # Load actor + tr_args from checkpoint
     print(f"loading {args.checkpoint}")
     ckpt = torch.load(args.checkpoint, map_location="cpu", weights_only=False)
     from config import Args
     tr_args = Args(**{k: v for k, v in ckpt["args"].items() if hasattr(Args, k)})
-    from ebt import TransformerEBTActor
-    from networks import create_profile_encoding
+    # Override layout for eval
+    tr_args.layouts = args.layout
+    if args.layout == "multi_modal":
+        tr_args.config = "multi_modal"
+
+    # Use the project's setup_env to get a properly wrapped vector env
+    from ebt_sac_windfarm import setup_env
+    env_info = setup_env(tr_args)
+    envs = env_info["envs"]
+    n_turb = env_info["n_turbines_max"]
+
+    use_profiles = env_info["use_profiles"]
     sr, si = None, None
-    if getattr(tr_args, "use_profiles", False):
+    if use_profiles:
+        from networks import create_profile_encoding
         sr, si = create_profile_encoding(
             profile_type=tr_args.profile_encoding_type,
             embed_dim=tr_args.embed_dim,
             hidden_channels=tr_args.profile_encoder_hidden)
+    from ebt import TransformerEBTActor
     actor = TransformerEBTActor(
-        obs_dim_per_turbine=4, action_dim_per_turbine=1,
+        obs_dim_per_turbine=env_info["obs_dim_per_turbine"],
+        action_dim_per_turbine=1,
         embed_dim=tr_args.embed_dim, num_heads=tr_args.num_heads,
         num_layers=tr_args.num_layers, mlp_ratio=tr_args.mlp_ratio,
         dropout=tr_args.dropout,
@@ -123,7 +141,8 @@ def main():
         rel_pos_per_head=tr_args.rel_pos_per_head,
         profile_encoding=tr_args.profile_encoding_type,
         shared_recep_encoder=sr, shared_influence_encoder=si,
-        action_scale=1.0, action_bias=0.0,
+        action_scale=env_info["action_scale"],
+        action_bias=env_info["action_bias"],
         opt_steps_train=tr_args.ebt_opt_steps_train,
         opt_steps_eval=tr_args.ebt_opt_steps_eval,
         opt_lr=tr_args.ebt_opt_lr,
@@ -133,31 +152,25 @@ def main():
 
     from helpers.agent import WindFarmAgent
     agent = WindFarmAgent(actor=actor, device=torch.device("cpu"),
-                            rotor_diameter=float(turbine.diameter()),
+                            rotor_diameter=env_info["rotor_diameter"],
                             use_wind_relative=tr_args.use_wind_relative_pos,
-                            use_profiles=getattr(tr_args, "use_profiles", False),
+                            use_profiles=use_profiles,
                             rotate_profiles=getattr(tr_args, "rotate_profiles", False))
 
     def actor_fn(obs, env):
         with torch.no_grad():
             a = agent.act(env, obs)
-        return np.asarray(a, dtype=np.float32).flatten()
+        return np.asarray(a, dtype=np.float32)  # vector env shape
 
     def safe_fn(obs, env):
-        return np.zeros(n_turb, dtype=np.float32)
+        return np.zeros((1, n_turb), dtype=np.float32)
 
     cums_perf = []; pwrs_perf = []
     cums_safe = []; pwrs_safe = []
     for ep in range(args.n_episodes):
-        env = WindFarmEnv(turbine=turbine, x_pos=xs, y_pos=ys,
-                          config=cfg, backend="dynamiks", seed=ep + 1)
-        c, p = rollout(env, actor_fn, surr, n_turb, args.horizon, args.sensor)
-        env.close()
+        c, p = rollout(envs, actor_fn, surr, n_turb, args.horizon, args.sensor)
         cums_perf.append(c); pwrs_perf.append(p)
-        env = WindFarmEnv(turbine=turbine, x_pos=xs, y_pos=ys,
-                          config=cfg, backend="dynamiks", seed=ep + 1)
-        c, p = rollout(env, safe_fn, surr, n_turb, args.horizon, args.sensor)
-        env.close()
+        c, p = rollout(envs, safe_fn, surr, n_turb, args.horizon, args.sensor)
         cums_safe.append(c); pwrs_safe.append(p)
         print(f"ep{ep}: perf=p:{pwrs_perf[-1]:.0f} d:{cums_perf[-1]} | "
               f"safe=p:{pwrs_safe[-1]:.0f} d:{cums_safe[-1]}")
