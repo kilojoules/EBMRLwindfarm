@@ -154,10 +154,25 @@ def setup_env(args: Args, config_overrides: Optional[Dict[str, Any]] = None) -> 
         env.action_space.seed(args.seed)
         return env
 
+    # Optional DEL-aware reward wrapper — load surrogate ONCE, share across envs
+    _del_surrogate = None
+    if getattr(args, "del_aware_reward", False):
+        from helpers.teodor_surrogate import TeodorDLC12Surrogate
+        _del_surrogate = TeodorDLC12Surrogate.from_bundle(
+            args.flap_del_bundle,
+            outputs=["wrot_Bl1Rad0FlpMnt"])
+        _del_surrogate.eval()
+        print(f"[reward] DEL-aware reward ON: r_new = r - {args.del_reward_beta} * sum(DEL)/{args.flap_del_ref}")
+
     def combined_wrapper(env: gym.Env) -> gym.Env:
         env = PerTurbineObservationWrapper(env)
         if args.use_wd_deviation:
             env = EnhancedPerTurbineWrapper(env, wd_scale_range=args.wd_scale_range)
+        if _del_surrogate is not None:
+            from helpers.del_reward_wrapper import DelRewardWrapper
+            env = DelRewardWrapper(env, _del_surrogate,
+                                     beta=args.del_reward_beta,
+                                     del_ref=args.flap_del_ref)
         return env
 
     def make_env_fn(seed):

@@ -166,6 +166,10 @@ class Args:
     flap_del_horizon_steps: int = 200            # Horizon T for budget pacing
     flap_del_risk_aversion: float = 1.0          # AC risk aversion for DEL budget
 
+    # === DEL-aware reward wrapper (for "both halves" experiment) ===
+    del_aware_reward: bool = False               # Subtract DEL penalty from env reward
+    del_reward_beta: float = 1.0                 # Penalty weight
+
     # === Negative Yaw Budget (Almgren-Chriss) ===
     neg_yaw_budget_hours: float = 5.0          # Negative yaw time budget per turbine (hours)
     neg_yaw_horizon_hours: float = 8760.0      # Planning horizon (hours, 8760 = 1 year)
