@@ -72,6 +72,53 @@ class SectorFlowExposer(gym.Wrapper):
                 "rotor_diameter": np.float32(rd),
                 "yaw_deg": yaw}
 
+    def get_renderer_flow_field(self) -> Dict[str, np.ndarray]:
+        """Return WindGym renderer's native flow field (uses fs.get_windspeed
+        with the proper View object — works for both PyWake and dynamiks
+        backends). Initialises the renderer lazily.
+        """
+        env = self.env
+        if hasattr(env, "_get_base_env"):
+            raw = env._get_base_env()
+        elif hasattr(env, "_current_env"):
+            cur = env._current_env
+            raw = cur.unwrapped if hasattr(cur, "unwrapped") else cur
+        else:
+            raw = env.unwrapped if hasattr(env, "unwrapped") else env
+        fs = getattr(raw, "fs", None)
+        if fs is None:
+            return {"err": "no_fs"}
+        rdr = getattr(raw, "renderer", None)
+        if rdr is None:
+            return {"err": "no_renderer"}
+        try:
+            d = rdr.get_flow_field(fs, turbine=raw.turbine)
+        except Exception as e:
+            return {"err": f"render_err: {e}"}
+        # uvw is xarray; serialise to numpy. Component 0 = u-magnitude.
+        uvw = d["uvw"]
+        try:
+            arr = np.asarray(uvw.values, dtype=np.float32)
+        except Exception:
+            arr = np.asarray(uvw, dtype=np.float32)
+        # Pick u (first component) magnitude. arr shape varies by backend.
+        if arr.ndim == 3 and arr.shape[0] == 3:
+            U = np.linalg.norm(arr, axis=0)
+        elif arr.ndim == 3 and arr.shape[-1] == 3:
+            U = np.linalg.norm(arr, axis=-1)
+        else:
+            U = np.asarray(arr).squeeze()
+        return {
+            "X": np.asarray(d["x"], dtype=np.float32),
+            "Y": np.asarray(d["y"], dtype=np.float32),
+            "U": U.astype(np.float32),
+            "x_turb": np.asarray(d["x_turb"], dtype=np.float32),
+            "y_turb": np.asarray(d["y_turb"], dtype=np.float32),
+            "yaw_deg": np.asarray(d["yaw_plot"], dtype=np.float32).flatten(),
+            "wd": float(d["wd"]),
+            "diameter": float(d["diameter"]),
+        }
+
     def get_flow_grid(self, x_min: float, x_max: float, nx: int,
                        y_min: float, y_max: float, ny: int,
                        hub_h: float) -> Dict[str, np.ndarray]:

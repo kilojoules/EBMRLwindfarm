@@ -57,14 +57,14 @@ def sigma_of_u(u, eta=3.0):
     return 1.0 - np.exp(-eta * (1.0 / max(u, 1e-6) - 1.0))
 
 
-def flow_grid(envs, x_extent, y_extent, hub_h, nx=48, ny=24):
-    """Sample flow grid via a single subprocess call (avoids pipe hammering)."""
-    res = envs.env.call("get_flow_grid",
-                         float(x_extent[0]), float(x_extent[1]), int(nx),
-                         float(y_extent[0]), float(y_extent[1]), int(ny),
-                         float(hub_h))
+def renderer_flow(envs):
+    """Use WindGym's native renderer.get_flow_field — proper PyWake/dynamiks
+    output (X, Y mesh + U magnitude)."""
+    res = envs.env.call("get_renderer_flow_field")
     d = res[0]
-    return d["xs"], d["ys"], d["U"]
+    if "err" in d:
+        return None
+    return d
 
 
 def main():
@@ -204,14 +204,26 @@ def main():
                                      torch.from_numpy(x_in)).flatten().numpy()
         cum_del += del_step
 
-        # Snapshot flow grid (only on rendered frames to save time)
+        # Snapshot flow + state (only on rendered frames to save time)
         if t % args.frame_stride == 0:
-            xs, ys, U = flow_grid(envs, xx_extent, yy_extent,
-                                    hub_h, nx=args.grid_nx, ny=args.grid_ny)
+            ff = renderer_flow(envs)
+            if ff is None:
+                # Fallback: keep grid but warn once
+                if t == 0:
+                    print("  [warn] renderer flow unavailable; using empty grid")
+                ff = {"X": np.zeros((2,2), dtype=np.float32),
+                       "Y": np.zeros((2,2), dtype=np.float32),
+                       "U": np.full((2,2), 9.0, dtype=np.float32),
+                       "x_turb": pos_x.astype(np.float32),
+                       "y_turb": pos_y.astype(np.float32),
+                       "yaw_deg": yaw_now_deg.astype(np.float32),
+                       "diameter": rd}
             frames.append({
                 "t": t,
-                "xs": xs, "ys": ys, "U": U,
-                "yaw_deg": yaw_now_deg.copy(),
+                "X": ff["X"], "Y": ff["Y"], "U": ff["U"],
+                "x_turb": ff["x_turb"], "y_turb": ff["y_turb"],
+                "yaw_deg": ff.get("yaw_deg", yaw_now_deg.astype(np.float32)),
+                "diameter": ff["diameter"],
                 "cum_del": cum_del.copy(),
                 "del_step": del_step.copy(),
                 "sigma": sigma_per.copy(),
@@ -238,54 +250,93 @@ def main():
     # ---------------- Render animation ----------------
     print(f"\nrecorded {len(frames)} frames; rendering mp4...")
 
-    fig = plt.figure(figsize=(13, 7), constrained_layout=True)
+    fig = plt.figure(figsize=(14, 7.5), constrained_layout=True)
     gs = fig.add_gridspec(2, 3, height_ratios=[2.4, 1.0],
                            width_ratios=[1.0, 1.0, 1.1])
     ax_flow = fig.add_subplot(gs[0, :2])
-    ax_del  = fig.add_subplot(gs[0, 2])
+    ax_cum  = fig.add_subplot(gs[0, 2])
     ax_sig  = fig.add_subplot(gs[1, 0])
     ax_u    = fig.add_subplot(gs[1, 1])
     ax_rate = fig.add_subplot(gs[1, 2])
 
-    # Flow init
-    ax_flow.set_aspect("equal")
-    ax_flow.set_xlim(*xx_extent); ax_flow.set_ylim(*yy_extent)
-    ax_flow.set_xlabel("x [m]"); ax_flow.set_ylabel("y [m]")
-    ax_flow.set_title("Hub-height wind magnitude (with wakes) + turbine yaw")
+    # Use renderer's native X/Y extent for the flow plot.
+    ff0 = frames[0]
+    X0, Y0 = ff0["X"], ff0["Y"]
+    if X0.size > 4:
+        x_lo, x_hi = float(X0.min()), float(X0.max())
+        y_lo, y_hi = float(Y0.min()), float(Y0.max())
+    else:
+        x_lo, x_hi = xx_extent
+        y_lo, y_hi = yy_extent
 
-    flow_im = ax_flow.imshow(frames[0]["U"], origin="lower",
-                              extent=[*xx_extent, *yy_extent],
-                              cmap="viridis", vmin=4, vmax=11, aspect="equal",
-                              interpolation="bilinear", zorder=1)
-    cbar = fig.colorbar(flow_im, ax=ax_flow, fraction=0.025, pad=0.01)
+    ax_flow.set_aspect("equal")
+    ax_flow.set_xlim(x_lo, x_hi); ax_flow.set_ylim(y_lo, y_hi)
+    ax_flow.set_xlabel("x [m]"); ax_flow.set_ylabel("y [m]")
+    ax_flow.set_title("Hub-height wind magnitude + turbine yaw "
+                       "(σ-coloured rotor outlines)")
+
+    flow_mesh = ax_flow.pcolormesh(X0, Y0, ff0["U"].T if ff0["U"].shape == X0.shape else ff0["U"],
+                                     cmap="viridis", vmin=4, vmax=11,
+                                     shading="auto", zorder=1)
+    cbar = fig.colorbar(flow_mesh, ax=ax_flow, fraction=0.025, pad=0.01)
     cbar.set_label("u [m/s]")
 
+    # Sigma colourmap for rotor outlines (navy = pi_perf, crimson = pi_safe)
+    rotor_cmap = matplotlib.colors.LinearSegmentedColormap.from_list(
+        "rotor_sig", [(0.0, "#0b3d91"), (0.5, "#888888"), (1.0, "#d32f2f")])
+
     rotor_lines = []
-    yaw_arrows = []
+    rotor_dots = []
     for i in range(n_turb):
-        line, = ax_flow.plot([], [], "-", color="black", lw=4, zorder=4)
+        line, = ax_flow.plot([], [], "-", lw=5, zorder=5)
         rotor_lines.append(line)
-        ax_flow.scatter(pos_x[i], pos_y[i], marker="o", s=18, c="black", zorder=5)
+        dot = ax_flow.scatter(pos_x[i], pos_y[i], marker="o",
+                                s=28, c="black", zorder=6)
+        rotor_dots.append(dot)
         ax_flow.text(pos_x[i] + 30, pos_y[i] + 30,
-                     f"T{i}", fontsize=10, color="black", zorder=6)
+                     f"T{i}", fontsize=11, color="black",
+                     zorder=7, fontweight="bold")
     title_text = ax_flow.text(0.02, 0.97, "", transform=ax_flow.transAxes,
                                 va="top", ha="left", color="white",
                                 fontsize=11, family="monospace",
                                 bbox=dict(boxstyle="round,pad=0.3",
-                                            fc="black", alpha=0.55))
+                                            fc="black", alpha=0.6))
+    viol_text = ax_flow.text(0.5, 0.04, "",
+                              transform=ax_flow.transAxes,
+                              va="bottom", ha="center", color="white",
+                              fontsize=11, fontweight="bold",
+                              bbox=dict(boxstyle="round,pad=0.4",
+                                          fc="#d32f2f", alpha=0.0))
 
-    # DEL bars vs budget
-    bar_x = np.arange(n_turb)
-    util0 = frames[0]["cum_del"] / np.maximum(budgets, 1)
-    bars = ax_del.bar(bar_x, util0, color="#1f77b4", edgecolor="black")
-    ax_del.axhline(1.0, color="crimson", lw=1.5, ls="--",
-                   label="budget B$_i$")
-    ax_del.set_ylim(0, 1.3)
-    ax_del.set_xticks(bar_x); ax_del.set_xticklabels([f"T{i}" for i in range(n_turb)])
-    ax_del.set_ylabel("util = $C_t/B_i$")
-    ax_del.set_title("Per-turbine DEL utilisation")
-    ax_del.legend(loc="upper right", fontsize=8)
-    ax_del.grid(alpha=0.25, axis="y")
+    # ---- Cumulative DEL trajectory per turbine vs time + budget + TWAP ----
+    cum_lines = []
+    twap_lines = []
+    cmap_t = plt.get_cmap("tab10")
+    colors_t = [cmap_t(i) for i in range(n_turb)]
+    for i in range(n_turb):
+        l, = ax_cum.plot([], [], lw=2.0, color=colors_t[i],
+                          label=f"T{i}: $C_t^i = \\sum_{{s\\le t}} \\mathrm{{DEL}}_s^i$")
+        cum_lines.append(l)
+        ax_cum.axhline(budgets[i], color=colors_t[i], lw=1.0, ls="--",
+                       alpha=0.6)
+        # TWAP reference (uniform pace): B_i * t/T
+        twap, = ax_cum.plot([0, args.horizon], [0, budgets[i]],
+                              color=colors_t[i], lw=0.8, ls=":", alpha=0.5)
+        twap_lines.append(twap)
+    ax_cum.set_xlim(0, args.horizon)
+    ax_cum.set_ylim(0, max(budgets) * 1.3)
+    ax_cum.set_xlabel("time step")
+    ax_cum.set_ylabel("cumulative DEL [kNm·step]")
+    ax_cum.set_title("$C_t^i$: integral of DEL over time vs budget $B_i$")
+    ax_cum.legend(fontsize=8, loc="upper left")
+    ax_cum.grid(alpha=0.25)
+    ax_cum.text(0.98, 0.05,
+                  "dashed = $B_i$ (budget)\n"
+                  "dotted = uniform pace ($B_i\\cdot t/T$)",
+                  transform=ax_cum.transAxes, ha="right", va="bottom",
+                  fontsize=8, color="#444",
+                  bbox=dict(boxstyle="round,pad=0.3", fc="white",
+                              ec="#aaa", alpha=0.85))
 
     # Sigma trace (per turbine over time)
     sig_lines = []
@@ -325,38 +376,53 @@ def main():
     u_hist = [[] for _ in range(n_turb)]
     rate_hist = [[] for _ in range(n_turb)]
 
+    cum_hist = [[] for _ in range(n_turb)]
+
     def update(idx):
         f = frames[idx]
-        flow_im.set_data(f["U"])
-        # Rotor markers — line oriented perpendicular to the yaw direction
+        # Replace flow mesh data
+        try:
+            flow_mesh.set_array(f["U"].ravel())
+        except Exception:
+            pass
+        # Rotor lines, σ-coloured
         for i in range(n_turb):
             yaw_rad = np.deg2rad(f["yaw_deg"][i])
-            # rotor disk is perpendicular to (cos yaw, sin yaw) — lies along (-sin, cos)
             ex = -np.sin(yaw_rad); ey = np.cos(yaw_rad)
-            half = rd / 2
+            half = f["diameter"] / 2
             x0, y0 = pos_x[i] - ex * half, pos_y[i] - ey * half
             x1, y1 = pos_x[i] + ex * half, pos_y[i] + ey * half
             rotor_lines[i].set_data([x0, x1], [y0, y1])
+            rotor_lines[i].set_color(rotor_cmap(float(f["sigma"][i])))
         title_text.set_text(
             f"t={f['t']:3d}/{args.horizon}  τ={f['tau']:.2f}  "
             f"yaw={[f'{y:+.0f}°' for y in f['yaw_deg']]}")
 
         util = f["cum_del"] / np.maximum(budgets, 1)
-        for b, u in zip(bars, util):
-            b.set_height(u)
-            b.set_color("crimson" if u > 1.0 else "#1f77b4")
+        n_viol = int(np.sum(util > 1.0))
+        if n_viol > 0:
+            worst_i = int(np.argmax(util))
+            viol_text.set_text(
+                f"⚠ T{worst_i} budget exceeded ({100*util[worst_i]:.0f}% of $B_i$):"
+                " bearing-replacement event")
+            viol_text.get_bbox_patch().set_alpha(0.85)
+        else:
+            viol_text.set_text("")
+            viol_text.get_bbox_patch().set_alpha(0.0)
 
         ts_hist.append(f["t"])
         for i in range(n_turb):
             sig_hist[i].append(f["sigma"][i])
             u_hist[i].append(f["u"][i])
             rate_hist[i].append(f["del_step"][i])
+            cum_hist[i].append(f["cum_del"][i])
             sig_lines[i].set_data(ts_hist, sig_hist[i])
             u_lines[i].set_data(ts_hist, u_hist[i])
             rate_lines[i].set_data(ts_hist, rate_hist[i])
+            cum_lines[i].set_data(ts_hist, cum_hist[i])
 
-        return (flow_im, *rotor_lines, *bars, *sig_lines, *u_lines,
-                *rate_lines, title_text)
+        return (flow_mesh, *rotor_lines, *cum_lines, *sig_lines, *u_lines,
+                *rate_lines, title_text, viol_text)
 
     anim = FuncAnimation(fig, update, frames=len(frames),
                          interval=1000 // args.fps, blit=False)
