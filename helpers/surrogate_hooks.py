@@ -40,6 +40,69 @@ class SectorFlowExposer(gym.Wrapper):
     Returns a serialisable dict the parent process consumes.
     """
 
+    def get_layout_info(self) -> Dict[str, np.ndarray]:
+        """Per-turbine positions, hub_height, rotor diameter, current yaw."""
+        env = self.env
+        if hasattr(env, "_get_base_env"):
+            raw = env._get_base_env()
+        elif hasattr(env, "_current_env"):
+            cur = env._current_env
+            raw = cur.unwrapped if hasattr(cur, "unwrapped") else cur
+        else:
+            raw = env.unwrapped if hasattr(env, "unwrapped") else env
+        fs = getattr(raw, "fs", None)
+        if fs is None:
+            return {"err": "no_fs"}
+        wts = fs.windTurbines
+        pos_x = np.asarray(wts.positions_xyz[0], dtype=np.float32)
+        pos_y = np.asarray(wts.positions_xyz[1], dtype=np.float32)
+        try:
+            hub = wts.hub_height() if callable(wts.hub_height) else wts.hub_height
+            hub = float(np.asarray(hub).flatten()[0])
+        except Exception:
+            hub = 119.0
+        try:
+            rd = wts.diameter() if callable(wts.diameter) else wts.diameter
+            rd = float(np.asarray(rd).flatten()[0])
+        except Exception:
+            rd = 178.3
+        yaw = np.asarray(wts.yaw, dtype=np.float32).flatten()
+        return {"pos_x": pos_x, "pos_y": pos_y,
+                "hub_height": np.float32(hub),
+                "rotor_diameter": np.float32(rd),
+                "yaw_deg": yaw}
+
+    def get_flow_grid(self, x_min: float, x_max: float, nx: int,
+                       y_min: float, y_max: float, ny: int,
+                       hub_h: float) -> Dict[str, np.ndarray]:
+        """Sample wind-speed magnitude on a hub-height xy grid INSIDE the
+        subprocess (avoids hammering the AsyncVectorEnv pipe)."""
+        env = self.env
+        if hasattr(env, "_get_base_env"):
+            raw = env._get_base_env()
+        elif hasattr(env, "_current_env"):
+            cur = env._current_env
+            raw = cur.unwrapped if hasattr(cur, "unwrapped") else cur
+        else:
+            raw = env.unwrapped if hasattr(env, "unwrapped") else env
+        fs = getattr(raw, "fs", None)
+        if fs is None:
+            return {"err": "no_fs"}
+        xs = np.linspace(x_min, x_max, nx)
+        ys = np.linspace(y_min, y_max, ny)
+        U = np.zeros((ny, nx), dtype=np.float32)
+        for i, y in enumerate(ys):
+            for j, x in enumerate(xs):
+                try:
+                    v = fs.get_windspeed(xyz=(float(x), float(y), float(hub_h)),
+                                          include_wakes=True, xarray=False)
+                    U[i, j] = float(np.linalg.norm(np.asarray(v).flatten()))
+                except Exception:
+                    U[i, j] = float("nan")
+        return {"xs": xs.astype(np.float32),
+                "ys": ys.astype(np.float32),
+                "U": U}
+
     def get_sector_features(self) -> Dict[str, np.ndarray]:
         from helpers.rotor_disk_flow import disk_features_for_env
         # MultiLayoutEnv hides the active WindFarmEnv behind _get_base_env / _current_env.

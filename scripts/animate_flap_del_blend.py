@@ -51,21 +51,14 @@ def sigma_of_u(u, eta=3.0):
     return 1.0 - np.exp(-eta * (1.0 / max(u, 1e-6) - 1.0))
 
 
-def flow_grid(fs, n_turb, x_extent, y_extent, hub_h, nx=48, ny=24):
-    """Sample wind-speed magnitude on a 2D grid at hub height (with all wakes
-    on)."""
-    xs = np.linspace(*x_extent, nx)
-    ys = np.linspace(*y_extent, ny)
-    U = np.zeros((ny, nx), dtype=np.float32)
-    for i, y in enumerate(ys):
-        for j, x in enumerate(xs):
-            try:
-                v = fs.get_windspeed(xyz=(float(x), float(y), float(hub_h)),
-                                      include_wakes=True, xarray=False)
-                U[i, j] = float(np.linalg.norm(np.asarray(v).flatten()))
-            except Exception:
-                U[i, j] = np.nan
-    return xs, ys, U
+def flow_grid(envs, x_extent, y_extent, hub_h, nx=48, ny=24):
+    """Sample flow grid via a single subprocess call (avoids pipe hammering)."""
+    res = envs.env.call("get_flow_grid",
+                         float(x_extent[0]), float(x_extent[1]), int(nx),
+                         float(y_extent[0]), float(y_extent[1]), int(ny),
+                         float(hub_h))
+    d = res[0]
+    return d["xs"], d["ys"], d["U"]
 
 
 def main():
@@ -149,18 +142,13 @@ def main():
     pset = np.full(n_turb, 0.93, dtype=np.float32)
     cum_del = np.zeros(n_turb, dtype=np.float64)
 
-    # Record positions / extent
-    feats0 = envs.env.call("get_sector_features")[0]
-    raw_env = envs.env.envs[0] if hasattr(envs.env, "envs") else None
-    fs = raw_env.unwrapped.fs if raw_env is not None else None
-    if fs is None:
-        # Fall back to module path
-        from helpers.surrogate_hooks import _safe_call
-        fs_call = _safe_call(envs, "get_sector_features")
-    pos_x = np.asarray(fs.windTurbines.positions_xyz[0], dtype=float)
-    pos_y = np.asarray(fs.windTurbines.positions_xyz[1], dtype=float)
-    hub_h = float(np.asarray(fs.windTurbines.hub_height()).flatten()[0])
-    rd = float(fs.windTurbines.diameter())
+    # Record positions / extent via subprocess call
+    info_list = envs.env.call("get_layout_info")
+    info = info_list[0]
+    pos_x = np.asarray(info["pos_x"], dtype=float)
+    pos_y = np.asarray(info["pos_y"], dtype=float)
+    hub_h = float(info["hub_height"])
+    rd = float(info["rotor_diameter"])
     print(f"layout pos x={pos_x} y={pos_y} D={rd:.0f}m hub={hub_h:.0f}m")
 
     # Domain
@@ -212,7 +200,7 @@ def main():
 
         # Snapshot flow grid (only on rendered frames to save time)
         if t % args.frame_stride == 0:
-            xs, ys, U = flow_grid(fs, n_turb, xx_extent, yy_extent,
+            xs, ys, U = flow_grid(envs, xx_extent, yy_extent,
                                     hub_h, nx=args.grid_nx, ny=args.grid_ny)
             frames.append({
                 "t": t,
