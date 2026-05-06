@@ -37,14 +37,17 @@ DTU Wind Energy, Technical University of Denmark}
 
 \begin{abstract}
 A pre-trained, unconstrained RL policy faces a new cumulative operational constraint at deployment: a damage budget per year, a duty-cycle limit, a spending cap.
-We propose a closed-form schedule $\sigma(u)$ that \emph{blends two existing controllers at inference}: the deployed performance policy $\pi_{\mathrm{perf}}$ and a domain-specific safety controller $\pi_{\mathrm{safe}}$ (a factory wind-tracking yaw setpoint, an artificial-potential-field navigator).
-The blend weight $\sigma(u)\!\in\![0,1]$ is a monotone function of the \emph{urgency ratio} $u=\rho/\tau$ (remaining-budget / remaining-time fractions): on pace ($u\!\ge\!1$) the performance policy runs; in deficit ($u\!\to\!0$) the safety controller takes over.
+We propose to \emph{blend two existing controllers at inference} using any monotone schedule $\sigma(u)\!\in\![0,1]$ of the \emph{urgency ratio} $u=\rho/\tau$ (remaining-budget / remaining-time fractions); on pace ($u\!\ge\!1$) the performance policy $\pi_{\mathrm{perf}}$ runs, in deficit ($u\!\to\!0$) the domain-specific safety controller $\pi_{\mathrm{safe}}$ takes over (a factory wind-tracking yaw setpoint, an artificial-potential-field navigator).
+The closed-form $\sigma(u) = 1-\exp(-\eta(1/u-1))$ is one convenient single-parameter instantiation; in our wind-farm and Safety-Gymnasium ablations a hard-threshold switch performs comparably (Tables~\ref{tab:wf_ablation}, \ref{tab:ablations})---the work is in identifying $u$ as the controlling state variable, not in the specific form of $\sigma$.
 \textbf{This is a budget-aware \emph{pacing} mechanism, not a hard enforcement guarantee.}
 On wind-farm yaw control ($\kappa\!\approx\!0.72$) the schedule satisfies a $15$-step neg-yaw surrogate budget across 4 training seeds with $99.3$--$101.8\%$ of unconstrained power; in our 3-turbine setting zero yaw alone is power-competitive with the unconstrained policy, so WF validates budget tracking rather than preservation of a large wake-steering advantage.
 We further validate against a physics-grounded blade-flap DEL surrogate (sector-averaged ANN on DLC12 simulations~\citep{guillore2024sectoravg}): a 4-point sweep of per-turbine budget scale ($B$, $B/2$, $B/3$, $B/5$ relative to a zero-yaw baseline calibration) shows a clean phase transition---$0/250$ episode violations across the feasible regime and $250/250$ at the infeasible $B/5$ point, with power retention essentially flat ($1.14$--$1.16\times$ unconstrained) where feasible.
 On Safety Gymnasium ($\kappa\!\approx\!0.02$) the explicit blend gives a favorable reward-cost trade-off (cost from $49.4$ to $15.3$ at $d\!=\!10$, retaining $45\%$ of unconstrained reward) but does not reliably satisfy expected cost at tight budgets.
 We compare against retraining baselines (SAC-Lagrangian at three hyperparameter settings; SAUTE~\citep{sootla2022saute}, which uses the same urgency variable our schedule does); the best retraining variant tested attains $R\!=\!2.3$, $C\!=\!24$ at $500$k steps, putting the blend on the Pareto-favorable side of the reward axis but \emph{not} dominating in the constrained sense (some baselines satisfy budget more tightly at the cost of reward).
 A gradient-correction variant of the same schedule works when the action-to-cost coupling strength $\kappa = \mathbb{E}\|\nabla_a Q_c\|/\mathbb{E}\|\nabla_s Q_c\|$ is large; when it is small, the explicit-$\pi_{\mathrm{safe}}$ blend is required.
+\textbf{Honest gap.}
+Our two domains co-validate the framework only piecewise: WF demonstrates budget tracking but not RL-policy preservation (zero yaw is power-competitive in our trained regime), while SG demonstrates policy preservation but not tight expected-cost feasibility.
+A retrain with variable wind direction targeting both halves jointly is in progress; the current evidence supports each claim individually rather than jointly.
 \end{abstract}
 
 %----------------------------------------------------------------------
@@ -91,7 +94,7 @@ On pace $\Rightarrow$ performance; deficit $\Rightarrow$ safety.
 \end{figure}
 
 \textbf{Contributions.}
-(1)~A \emph{closed-form urgency-ratio schedule} $\sigma(u)$ with one sharpness parameter, derived from a budget-balanced pacing argument (\S\ref{sec:theory}; Prop.~\ref{prop:optimal}).
+(1)~An \emph{urgency-ratio scheduler}: any monotone-decreasing $\sigma(u)$ defines a post-hoc pacing controller; we use a one-parameter exponential family but a hard-threshold switch performs comparably (\S\ref{sec:theory}; \S\ref{sec:wf_results}).
 (2)~\emph{Two-controller blending} that treats an existing safety controller as a first-class primitive rather than retraining the policy (\S\ref{sec:method}).
 (3)~A \emph{gradient-correction variant} (\S\ref{sec:gradient}) where $\pi_{\mathrm{safe}}$ is implicitly a step of $-\nabla_a Q_c$. We propose the coupling strength $\kappa = \mathbb{E}\|\nabla_a Q_c\|/\mathbb{E}\|\nabla_s Q_c\|$ as a \emph{preliminary diagnostic} for when this variant is likely to fail (Table~\ref{tab:coupling}); we observe a $36\times$ gap between our two domains aligning with the qualitative outcome but do not claim broader validation.
 (4)~\emph{Empirical validation} on wind-farm yaw control ($\kappa\!\approx\!0.72$) and Safety Gymnasium ($\kappa\!\approx\!0.02$), under the \emph{same} schedule with \emph{different} safety controllers chosen by $\kappa$.
@@ -132,19 +135,11 @@ Our schedule turns $\alpha$ into a time-varying weight that paces against the re
 \label{sec:theory}
 %----------------------------------------------------------------------
 
-\begin{proposition}[Pacing motivation]
-\label{prop:optimal}
-Under an idealised Boltzmann response $P(\mathrm{risky}\mid\lambda)=P_0\exp(-\alpha\lambda)$, the penalty weight that maintains budget-rate balance takes the multiplicative form $w^*(u) = 1/u$ relative to the TWAP baseline ($u\!=\!1$).
-\end{proposition}
-
-\textit{Proof sketch.}
-Balance $(T-t)P(\mathrm{risky}\mid\lambda)=d-C_t$ with the Boltzmann substitution gives $\lambda=\tfrac{1}{\alpha}\ln\frac{(T-t)P_0}{d-C_t}$.
-The multiplicative weight relative to TWAP reduces to $\tau/\rho=1/u$.
-Full derivation in Appendix~\ref{app:proof}.\hfill$\square$
-
-This is a \emph{motivating} pacing argument, not a derivation of the actual schedule.
-The Boltzmann response is a strong assumption; real policies do not respond linearly in log-probability to scalar penalties.
-What we use from Prop.~\ref{prop:optimal} is the \emph{state-variable identification}: $u$ is the natural argument and the schedule should be monotone-decreasing in $u$.
+\textbf{State-variable identification.}
+The natural state for any post-hoc budget-pacing scheduler is the urgency ratio $u=\rho/\tau$.
+A toy budget-rate balance under an idealised Boltzmann response $P(\mathrm{risky}\mid\lambda)=P_0\exp(-\alpha\lambda)$ recovers a multiplicative weight $w^*(u) = 1/u$ relative to the time-weighted-average baseline (Appendix~\ref{app:proof}); we treat this as motivation, not derivation.
+The Boltzmann assumption is strong, real policies do not respond linearly in log-probability to scalar penalties, and the same state variable $u$ was already identified by SAUTE~\citep{sootla2022saute} as a state-augmentation feature for budget-aware retraining.
+What we retain is the observation that any monotone-decreasing $\sigma:[0,\infty)\!\to\![0,1]$ in $u$ is a candidate post-hoc schedule.
 
 \textbf{Practical schedule.}
 We use the parametric family
@@ -382,7 +377,31 @@ $B/5$ \quad(infeasible) & $28.5$ & $1.140$ & $\mathbf{1.13}$ & $\mathbf{250}$ & 
 The schedule successfully paces a real DEL constraint, with $0/250$ violations across the tested feasible regime ($B$ to $B/3$) and a clean failure mode below the feasibility floor ($B/5$).
 The $B/5$ behaviour is consistent with the framework's design: the AC schedule is a soft-constraint dual penalty that pre-empts overshoot but does not undo accumulated cost, so it cannot rescue a constraint that lies below the achievable per-step DEL.
 This is a reframing of \S\ref{sec:wf_results}'s yaw-time proxy: the same urgency mechanism applies to a physics-grounded fatigue surrogate, with the same per-turbine bookkeeping, identical hyperparameters, and zero domain-specific tuning.
-We do not have access to a wake-steering-effective $\pi_{\mathrm{perf}}$ for this layout (cf.\ \S\ref{sec:wf_results} caveat) so we again validate budget tracking rather than preservation of a large RL advantage on the power axis.
+
+\subsection{Both-Halves Search: A Pareto-Improving \texorpdfstring{$\pi_{\mathrm{perf}}$}{pi\_perf} Was Not Found}
+\label{sec:both_halves}
+
+A central limitation of \S\ref{sec:wf_results} and \S\ref{sec:flap_del} is that pure $\pi_{\mathrm{safe}}$ (zero yaw) retains $\ge\!97\%$ of unconstrained power on every layout we trained, so the wind-farm experiments validate budget tracking but not preservation of a meaningful RL advantage.
+We attempted to close this gap directly: retrain $\pi_{\mathrm{perf}}$ for $290{,}000$ steps unconstrained on \emph{multi\_modal} (3-turbine) and \emph{stag4\_5d} (4-turbine staggered, with PyWake brute-force showing a $\sim\!2.4\%$ wake-steering optimum at WD$=85^\circ$).
+We then ran a 5-episode head-to-head against zero yaw, scoring power and per-turbine DEL.
+
+\begin{table}[h]
+\centering
+\caption{Direct $\pi_{\mathrm{perf}}$-vs-$\pi_{\mathrm{safe}}$ comparison after $290$k unconstrained training (5 ep, $T\!=\!200$, fixed wd). At fixed wind direction the actor does not Pareto-dominate zero yaw on either layout. A retrain with variable wind direction ($225^\circ$--$315^\circ$) is in progress.}
+\label{tab:both_halves}
+\begin{tabular}{lcccc}
+\toprule
+Layout & $\pi_{\mathrm{perf}}$ power [MW] & $\pi_{\mathrm{safe}}$ power [MW] & power $\Delta$ & DEL$_{\mathrm{perf}}-$DEL$_{\mathrm{safe}}$ \\
+\midrule
+multi\_modal (fixed wd 268$^\circ$) & $8.12\!\pm\!0.05$ & $8.20\!\pm\!0.16$ & $-1.03\%$ & $-1880$ kNm$\cdot$step \\
+stag4\_5d (fixed wd 270$^\circ$)    & $13.21\!\pm\!0.06$ & $13.81\!\pm\!1.93$ & $-4.37\%$ & $+210$ kNm$\cdot$step \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The actor lands on or below zero yaw on the power axis under fixed-wd training---wake-steering's degree of freedom is not exercised when the geometry is static.
+Under our training setup we therefore cannot produce a $\pi_{\mathrm{perf}}$ for which both halves of the post-hoc-pacing claim hold simultaneously: the wind-farm domain validates budget tracking under tight feasible budgets (Tables~\ref{tab:wf_blend}, \ref{tab:flap_del_sweep}) but not preservation of policy reward, while Safety Gymnasium (\S\ref{sec:sg_results}) shows the converse pattern (clear policy advantage, but no reliable expected-cost feasibility at tight budgets).
+We acknowledge this in the discussion as the central evidential gap; the schedule, the per-turbine bookkeeping, and the canonical-API DEL surrogate are independent contributions whose value the both-halves co-validation would amplify.
 
 \subsection{Safety Gymnasium: Low Coupling, Reward-Favorable Soft-Budget Operating Point}
 \label{sec:sg_results}
@@ -541,9 +560,18 @@ $\kappa$ is the gradient \emph{ratio} between state and action, usable as an a-p
 \label{sec:discussion}
 %----------------------------------------------------------------------
 
+\textbf{Central evidential gap.}
+Our two domains co-validate the framework only piecewise.
+Wind farm shows that the urgency schedule paces a per-turbine cumulative budget (binary neg-yaw and physics-grounded blade-flap DEL) with $0$ violations across hundreds of episodes, but in our trained regime pure $\pi_{\mathrm{safe}}$ (zero yaw) is power-competitive with the unconstrained policy, so there is no large RL advantage to preserve.
+Safety Gymnasium is the converse: $\pi_{\mathrm{perf}}$ genuinely beats $\pi_{\mathrm{safe}}$ on reward ($R\!=\!27$ vs.\ $3.1$), but at tight budgets ($d\!=\!10, 25$) the blend's expected cost exceeds the budget and per-episode satisfaction is $23$--$56\%$, which is not operationally reliable.
+We tried to close this gap with a $290{,}000$-step unconstrained retrain on \emph{stag4\_5d} and \emph{multi\_modal} (\S\ref{sec:both_halves}); at fixed wind direction the actor lands $1$--$4\%$ \emph{below} zero yaw on power.
+A retrain with variable wind direction targeting both halves jointly is in progress; the present paper supports each claim individually rather than jointly.
+
 \textbf{What we are \emph{not} claiming.}
 We do not claim CMDP retraining cannot work; we claim that under the operator-realistic compute budgets we tested ($\le\!500$k extra steps from the pretrained actor, four hyperparameter settings), every retraining variant we tried is dominated on reward by post-hoc blending.
 A fully-converged CMDP method at $\sim\!10\times$ our compute may reach a better Pareto frontier, but does so at a cost the deployment scenario cannot tolerate.
+We also do not claim the closed-form schedule is uniquely valuable: the WF and SG ablations (Tables~\ref{tab:wf_ablation}, \ref{tab:ablations}) show a hard threshold matches it within seed variance.
+The contribution is the post-hoc-blending interface and the urgency variable as the controlling state, not the specific exponential form.
 
 \textbf{Limitations.}
 (1)~The wind-farm cost is a per-turbine fatigue surrogate; real deployment needs a DEL-calibrated farm-level cost~\citep{wes2024DEL, jpcs2024wakeDEL} and a $\pi_{\mathrm{safe}}$ like WakeAdapt that minimises farm DEL.
@@ -572,15 +600,14 @@ Code and checkpoints: \url{[anonymized]}.
 \section{Derivations, Protocols, and Negative Results}
 \label{app:additional}
 
-\subsection{Full Proof of Proposition~\ref{prop:optimal}}
+\subsection{Boltzmann-Response Pacing Argument (Motivation)}
 \label{app:proof}
 
-\begin{proof}
-Budget balance: $(T-t)\cdot P(\mathrm{risky}\mid\lambda) = d-C_t$.
-With $P(\mathrm{risky}\mid\lambda) = P_0\exp(-\alpha\lambda)$: $\lambda=\tfrac{1}{\alpha}\ln\frac{(T-t)P_0}{d-C_t}$.
+Under an idealised Boltzmann response $P(\mathrm{risky}\mid\lambda)=P_0\exp(-\alpha\lambda)$, budget-rate balance $(T-t)\cdot P(\mathrm{risky}\mid\lambda) = d-C_t$ gives $\lambda=\tfrac{1}{\alpha}\ln\frac{(T-t)P_0}{d-C_t}$.
 At TWAP ($u\!=\!1$), $\lambda_0=\tfrac{1}{\alpha}\ln\frac{TP_0}{d}$.
-$w = \exp(\alpha(\lambda-\lambda_0)) = \frac{(T-t)/T}{(d-C_t)/d} = \tau/\rho = 1/u$.
-\end{proof}
+The multiplicative weight relative to TWAP reduces to $w = \exp(\alpha(\lambda-\lambda_0)) = \frac{(T-t)/T}{(d-C_t)/d} = \tau/\rho = 1/u$.
+This is a motivating observation, not a guarantee: the Boltzmann assumption does not hold for trained policies.
+SAUTE~\citep{sootla2022saute} identifies the same $u$ as a state-augmentation feature; the closed form here serves only as one default schedule among many monotone candidates.
 
 \subsection{Schedule Approximation}
 \label{app:approx}

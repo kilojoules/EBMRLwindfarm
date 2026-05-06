@@ -1,4 +1,4 @@
-\begin{thebibliography}{18}
+\begin{thebibliography}{23}
 \providecommand{\natexlab}[1]{#1}
 \providecommand{\url}[1]{\texttt{#1}}
 \expandafter\ifx\csname urlstyle\endcsname\relax
@@ -25,6 +25,11 @@ Eitan Altman.
 \newblock \emph{Constrained {M}arkov decision processes}.
 \newblock Chapman and Hall/CRC, 1999.
 
+\bibitem[{\'A}lvaro{-}Garc{\'i}a et~al.(2024)]{wes2024DEL}
+Alberto {\'A}lvaro{-}Garc{\'i}a et~al.
+\newblock Data-driven surrogate model for wind turbine damage equivalent load.
+\newblock \emph{Wind Energy Science}, 9:\penalty0 2039--2058, 2024.
+
 \bibitem[Balseiro et~al.(2024)]{balseiro2023budget}
 Santiago Balseiro et~al.
 \newblock A field guide for pacing budget and {ROS} constraints.
@@ -42,10 +47,27 @@ Shashank Durkin et~al.
   exposure-based constraints via input convex action correction.
 \newblock \emph{arXiv preprint arXiv:2507.22640}, 2025.
 
+\bibitem[Gal{\'a}n-Garc{\'i}a et~al.(2024)]{jpcs2024wakeDEL}
+Marcos Gal{\'a}n-Garc{\'i}a et~al.
+\newblock Control-oriented load surrogate for waked, wake-steering, and
+  curtailed wind turbines.
+\newblock In \emph{Journal of Physics: Conference Series}, volume 2767, page
+  032019, 2024.
+
 \bibitem[Gladstone et~al.(2025)]{gladstone2025ebt}
 Ruairidh Gladstone et~al.
 \newblock Energy-based transformers are scalable learners and thinkers.
 \newblock \emph{arXiv preprint arXiv:2507.02092}, 2025.
+
+\bibitem[Guillor{\'e} et~al.(2024)Guillor{\'e}, Campagnolo, and
+  Bottasso]{guillore2024sectoravg}
+A.~Guillor{\'e}, F.~Campagnolo, and C.~L. Bottasso.
+\newblock A control-oriented load surrogate model based on sector-averaged
+  inflow quantities: capturing damage for unwaked, waked, wake-steering and
+  curtailed wind turbines.
+\newblock In \emph{Journal of Physics: Conference Series}, volume 2767, page
+  032019, 2024.
+\newblock \doi{10.1088/1742-6596/2767/3/032019}.
 
 \bibitem[Ji et~al.(2023)Ji, Zhang, Zhou, Pan, Dai, Sun, Huang, Gong, Zhang, and
   Yang]{ji2023safetygym}
@@ -65,10 +87,20 @@ Marcus~Binder Nilsen, Julian Quick, Ernestas Simutis, and Teodor {\AA}strand.
 \newblock Wind{G}ym: A wind farm reinforcement learning environment.
 \newblock \url{https://github.com/DTUWindEnergy/WindGym}, 2025.
 
+\bibitem[Pedersen et~al.(2023)]{pywake}
+Mads~M{\o}lgaard Pedersen et~al.
+\newblock {PyWake}: An open-source wind farm simulation tool.
+\newblock \url{https://topfarm.pages.windenergy.dtu.dk/PyWake/}, 2023.
+
 \bibitem[Ray et~al.(2019)Ray, Achiam, and Amodei]{ray2019safetygym}
 Alex Ray, Joshua Achiam, and Dario Amodei.
 \newblock Benchmarking safe exploration in deep reinforcement learning.
 \newblock \emph{arXiv preprint arXiv:1910.01708}, 2019.
+
+\bibitem[{Siemens Gamesa}(2023)]{siemensWakeAdapt}
+{Siemens Gamesa}.
+\newblock {Wake Adapt}: Wake-steering control for wind farms.
+\newblock Commercial product documentation, 2023.
 
 \bibitem[Sootla et~al.(2022)Sootla, Cowen-Rivers, Jafferjee, Wang, Mguni, Wang,
   and Ammar]{sootla2022saute}
