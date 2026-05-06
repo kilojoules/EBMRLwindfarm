@@ -31,4 +31,5 @@ pixi run python -u scripts/animate_flap_del_blend.py \
     --budgets 51738.4,57909.3,30484.6 \
     --horizon 200 --eta 3.0 \
     --grid-nx 56 --grid-ny 28 --frame-stride 2 --fps 12 \
+    --guidance-scale 50.0 \
     --out results/flap_del_blend_animation.mp4
