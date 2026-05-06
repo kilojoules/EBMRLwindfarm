@@ -222,6 +222,13 @@ def main():
                                       else (ret[0], ret[1], ret[2], ret[3], ret[4]))
         if np.any(term) or np.any(trunc): break
 
+    # Close env now — ffmpeg subprocess + AsyncVectorEnv subprocess fight
+    # over signals during mp4 render and break the env pipe.
+    try:
+        envs.close()
+    except Exception as _e:
+        print(f"  envs.close warn: {_e}")
+
     # ---------------- Render animation ----------------
     print(f"\nrecorded {len(frames)} frames; rendering mp4...")
 
