@@ -134,7 +134,9 @@ def main():
     import gymnasium as gym
     from WindGym import WindFarmEnv
     from WindGym.wrappers import PerTurbineObservationWrapper, RecordEpisodeVals
+    from py_wake.examples.data.iea37 import IEA37_WindTurbines
     from helpers.surrogate_hooks import SectorFlowExposer
+    turbine = IEA37_WindTurbines()
     layouts_mod = _load("helpers.layouts", ROOT / "helpers/layouts.py")
     x_arr, y_arr = layouts_mod.get_layout_positions(args.layout, turbine)
     cfg_name = "multi_modal" if args.layout == "multi_modal" else "default"
