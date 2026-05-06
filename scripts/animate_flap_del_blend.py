@@ -129,10 +129,36 @@ def main():
         tr_args.config = "multi_modal"
 
     import warnings; warnings.filterwarnings("ignore")
-    from ebt_sac_windfarm import setup_env
-    env_info = setup_env(tr_args)
-    envs = env_info["envs"]
-    n_turb = env_info["n_turbines_max"]
+    # Build SyncVectorEnv (num_envs=1) — AsyncVectorEnv pipe has been fragile
+    # across animation runs; sync env removes IPC entirely.
+    import gymnasium as gym
+    from WindGym import WindFarmEnv
+    from WindGym.wrappers import PerTurbineObservationWrapper, RecordEpisodeVals
+    from helpers.surrogate_hooks import SectorFlowExposer
+    layouts_mod = _load("helpers.layouts", ROOT / "helpers/layouts.py")
+    x_arr, y_arr = layouts_mod.get_layout_positions(args.layout, turbine)
+    cfg_name = "multi_modal" if args.layout == "multi_modal" else "default"
+    cfg = ec.make_env_config(cfg_name)
+
+    def _env_init():
+        e = WindFarmEnv(turbine=turbine,
+                        x_pos=list(map(float, x_arr)),
+                        y_pos=list(map(float, y_arr)),
+                        config=cfg, backend="dynamiks", seed=1)
+        e = PerTurbineObservationWrapper(e)
+        e = SectorFlowExposer(e)
+        return e
+
+    sync = gym.vector.SyncVectorEnv([_env_init])
+    envs = RecordEpisodeVals(sync)  # exposes envs.env.call(...) like training
+    n_turb = len(x_arr)
+    env_info = {
+        "n_turbines_max": n_turb,
+        "obs_dim_per_turbine": envs.single_observation_space.shape[-1],
+        "rotor_diameter": float(turbine.diameter()),
+        "use_profiles": False,
+        "action_scale": 1.0, "action_bias": 0.0,
+    }
 
     use_profiles = env_info["use_profiles"]
     sr, si = None, None
