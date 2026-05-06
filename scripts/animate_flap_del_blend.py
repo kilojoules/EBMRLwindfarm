@@ -148,13 +148,31 @@ def main():
         cfg[mes_type][f"{prefix}_history_N"] = hist_len
         cfg[mes_type][f"{prefix}_history_length"] = hist_len
 
+    n_turb_layout = len(x_arr)
+    turb_pos = np.stack([np.asarray(x_arr, dtype=np.float32),
+                          np.asarray(y_arr, dtype=np.float32)], axis=-1)
+    att_mask = np.zeros(n_turb_layout, dtype=bool)  # all turbines active
+
+    class AnimSectorWrapper(SectorFlowExposer):
+        """Adds attrs the agent looks up via env.get_wrapper_attr."""
+        @property
+        def wd(self):
+            raw = self.env.unwrapped if hasattr(self.env, "unwrapped") else self.env
+            return float(getattr(raw, "wd", 270.0))
+        @property
+        def turbine_positions(self):
+            return turb_pos
+        @property
+        def attention_mask(self):
+            return att_mask
+
     def _env_init():
         e = WindFarmEnv(turbine=turbine,
                         x_pos=list(map(float, x_arr)),
                         y_pos=list(map(float, y_arr)),
                         config=cfg, backend="dynamiks", seed=1)
         e = PerTurbineObservationWrapper(e)
-        e = SectorFlowExposer(e)
+        e = AnimSectorWrapper(e)
         return e
 
     sync = gym.vector.SyncVectorEnv([_env_init])
