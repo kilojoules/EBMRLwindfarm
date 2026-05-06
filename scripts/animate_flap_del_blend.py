@@ -141,6 +141,12 @@ def main():
     x_arr, y_arr = layouts_mod.get_layout_positions(args.layout, turbine)
     cfg_name = "multi_modal" if args.layout == "multi_modal" else "default"
     cfg = ec.make_env_config(cfg_name)
+    # Match training: history_length=1 collapses obs to obs_dim_per_turbine=4
+    hist_len = int(getattr(tr_args, "history_length", 1))
+    for mes_type, prefix in {"ws_mes": "ws", "wd_mes": "wd",
+                               "yaw_mes": "yaw", "power_mes": "power"}.items():
+        cfg[mes_type][f"{prefix}_history_N"] = hist_len
+        cfg[mes_type][f"{prefix}_history_length"] = hist_len
 
     def _env_init():
         e = WindFarmEnv(turbine=turbine,
