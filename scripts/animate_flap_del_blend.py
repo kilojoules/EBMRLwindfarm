@@ -26,6 +26,12 @@ import numpy as np
 import torch
 import matplotlib
 matplotlib.use("Agg")
+# Point matplotlib at imageio-ffmpeg's bundled binary if no system ffmpeg.
+try:
+    import imageio_ffmpeg
+    matplotlib.rcParams["animation.ffmpeg_path"] = imageio_ffmpeg.get_ffmpeg_exe()
+except Exception:
+    pass
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation, FFMpegWriter
 from matplotlib.patches import Rectangle, FancyArrowPatch

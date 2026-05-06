@@ -28,7 +28,7 @@ pixi run python -u scripts/animate_flap_del_blend.py \
     --checkpoint runs/pi_perf_mm_300k/checkpoints/step_290000.pt \
     --bundle checkpoints/teodor_dlc12_torch.pt \
     --layout multi_modal \
-    --budgets 51738.4,57909.3,30484.6 \
+    --budgets 31043.0,34745.6,18290.8 \
     --horizon 200 --eta 3.0 \
     --grid-nx 56 --grid-ny 28 --frame-stride 2 --fps 12 \
     --out results/flap_del_blend_animation.mp4
