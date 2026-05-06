@@ -78,6 +78,22 @@ ENV_CONFIGS: Dict[str, Dict[str, Any]] = {
             "TI_min": 0.07, "TI_max": 0.07,
         },
     },
+    # Variable-wind variants of multi_modal / default for the both-halves
+    # experiment — wd sweep gives wake-steering a real optimization target.
+    "multi_modal_varwd": {
+        "wind": {
+            "ws_min": 9, "ws_max": 9,
+            "wd_min": 225, "wd_max": 315,
+            "TI_min": 0.07, "TI_max": 0.07,
+        },
+    },
+    "varwd": {
+        "wind": {
+            "ws_min": 9, "ws_max": 9,
+            "wd_min": 225, "wd_max": 315,
+            "TI_min": 0.07, "TI_max": 0.07,
+        },
+    },
     "big": {
         "BaseController": "PyWake",
         "wind": {
