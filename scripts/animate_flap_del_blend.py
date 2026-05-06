@@ -421,7 +421,7 @@ def main():
     colors_t = [cmap_t(i) for i in range(n_turb)]
     for i in range(n_turb):
         l, = ax_cum.plot([], [], lw=2.0, color=colors_t[i],
-                          label=f"T{i}: $C_t^i = \\sum_{{s\\le t}} \\mathrm{{DEL}}_s^i$")
+                          label=f"T{i}: $C_t^i = \\sum_{{s\\leq t}} \\mathrm{{DEL}}_s^i$")
         cum_lines.append(l)
         ax_cum.axhline(budgets[i], color=colors_t[i], lw=1.0, ls="--",
                        alpha=0.6)
@@ -430,7 +430,9 @@ def main():
                               color=colors_t[i], lw=0.8, ls=":", alpha=0.5)
         twap_lines.append(twap)
     ax_cum.set_xlim(0, args.horizon)
-    ax_cum.set_ylim(0, max(budgets) * 1.3)
+    # Dynamic ylim — fits whatever the rollout actually reached
+    cum_max = max(float(np.max(f["cum_del"])) for f in frames)
+    ax_cum.set_ylim(0, max(cum_max * 1.1, max(budgets) * 1.3))
     ax_cum.set_xlabel("time step")
     ax_cum.set_ylabel("cumulative DEL [kNm·step]")
     ax_cum.set_title("$C_t^i$: integral of DEL over time vs budget $B_i$")
