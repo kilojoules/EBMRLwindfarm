@@ -58,14 +58,9 @@ def sigma_of_u(u, eta=3.0):
 
 
 def renderer_flow(envs):
-    """Try WindGym renderer.get_flow_field; if it errs, fall back to manual grid."""
-    try:
-        res = envs.env.call("get_renderer_flow_field")
-        d = res[0]
-        if isinstance(d, dict) and "err" not in d:
-            return d
-    except Exception as e:
-        print(f"  [warn] renderer call failed: {e}; using manual grid")
+    """Renderer path disabled: WindGym's renderer.get_flow_field returns
+    xarray with nested objects that AsyncVectorEnv cannot pickle, and the
+    failure kills the worker pipe. Use manual_flow only."""
     return None
 
 
