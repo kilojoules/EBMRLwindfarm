@@ -64,6 +64,7 @@ def renderer_flow(envs):
     return None
 
 
+_first_call = [True]
 def manual_flow(envs, x_extent, y_extent, hub_h, nx=48, ny=24):
     """Sample flow grid via single subprocess call (manual fallback)."""
     res = envs.env.call("get_flow_grid",
@@ -72,8 +73,21 @@ def manual_flow(envs, x_extent, y_extent, hub_h, nx=48, ny=24):
                          float(hub_h))
     d = res[0]
     if "err" in d:
+        if _first_call[0]:
+            print(f"  [warn] get_flow_grid err: {d.get('err')}")
+            _first_call[0] = False
         return None
-    # Build X, Y meshes for pcolormesh
+    if _first_call[0]:
+        u_arr = np.asarray(d["U"])
+        u_finite = u_arr[np.isfinite(u_arr)]
+        n_ok = d.get("n_ok", -1)
+        first_err = d.get("first_err")
+        print(f"  [diag] get_flow_grid n_ok={n_ok}/{u_arr.size} "
+              f"finite={u_finite.size} "
+              f"min={u_finite.min() if u_finite.size else 'NA':.2f} "
+              f"max={u_finite.max() if u_finite.size else 'NA':.2f}")
+        if first_err: print(f"  [diag] first inner err: {first_err}")
+        _first_call[0] = False
     xs, ys, U = d["xs"], d["ys"], d["U"]
     X, Y = np.meshgrid(xs, ys)
     return {"X": X, "Y": Y, "U": U,
@@ -313,8 +327,9 @@ def main():
     else:
         vmin, vmax = 4.0, 11.0
     print(f"flow colormap: vmin={vmin:.1f} vmax={vmax:.1f}")
-    U_disp = U0.T if U0.shape == X0.shape else U0
-    flow_mesh = ax_flow.pcolormesh(X0, Y0, U_disp,
+    # X, Y are 2D meshgrid of shape (ny, nx); U is shape (ny, nx). pcolormesh
+    # with shading='auto' accepts equal shapes (uses 'nearest' interpolation).
+    flow_mesh = ax_flow.pcolormesh(X0, Y0, U0,
                                      cmap="viridis", vmin=vmin, vmax=vmax,
                                      shading="auto", zorder=1)
     cbar = fig.colorbar(flow_mesh, ax=ax_flow, fraction=0.025, pad=0.01)
@@ -419,11 +434,12 @@ def main():
 
     def update(idx):
         f = frames[idx]
-        # Replace flow mesh data
+        # Replace flow mesh data — pcolormesh expects flat 1D for set_array
         try:
-            flow_mesh.set_array(f["U"].ravel())
-        except Exception:
-            pass
+            flow_mesh.set_array(np.asarray(f["U"]).ravel())
+        except Exception as e:
+            if idx == 0:
+                print(f"  [warn] set_array failed: {e}")
         # Rotor lines, σ-coloured
         for i in range(n_turb):
             yaw_rad = np.deg2rad(f["yaw_deg"][i])

@@ -138,17 +138,25 @@ class SectorFlowExposer(gym.Wrapper):
         xs = np.linspace(x_min, x_max, nx)
         ys = np.linspace(y_min, y_max, ny)
         U = np.zeros((ny, nx), dtype=np.float32)
+        n_ok = 0
+        first_err = None
         for i, y in enumerate(ys):
             for j, x in enumerate(xs):
                 try:
                     v = fs.get_windspeed(xyz=(float(x), float(y), float(hub_h)),
                                           include_wakes=True, xarray=False)
-                    U[i, j] = float(np.linalg.norm(np.asarray(v).flatten()))
-                except Exception:
+                    arr = np.asarray(v).flatten()
+                    U[i, j] = float(np.linalg.norm(arr)) if arr.size > 0 else float("nan")
+                    n_ok += 1
+                except Exception as e:
                     U[i, j] = float("nan")
+                    if first_err is None:
+                        first_err = repr(e)
         return {"xs": xs.astype(np.float32),
                 "ys": ys.astype(np.float32),
-                "U": U}
+                "U": U,
+                "n_ok": n_ok,
+                "first_err": first_err}
 
     def get_sector_features(self) -> Dict[str, np.ndarray]:
         from helpers.rotor_disk_flow import disk_features_for_env
