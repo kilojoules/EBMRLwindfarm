@@ -58,13 +58,32 @@ def sigma_of_u(u, eta=3.0):
 
 
 def renderer_flow(envs):
-    """Use WindGym's native renderer.get_flow_field — proper PyWake/dynamiks
-    output (X, Y mesh + U magnitude)."""
-    res = envs.env.call("get_renderer_flow_field")
+    """Try WindGym renderer.get_flow_field; if it errs, fall back to manual grid."""
+    try:
+        res = envs.env.call("get_renderer_flow_field")
+        d = res[0]
+        if isinstance(d, dict) and "err" not in d:
+            return d
+    except Exception as e:
+        print(f"  [warn] renderer call failed: {e}; using manual grid")
+    return None
+
+
+def manual_flow(envs, x_extent, y_extent, hub_h, nx=48, ny=24):
+    """Sample flow grid via single subprocess call (manual fallback)."""
+    res = envs.env.call("get_flow_grid",
+                         float(x_extent[0]), float(x_extent[1]), int(nx),
+                         float(y_extent[0]), float(y_extent[1]), int(ny),
+                         float(hub_h))
     d = res[0]
     if "err" in d:
         return None
-    return d
+    # Build X, Y meshes for pcolormesh
+    xs, ys, U = d["xs"], d["ys"], d["U"]
+    X, Y = np.meshgrid(xs, ys)
+    return {"X": X, "Y": Y, "U": U,
+             "x_turb": np.zeros(0), "y_turb": np.zeros(0),
+             "yaw_deg": np.zeros(0), "diameter": 178.3}
 
 
 def main():
@@ -208,9 +227,9 @@ def main():
         if t % args.frame_stride == 0:
             ff = renderer_flow(envs)
             if ff is None:
-                # Fallback: keep grid but warn once
-                if t == 0:
-                    print("  [warn] renderer flow unavailable; using empty grid")
+                ff = manual_flow(envs, xx_extent, yy_extent, hub_h,
+                                  nx=args.grid_nx, ny=args.grid_ny)
+            if ff is None:
                 ff = {"X": np.zeros((2,2), dtype=np.float32),
                        "Y": np.zeros((2,2), dtype=np.float32),
                        "U": np.full((2,2), 9.0, dtype=np.float32),
@@ -218,6 +237,21 @@ def main():
                        "y_turb": pos_y.astype(np.float32),
                        "yaw_deg": yaw_now_deg.astype(np.float32),
                        "diameter": rd}
+            else:
+                # If yaw_deg / x_turb missing (manual grid case), fill from state
+                if ff.get("x_turb", np.zeros(0)).size == 0:
+                    ff["x_turb"] = pos_x.astype(np.float32)
+                    ff["y_turb"] = pos_y.astype(np.float32)
+                    ff["yaw_deg"] = yaw_now_deg.astype(np.float32)
+                if "diameter" not in ff:
+                    ff["diameter"] = rd
+            if t < 4:
+                u_arr = np.asarray(ff["U"])
+                u_finite = u_arr[np.isfinite(u_arr)]
+                if u_finite.size > 0:
+                    print(f"  flow U range t={t}: "
+                          f"min={u_finite.min():.2f} max={u_finite.max():.2f} "
+                          f"mean={u_finite.mean():.2f}")
             frames.append({
                 "t": t,
                 "X": ff["X"], "Y": ff["Y"], "U": ff["U"],
@@ -275,8 +309,18 @@ def main():
     ax_flow.set_title("Hub-height wind magnitude + turbine yaw "
                        "(σ-coloured rotor outlines)")
 
-    flow_mesh = ax_flow.pcolormesh(X0, Y0, ff0["U"].T if ff0["U"].shape == X0.shape else ff0["U"],
-                                     cmap="viridis", vmin=4, vmax=11,
+    # Auto-scale colormap to actual flow range
+    U0 = np.asarray(ff0["U"])
+    finite_U = U0[np.isfinite(U0)]
+    if finite_U.size > 0:
+        vmin = max(0.0, float(np.percentile(finite_U, 2)))
+        vmax = float(np.percentile(finite_U, 99)) + 0.5
+    else:
+        vmin, vmax = 4.0, 11.0
+    print(f"flow colormap: vmin={vmin:.1f} vmax={vmax:.1f}")
+    U_disp = U0.T if U0.shape == X0.shape else U0
+    flow_mesh = ax_flow.pcolormesh(X0, Y0, U_disp,
+                                     cmap="viridis", vmin=vmin, vmax=vmax,
                                      shading="auto", zorder=1)
     cbar = fig.colorbar(flow_mesh, ax=ax_flow, fraction=0.025, pad=0.01)
     cbar.set_label("u [m/s]")
