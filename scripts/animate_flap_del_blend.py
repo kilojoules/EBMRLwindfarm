@@ -109,6 +109,8 @@ def main():
                    help="render every Nth step (smaller mp4)")
     p.add_argument("--fps", type=int, default=15)
     p.add_argument("--out", required=True)
+    p.add_argument("--guidance-scale", type=float, default=5.0,
+                   help="EBT actor energy guidance scale (matches training)")
     args = p.parse_args()
 
     budgets = np.array([float(x) for x in args.budgets.split(",")],
@@ -118,6 +120,16 @@ def main():
     # Surrogate
     surr = ts.TeodorDLC12Surrogate.from_bundle(args.bundle, outputs=[sensor])
     surr.eval()
+    # Budget-aware guidance surrogate (matches training-time load_surrogate)
+    from load_surrogates import FlapDELBudgetSurrogate
+    surr_b = FlapDELBudgetSurrogate.from_bundle(
+        args.bundle,
+        per_turbine_budgets=budgets.tolist(),
+        horizon_steps=args.horizon,
+        risk_aversion=args.eta,
+        del_ref=648.6,
+        yaw_max_deg=30.0)
+    surr_b.reset()
 
     # Actor
     print(f"loading {args.checkpoint}")
@@ -246,8 +258,20 @@ def main():
     frames = []
     for t in range(args.horizon):
         # AC-blend action: pi_perf from actor, pi_safe = zero, sigma per turbine.
+        # Refresh surrogate context BEFORE actor (so guidance gradient sees
+        # current flow + cumulative state) — matches training pipeline.
+        feats_pre = envs.env.call("get_sector_features")[0]
+        if isinstance(feats_pre, dict) and "err" not in feats_pre:
+            surr_b.update_context(feats_pre["saws"], feats_pre["sati"],
+                                    np.full(n_turb, 0.93, dtype=np.float32))
         with torch.no_grad():
-            act_perf = agent.act(envs, obs)
+            # Inject DEL energy gradient at inference (matches training).
+            # The surrogate also handles its own AC schedule, so we keep the
+            # explicit blend below but rely on guidance to pull the EBT
+            # actor toward low-DEL actions.
+            act_perf = agent.act(envs, obs,
+                                  guidance_fn=surr_b,
+                                  guidance_scale=float(args.guidance_scale))
         act_perf = np.asarray(act_perf, dtype=np.float32)
         # Per-turbine sigma from urgency
         rho = np.maximum(budgets - cum_del, 0.0) / np.maximum(budgets, 1.0)
@@ -330,6 +354,13 @@ def main():
                   f"util={[f'{u:.2f}' for u in cum_del / np.maximum(budgets, 1)]}")
 
         # Step env
+        # Update surrogate cumulative tracker with realised yaw
+        try:
+            surr_b.update(saws, sati,
+                           np.full(n_turb, 0.93, dtype=np.float32),
+                           yaw_now_deg)
+        except Exception:
+            pass
         ret = envs.step(act_exec)
         obs, _, term, trunc, info = (ret if len(ret) == 5
                                       else (ret[0], ret[1], ret[2], ret[3], ret[4]))
