@@ -109,6 +109,8 @@ def main():
                    help="render every Nth step (smaller mp4)")
     p.add_argument("--fps", type=int, default=15)
     p.add_argument("--out", required=True)
+    p.add_argument("--safe-yaw-deg", default="0,0,0",
+                    help="CSV per-turbine target yaw [deg] for pi_safe setpoint controller")
     p.add_argument("--guidance-scale", type=float, default=5.0,
                    help="EBT actor energy guidance scale (matches training)")
     args = p.parse_args()
@@ -235,6 +237,13 @@ def main():
                             use_profiles=use_profiles,
                             rotate_profiles=getattr(tr_args, "rotate_profiles", False))
 
+    # pi_safe target (oracle min-DEL setpoint, e.g. "30,30,30")
+    safe_target = np.array([float(x) for x in args.safe_yaw_deg.split(",")],
+                            dtype=np.float32)
+    if safe_target.shape[0] < n_turb:
+        safe_target = np.pad(safe_target, (0, n_turb - safe_target.shape[0]))
+    print(f"pi_safe target yaw [deg]: {safe_target.tolist()}")
+
     # Rollout — collect per-step data
     obs, _ = envs.reset()
     pset = np.full(n_turb, 0.93, dtype=np.float32)
@@ -283,7 +292,15 @@ def main():
             sb = sigma_per[None, :]
         else:
             sb = sigma_per[None, :, None]
-        act_safe = np.zeros_like(act_perf)
+        # pi_safe = setpoint controller toward safe_target via clipped delta.
+        cur_yaw = (np.asarray(feats_pre["yaw_deg"], dtype=np.float32)[:n_turb]
+                    if isinstance(feats_pre, dict) and "yaw_deg" in feats_pre
+                    else np.zeros(n_turb, dtype=np.float32))
+        a_safe_1d = np.clip((safe_target[:n_turb] - cur_yaw) / 0.5, -1.0, 1.0)
+        if act_perf.ndim == 2:
+            act_safe = np.broadcast_to(a_safe_1d[None, :], act_perf.shape).astype(np.float32)
+        else:
+            act_safe = np.broadcast_to(a_safe_1d[None, :, None], act_perf.shape).astype(np.float32)
         act_exec = (1.0 - sb) * act_perf + sb * act_safe
 
         # Score DEL at the executed action (real flow context)

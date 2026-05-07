@@ -26,8 +26,13 @@ mkdir -p "$SITE/WindGym"
 cp -r "$WG_DIR/WindGym/"* "$SITE/WindGym/" 2>/dev/null || true
 
 set -e
+# pi_safe = max-yaw setpoint (oracle min-DEL config) — not zero yaw.
+# pi_perf (DEL-aware actor) Pareto-dominated zero-yaw on both axes (+13.65% pwr,
+# -3% DEL), so blend role-inversion needed: pi_safe must be lower-DEL than pi_perf.
+# Oracle sweep: yaw=[+30,+30,+30] minimises DEL_total.
 pixi run python -u scripts/eval_pi_perf_vs_safe.py \
     --checkpoint runs/del_aware_b1p0/checkpoints/step_200000.pt \
     --bundle checkpoints/teodor_dlc12_torch.pt \
     --layout multi_modal --horizon 200 --n-episodes 5 \
-    --out-json results/pi_perf_vs_safe_del_aware_b1p0.json
+    --safe-yaw-deg "30,30,30" \
+    --out-json results/pi_perf_vs_safe_del_aware_b1p0_maxyaw.json

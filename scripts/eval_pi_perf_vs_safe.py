@@ -52,13 +52,13 @@ def rollout(envs, actor_fn, surr, n_turb, horizon, sensor):
             saws = f["saws"]
             sati = f["sati"]
             n = saws.shape[0]
+            yaw_deg_world = np.asarray(f["yaw_deg"], dtype=np.float32)[:n]
         else:
             saws = np.full((n_turb, 4), 9.0, dtype=np.float32)
             sati = np.full((n_turb, 4), 0.07, dtype=np.float32)
             n = n_turb
-        # Yaw from action; vector env action shape (1, n_turb)
-        a_arr = np.asarray(action, dtype=np.float32).reshape(-1)
-        yaw_deg_world = a_arr[:n] * 30.0
+            a_arr = np.asarray(action, dtype=np.float32).reshape(-1)
+            yaw_deg_world = a_arr[:n] * 30.0
         per = [
             dict(saws_left=saws[i,0], saws_right=saws[i,1],
                   saws_up=saws[i,2], saws_down=saws[i,3],
@@ -94,6 +94,8 @@ def main():
     p.add_argument("--n-episodes", type=int, default=5)
     p.add_argument("--sensor", default="wrot_Bl1Rad0FlpMnt")
     p.add_argument("--out-json", required=True)
+    p.add_argument("--safe-yaw-deg", default="0,0,0",
+                    help="CSV per-turbine target yaw [deg] for pi_safe setpoint controller")
     args = p.parse_args()
 
     surr = ts.TeodorDLC12Surrogate.from_bundle(args.bundle, outputs=[args.sensor])
@@ -162,8 +164,22 @@ def main():
             a = agent.act(env, obs)
         return np.asarray(a, dtype=np.float32)  # vector env shape
 
+    safe_target = np.array(
+        [float(x) for x in args.safe_yaw_deg.split(",")], dtype=np.float32)
+    if safe_target.shape[0] < n_turb:
+        safe_target = np.pad(safe_target, (0, n_turb - safe_target.shape[0]))
+    safe_target = safe_target[:n_turb]
+    print(f"pi_safe target yaw [deg]: {safe_target.tolist()}")
+
     def safe_fn(obs, env):
-        return np.zeros((1, n_turb), dtype=np.float32)
+        try:
+            feats = env.env.call("get_sector_features")
+            cur = np.asarray(feats[0]["yaw_deg"], dtype=np.float32)[:n_turb]
+        except Exception:
+            cur = np.zeros(n_turb, dtype=np.float32)
+        diff = safe_target - cur
+        a = np.clip(diff / 0.5, -1.0, 1.0)
+        return a.reshape(1, -1).astype(np.float32)
 
     cums_perf = []; pwrs_perf = []
     cums_safe = []; pwrs_safe = []
