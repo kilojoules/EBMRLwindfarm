@@ -82,7 +82,14 @@ def rollout(envs, actor_fn, surr, n_turb, horizon, sensor):
         except Exception as e:
             print(f"  step err: {e}")
             break
-    return cum_del, np.mean(powers) if powers else 0.0
+    final_yaw = None
+    try:
+        f_end = envs.env.call("get_sector_features")
+        if f_end and "yaw_deg" in f_end[0]:
+            final_yaw = np.asarray(f_end[0]["yaw_deg"], dtype=np.float32)
+    except Exception:
+        pass
+    return cum_del, np.mean(powers) if powers else 0.0, final_yaw
 
 
 def main():
@@ -181,15 +188,15 @@ def main():
         a = np.clip(diff / 0.5, -1.0, 1.0)
         return a.reshape(1, -1).astype(np.float32)
 
-    cums_perf = []; pwrs_perf = []
-    cums_safe = []; pwrs_safe = []
+    cums_perf = []; pwrs_perf = []; yaws_perf = []
+    cums_safe = []; pwrs_safe = []; yaws_safe = []
     for ep in range(args.n_episodes):
-        c, p = rollout(envs, actor_fn, surr, n_turb, args.horizon, args.sensor)
-        cums_perf.append(c); pwrs_perf.append(p)
-        c, p = rollout(envs, safe_fn, surr, n_turb, args.horizon, args.sensor)
-        cums_safe.append(c); pwrs_safe.append(p)
-        print(f"ep{ep}: perf=p:{pwrs_perf[-1]:.0f} d:{cums_perf[-1]} | "
-              f"safe=p:{pwrs_safe[-1]:.0f} d:{cums_safe[-1]}")
+        c, p, y = rollout(envs, actor_fn, surr, n_turb, args.horizon, args.sensor)
+        cums_perf.append(c); pwrs_perf.append(p); yaws_perf.append(y)
+        c, p, y = rollout(envs, safe_fn, surr, n_turb, args.horizon, args.sensor)
+        cums_safe.append(c); pwrs_safe.append(p); yaws_safe.append(y)
+        print(f"ep{ep}: perf=p:{pwrs_perf[-1]:.0f} d:{cums_perf[-1]} y:{yaws_perf[-1]} | "
+              f"safe=p:{pwrs_safe[-1]:.0f} d:{cums_safe[-1]} y:{yaws_safe[-1]}")
 
     cums_perf = np.asarray(cums_perf); cums_safe = np.asarray(cums_safe)
     pwrs_perf = np.asarray(pwrs_perf); pwrs_safe = np.asarray(pwrs_safe)
@@ -203,6 +210,12 @@ def main():
     del_diff = cums_perf.mean(axis=0) - cums_safe.mean(axis=0)
     print(f"  DEL diff (perf-safe per turb): {del_diff}")
     print(f"  any turbine DEL_perf > DEL_safe? {bool(np.any(del_diff > 0))}")
+    yaws_perf_arr = np.array([y for y in yaws_perf if y is not None])
+    yaws_safe_arr = np.array([y for y in yaws_safe if y is not None])
+    if len(yaws_perf_arr):
+        print(f"  pi_perf final yaw mean: {yaws_perf_arr.mean(axis=0)}")
+    if len(yaws_safe_arr):
+        print(f"  pi_safe final yaw mean: {yaws_safe_arr.mean(axis=0)} (target {safe_target.tolist()})")
 
     out = {
         "layout": args.layout,
