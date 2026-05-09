@@ -368,7 +368,9 @@ def main():
                 "tau": tau,
             })
             print(f"  t={t:3d}  σ={[f'{s:.2f}' for s in sigma_per]}  "
-                  f"util={[f'{u:.2f}' for u in cum_del / np.maximum(budgets, 1)]}")
+                  f"util={[f'{u:.2f}' for u in cum_del / np.maximum(budgets, 1)]}  "
+                  f"yaw={[f'{y:+.1f}' for y in yaw_now_deg]}  "
+                  f"dDEL={[f'{d:.0f}' for d in del_step]}")
 
         # Step env
         # Update surrogate cumulative tracker with realised yaw
