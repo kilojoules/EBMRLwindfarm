@@ -82,10 +82,10 @@ def manual_flow(envs, x_extent, y_extent, hub_h, nx=48, ny=24):
         u_finite = u_arr[np.isfinite(u_arr)]
         n_ok = d.get("n_ok", -1)
         first_err = d.get("first_err")
+        u_min = f"{u_finite.min():.2f}" if u_finite.size else "NA"
+        u_max = f"{u_finite.max():.2f}" if u_finite.size else "NA"
         print(f"  [diag] get_flow_grid n_ok={n_ok}/{u_arr.size} "
-              f"finite={u_finite.size} "
-              f"min={u_finite.min() if u_finite.size else 'NA':.2f} "
-              f"max={u_finite.max() if u_finite.size else 'NA':.2f}")
+              f"finite={u_finite.size} min={u_min} max={u_max}")
         if first_err: print(f"  [diag] first inner err: {first_err}")
         _first_call[0] = False
     xs, ys, U = d["xs"], d["ys"], d["U"]
