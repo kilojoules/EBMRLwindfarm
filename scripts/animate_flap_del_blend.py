@@ -143,63 +143,16 @@ def main():
         tr_args.config = "multi_modal"
 
     import warnings; warnings.filterwarnings("ignore")
-    # Build SyncVectorEnv (num_envs=1) — AsyncVectorEnv pipe has been fragile
-    # across animation runs; sync env removes IPC entirely.
-    import gymnasium as gym
-    from WindGym import WindFarmEnv
-    from WindGym.wrappers import PerTurbineObservationWrapper, RecordEpisodeVals
-    from py_wake.examples.data.iea37 import IEA37_WindTurbines
-    from helpers.surrogate_hooks import SectorFlowExposer
-    turbine = IEA37_WindTurbines()
-    layouts_mod = _load("helpers.layouts", ROOT / "helpers/layouts.py")
-    x_arr, y_arr = layouts_mod.get_layout_positions(args.layout, turbine)
-    cfg_name = "multi_modal" if args.layout == "multi_modal" else "default"
-    cfg = ec.make_env_config(cfg_name)
-    # Match training: history_length=1 collapses obs to obs_dim_per_turbine=4
-    hist_len = int(getattr(tr_args, "history_length", 1))
-    for mes_type, prefix in {"ws_mes": "ws", "wd_mes": "wd",
-                               "yaw_mes": "yaw", "power_mes": "power"}.items():
-        cfg[mes_type][f"{prefix}_history_N"] = hist_len
-        cfg[mes_type][f"{prefix}_history_length"] = hist_len
-
-    n_turb_layout = len(x_arr)
-    turb_pos = np.stack([np.asarray(x_arr, dtype=np.float32),
-                          np.asarray(y_arr, dtype=np.float32)], axis=-1)
-    att_mask = np.zeros(n_turb_layout, dtype=bool)  # all turbines active
-
-    class AnimSectorWrapper(SectorFlowExposer):
-        """Adds attrs the agent looks up via env.get_wrapper_attr."""
-        @property
-        def wd(self):
-            raw = self.env.unwrapped if hasattr(self.env, "unwrapped") else self.env
-            return float(getattr(raw, "wd", 270.0))
-        @property
-        def turbine_positions(self):
-            return turb_pos
-        @property
-        def attention_mask(self):
-            return att_mask
-
-    def _env_init():
-        e = WindFarmEnv(turbine=turbine,
-                        x_pos=list(map(float, x_arr)),
-                        y_pos=list(map(float, y_arr)),
-                        config=cfg, backend="dynamiks", seed=1)
-        e = PerTurbineObservationWrapper(e)
-        e = AnimSectorWrapper(e)
-        return e
-
-    sync = gym.vector.SyncVectorEnv([_env_init])
-    envs = RecordEpisodeVals(sync)  # exposes envs.env.call(...) like training
-    n_turb = len(x_arr)
-    env_info = {
-        "n_turbines_max": n_turb,
-        "obs_dim_per_turbine": envs.single_observation_space.shape[-1],
-        "rotor_diameter": float(turbine.diameter()),
-        "use_profiles": False,
-        "action_scale": 1.0, "action_bias": 0.0,
-    }
-
+    # Use setup_env from training to get the SAME wrapper chain (pywake backend,
+    # MultiLayoutEnv, SectorFlowExposer) — the dynamiks-backed stripped env
+    # produced ~3.6x higher DEL than training-distribution eval.
+    from ebt_sac_windfarm import setup_env
+    # Force num_envs=1 + sync (animate doesn't multi-batch, and AsyncVectorEnv
+    # pipe is brittle for our subprocess get_flow_grid call)
+    tr_args.num_envs = 1
+    env_info = setup_env(tr_args)
+    envs = env_info["envs"]
+    n_turb = env_info["n_turbines_max"]
     use_profiles = env_info["use_profiles"]
     sr, si = None, None
     if use_profiles:
