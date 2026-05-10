@@ -35,17 +35,17 @@ COMMON="--checkpoint runs/del_aware_b1p0/checkpoints/step_200000.pt \
     --horizon 200 --grid-nx 32 --grid-ny 16 \
     --frame-stride 5 --fps 10 --guidance-scale 0.0"
 
-echo === a: loose budget (sanity) ===
+echo "=== a: loose budget sanity ==="
 pixi run python -u scripts/animate_flap_del_blend.py $COMMON \
     --budgets "1000000000,1000000000,99999" --eta 3.0 \
     --out results/blend_diag_a_loose.mp4
 
-echo === b: B=21300 mild ===
+echo "=== b: B=21300 mild ==="
 pixi run python -u scripts/animate_flap_del_blend.py $COMMON \
     --budgets "1000000000,1000000000,21300" --eta 3.0 \
     --out results/blend_diag_b_mild.mp4
 
-echo === c: B=21000 eta=0.5 slow ===
+echo "=== c: B=21000 eta=0.5 slow ==="
 pixi run python -u scripts/animate_flap_del_blend.py $COMMON \
     --budgets "1000000000,1000000000,21000" --eta 0.5 \
     --out results/blend_diag_c_slow.mp4
