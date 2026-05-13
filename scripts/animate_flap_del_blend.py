@@ -201,6 +201,7 @@ def main():
     obs, _ = envs.reset()
     pset = np.full(n_turb, 0.93, dtype=np.float32)
     cum_del = np.zeros(n_turb, dtype=np.float64)
+    cum_power = 0.0
 
     # Record positions / extent via subprocess call
     info_list = envs.env.call("get_layout_info")
@@ -336,6 +337,10 @@ def main():
         ret = envs.step(act_exec)
         obs, _, term, trunc, info = (ret if len(ret) == 5
                                       else (ret[0], ret[1], ret[2], ret[3], ret[4]))
+        pwr_step = float(np.mean(info["Power agent"])) if "Power agent" in info else 0.0
+        cum_power += pwr_step
+        if t % args.frame_stride == 0:
+            print(f"  t={t:3d}  power={pwr_step:.0f}W cum_pwr={cum_power:.0f}W")
         if np.any(term) or np.any(trunc): break
 
     # Close env now — ffmpeg subprocess + AsyncVectorEnv subprocess fight
