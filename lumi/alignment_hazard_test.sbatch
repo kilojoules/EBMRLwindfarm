@@ -30,5 +30,5 @@ pixi run python -u scripts/alignment_hazard_test.py \
     --bundle checkpoints/teodor_dlc12_torch.pt \
     --layout multi_modal \
     --horizon 200 --n-episodes 10 --sigma 0.3 \
-    --safe-yaw-grid "-25,-15,-7.5,0,7.5,15,25" \
+    --safe-yaw-grid="-25,-15,-7.5,0,7.5,15,25" \
     --out-json results/alignment_hazard_test.json
