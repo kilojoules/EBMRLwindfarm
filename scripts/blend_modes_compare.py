@@ -73,12 +73,16 @@ def rollout(envs, agent, surr, n_turb, horizon, sensor,
         if mode == "linear":
             sigma_eff = np.full(n_turb, sigma_fixed)
         elif mode == "rejection":
-            # Probe 1-step DEL under each candidate
+            # Probe 1-step DEL under each candidate; engage sigma only if safe helps
             del_perf = predict_del(surr, sensor, per, pset, next_yaw_perf)
             del_safe = predict_del(surr, sensor, per, pset, next_yaw_safe)
-            # Engage sigma ONLY where safe lowers DEL
             engage = (del_safe < del_perf).astype(np.float32)
             sigma_eff = sigma_fixed * engage
+        elif mode == "argmin":
+            # Hard pick: sigma in {0, 1} based on 1-step DEL probe (B1-style)
+            del_perf = predict_del(surr, sensor, per, pset, next_yaw_perf)
+            del_safe = predict_del(surr, sensor, per, pset, next_yaw_safe)
+            sigma_eff = (del_safe < del_perf).astype(np.float32)
         else:
             raise ValueError(mode)
 

@@ -31,5 +31,5 @@ pixi run python -u scripts/blend_modes_compare.py \
     --layout multi_modal \
     --horizon 200 --n-episodes 10 --sigma 0.7 \
     --safe-yaw-grid="-25,-15,-7.5,0,7.5,15,25" \
-    --modes "linear,rejection" \
-    --out-json results/blend_modes_compare.json
+    --modes "linear,rejection,argmin" \
+    --out-json results/blend_modes_compare_3way.json
