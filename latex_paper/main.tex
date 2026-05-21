@@ -240,6 +240,74 @@ Safety Gym (PointGoal) & $0.99\!\pm\!0.69$ & $49.8\!\pm\!12.5$ & $\mathbf{0.02}$
 \end{algorithm}
 
 %----------------------------------------------------------------------
+\section{The Alignment Hazard}
+\label{sec:hazard}
+%----------------------------------------------------------------------
+
+The two-controller blend (\ref{eq:blend2}) implicitly assumes that as $\sigma$ moves from $0$ to $1$, cumulative cost $C[a(\sigma)]$ moves monotonically from $C[\pi_{\mathrm{perf}}]$ to $C[\pi_{\mathrm{safe}}]$.
+We show this assumption can fail \emph{strictly}: the linear midpoint $a(\sigma)$ can have cost \emph{higher than both endpoints}.
+We call this the \textbf{alignment hazard}.
+
+\subsection{A Minimal Counterexample}
+\label{sec:counterexample}
+
+Consider a one-step setting with scalar action $a \in \mathbb{R}$, constant controllers $\pi_{\mathrm{perf}} \equiv -1$ and $\pi_{\mathrm{safe}} \equiv +1$, and cost
+\begin{equation}
+    c(a) = \exp\!\big(-a^2\big),
+\label{eq:counterexample_cost}
+\end{equation}
+modelling a load whose peak is at the neutral action.
+Then $a(\sigma) = -1 + 2\sigma$, so $C[a(0)] = C[a(1)] = e^{-1} \approx 0.37$, while $C[a(0.5)] = c(0) = 1$.
+The linear blend at $\sigma=0.5$ has $\sim2.7\times$ the cost of either endpoint.
+
+\textbf{Where this happens in practice.}
+Any action that is a \emph{direction} or \emph{angle} (yaw setpoint, attack heading, steering angle, satellite pointing) and any cost shaped like a ``ridge'' at the neutral direction expose this hazard.
+Wind-turbine blade-flap damage equivalent load (DEL) is exactly this case: aerodynamic loading is maximised when the rotor is fully aligned with the wind and drops on either side of misalignment.
+When $\pi_{\mathrm{perf}}$ yaws negative (e.g., $-15^\circ$) and $\pi_{\mathrm{safe}}$ yaws positive (e.g., $+7.5^\circ$), the linear blend at intermediate $\sigma$ crosses the neutral $0^\circ$ ridge.
+
+\subsection{Cost-Monotonicity: A Sufficient Condition}
+\label{sec:theory}
+
+\textbf{Proposition (cost-convex segment is monotone).}
+Let $A(s,\sigma) = (1-\sigma)\pi_{\mathrm{perf}}(s) + \sigma\pi_{\mathrm{safe}}(s)$.
+If for every state $s$ the cost $c(s,\cdot)$ is convex on the segment $\{A(s,\sigma): \sigma\in[0,1]\}$, then the per-step cost $c(s, A(s,\sigma))$ is convex in $\sigma$, hence bounded above by $\max\{c(s, \pi_{\mathrm{perf}}), c(s, \pi_{\mathrm{safe}})\}$.
+Under fixed visited-state distribution (one-step or open-loop), the cumulative cost $C[a(\sigma)]$ is convex in $\sigma$.
+
+\emph{Proof.} Convex composition with affine map; expectation preserves convexity. $\square$
+
+The hazard arises precisely when the segment-convexity assumption \emph{fails}, which is the typical case on directional manifolds.
+
+\subsection{Cost-Monotone Fixes}
+\label{sec:fixes}
+
+We propose two replacements for the linear blend, both relying on a single per-step cost probe and \emph{provably no-worse-than}-$\pi_{\mathrm{perf}}$.
+
+\paragraph{Rejection blend (B3).}
+At each step, evaluate $\hat c_{\mathrm{perf}} = c(s, \pi_{\mathrm{perf}}(s))$ and $\hat c_{\mathrm{safe}} = c(s, \pi_{\mathrm{safe}}(s))$ via a one-step cost surrogate, then
+\begin{equation}
+    \sigma_{\mathrm{eff}}(s,u) =
+    \begin{cases}
+        \sigma(u) & \hat c_{\mathrm{safe}} \le \hat c_{\mathrm{perf}}, \\
+        0 & \text{otherwise.}
+    \end{cases}
+\label{eq:rejection}
+\end{equation}
+$\sigma_{\mathrm{eff}}$ is computed per state (per turbine in the multi-agent setting) so the safe direction is engaged only when the cost probe confirms it helps.
+
+\paragraph{Argmin selection (B1).}
+A harder variant collapses $\sigma$ to a binary decision: $\sigma_{\mathrm{eff}} = \mathbf{1}[\hat c_{\mathrm{safe}} < \hat c_{\mathrm{perf}}]$.
+This sacrifices the smooth schedule but commits fully to whichever endpoint the probe favours, eliminating intermediate yaws entirely.
+
+\textbf{Cost monotonicity.}
+For both fixes, $c(a_{\mathrm{eff}}) \le c(\pi_{\mathrm{perf}})$ per state (rejection: by construction; argmin: by minimisation), so the cumulative cost satisfies $C[a_{\mathrm{eff}}] \le C[\pi_{\mathrm{perf}}]$ under fixed state distribution.
+Linear blend has no such guarantee.
+
+\textbf{Cost of the probe.}
+For surrogate-based costs (e.g., our load surrogate), the probe is one extra surrogate forward pass per candidate per step.
+For learned critics ($Q_c$), it is one extra critic call.
+Both are cheap relative to policy inference and step simulation.
+
+%----------------------------------------------------------------------
 \section{Experiments}
 \label{sec:results}
 %----------------------------------------------------------------------
