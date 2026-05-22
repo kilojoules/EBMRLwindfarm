@@ -25,6 +25,17 @@ import torch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "scripts"))
+
+# Shim removed-in-gymnasium-1.x module used by safety-gymnasium 1.0.0
+import types
+try:
+    import gymnasium.wrappers.compatibility  # noqa: F401
+except ImportError:
+    _shim = types.ModuleType("gymnasium.wrappers.compatibility")
+    class _EC: pass
+    _shim.EnvCompatibility = _EC
+    sys.modules["gymnasium.wrappers.compatibility"] = _shim
 
 # Reuse apf_blend_sg's helpers
 from scripts.apf_blend_sg import (

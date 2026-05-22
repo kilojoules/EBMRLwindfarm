@@ -21,7 +21,9 @@ PROJECT_DIR=/scratch/project_465002609/julian/ac_budget_experiment
 cd "$PROJECT_DIR"
 
 set -e
-pixi run python -u scripts/sg_hazard_test.py \
+module load cray-python/3.10.10
+SG_PY=/scratch/project_465002609/julian/sg_venv/bin/python
+$SG_PY -u scripts/sg_hazard_test.py \
     --checkpoint checkpoints/sac_safety_point_seed1.pt \
     --horizon 1000 --n-episodes 10 --sigma 0.7 \
     --theta-grid="0,0.785,1.571,2.356,3.141" \
