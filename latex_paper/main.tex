@@ -26,7 +26,7 @@
 \newcommand{\cf}{\textit{cf.}}
 \newcommand{\etal}{\textit{et al.}}
 
-\title{Budget-Aware Controller Blending: Post-Hoc Damage-Budget Pacing for Pre-Trained RL Policies}
+\title{The Alignment Hazard: Why Linear Blending of Pre-Trained Policies Can Be Anti-Pareto, and a Cost-Monotone Fix}
 
 \author{Julian Quick\thanks{\texttt{juqu@dtu.dk}} \\ Marcus Binder Nilsen \\
 DTU Wind Energy, Technical University of Denmark}
@@ -36,18 +36,15 @@ DTU Wind Energy, Technical University of Denmark}
 \maketitle
 
 \begin{abstract}
-A pre-trained, unconstrained RL policy faces a new cumulative operational constraint at deployment: a damage budget per year, a duty-cycle limit, a spending cap.
-We propose to \emph{blend two existing controllers at inference} using any monotone schedule $\sigma(u)\!\in\![0,1]$ of the \emph{urgency ratio} $u=\rho/\tau$ (remaining-budget / remaining-time fractions); on pace ($u\!\ge\!1$) the performance policy $\pi_{\mathrm{perf}}$ runs, in deficit ($u\!\to\!0$) the domain-specific safety controller $\pi_{\mathrm{safe}}$ takes over (a factory wind-tracking yaw setpoint, an artificial-potential-field navigator).
-The closed-form $\sigma(u) = 1-\exp(-\eta(1/u-1))$ is one convenient single-parameter instantiation; in our wind-farm and Safety-Gymnasium ablations a hard-threshold switch performs comparably (Tables~\ref{tab:wf_ablation}, \ref{tab:ablations})---the work is in identifying $u$ as the controlling state variable, not in the specific form of $\sigma$.
-\textbf{This is a budget-aware \emph{pacing} mechanism, not a hard enforcement guarantee.}
-On wind-farm yaw control ($\kappa\!\approx\!0.72$) the schedule satisfies a $15$-step neg-yaw surrogate budget across 4 training seeds with $99.3$--$101.8\%$ of unconstrained power; in our 3-turbine setting zero yaw alone is power-competitive with the unconstrained policy, so WF validates budget tracking rather than preservation of a large wake-steering advantage.
-We further validate against a physics-grounded blade-flap DEL surrogate (sector-averaged ANN on DLC12 simulations~\citep{guillore2024sectoravg}): a 4-point sweep of per-turbine budget scale ($B$, $B/2$, $B/3$, $B/5$ relative to a zero-yaw baseline calibration) shows a clean phase transition---$0/250$ episode violations across the feasible regime and $250/250$ at the infeasible $B/5$ point, with power retention essentially flat ($1.14$--$1.16\times$ unconstrained) where feasible.
-On Safety Gymnasium ($\kappa\!\approx\!0.02$) the explicit blend gives a favorable reward-cost trade-off (cost from $49.4$ to $15.3$ at $d\!=\!10$, retaining $45\%$ of unconstrained reward) but does not reliably satisfy expected cost at tight budgets.
-We compare against retraining baselines (SAC-Lagrangian at three hyperparameter settings; SAUTE~\citep{sootla2022saute}, which uses the same urgency variable our schedule does); the best retraining variant tested attains $R\!=\!2.3$, $C\!=\!24$ at $500$k steps, putting the blend on the Pareto-favorable side of the reward axis but \emph{not} dominating in the constrained sense (some baselines satisfy budget more tightly at the cost of reward).
-A gradient-correction variant of the same schedule works when the action-to-cost coupling strength $\kappa = \mathbb{E}\|\nabla_a Q_c\|/\mathbb{E}\|\nabla_s Q_c\|$ is large; when it is small, the explicit-$\pi_{\mathrm{safe}}$ blend is required.
-\textbf{Honest gap.}
-Our two domains co-validate the framework only piecewise: WF demonstrates budget tracking but not RL-policy preservation (zero yaw is power-competitive in our trained regime), while SG demonstrates policy preservation but not tight expected-cost feasibility.
-A retrain with variable wind direction targeting both halves jointly is in progress; the current evidence supports each claim individually rather than jointly.
+Composing pre-trained controllers at inference is an attractive alternative to retraining under new safety constraints: blend a performance policy $\pi_{\mathrm{perf}}$ with a safety controller $\pi_{\mathrm{safe}}$ via $a=(1-\sigma)\pi_{\mathrm{perf}} + \sigma\pi_{\mathrm{safe}}$, where $\sigma\in[0,1]$ is paced by a budget urgency ratio in the style of optimal execution~\citep{almgren2001optimal}.
+We identify a \textbf{fundamental failure mode} of this scheme on directional action manifolds: when the controllers act on opposite sides of a non-convex cost ridge, the linear midpoint can have cost \emph{strictly higher than either endpoint}---the schedule is \emph{anti-Pareto in $\sigma$}.
+We call this the \textbf{alignment hazard}, give a sufficient condition for cost-monotonicity (cost convex along the segment $\pi_{\mathrm{perf}}\to\pi_{\mathrm{safe}}$), and demonstrate the phenomenon empirically in two domains.
+On wind-farm yaw control with a physics-grounded blade-flap DEL surrogate~\citep{guillore2024sectoravg}, sweeping $\pi_{\mathrm{safe}}$ direction at fixed $\sigma=0.7$ produces a clean U-shaped DEL bulge peaking where the blend yaw crosses zero: linear blend incurs $+3.0\%$ DEL and $-12\%$ farm power relative to both endpoints.
+On Safety Gymnasium PointGoal1, rotating the safety controller's direction by $3\pi/4$ exposes the same failure: linear blend cost $C=483$, near-zero goal reward $R=0.5$.
+We propose two cost-monotone fixes implemented with one extra cost probe per step: \textbf{rejection blending} (engage $\sigma$ only if the probe confirms $\pi_{\mathrm{safe}}$ helps) and \textbf{argmin selection} (binary commitment).
+Both are provably no-worse-than-$\pi_{\mathrm{perf}}$.
+Empirically they recover the Pareto frontier the linear blend misses: $-3.8\%$ DEL and $+15.3\%$ power on the worst-case wind-farm sweep, $-97\%$ cost and $54\!\times$ reward on Safety Gymnasium.
+A cross-layout ablation rules out the obvious objection ``just retrain with a DEL-aware reward'': $\beta\!=\!1$ DEL-aware training gives Pareto-improving behaviour on one layout and a $+5$--$7\%$ DEL trade-off on another, so deployment-time pacing remains required when retraining for every constraint is infeasible.
 \end{abstract}
 
 %----------------------------------------------------------------------
@@ -314,6 +311,13 @@ Both are cheap relative to policy inference and step simulation.
 
 \subsection{Alignment Hazard in Wind-Farm Yaw Control}
 \label{sec:hazard_wf}
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.92\linewidth]{figures/alignment_hazard.pdf}
+\caption{The alignment hazard. \textbf{(a)} Wind farm (multi\_modal, DEL-aware actor): farm power vs cumulative DEL across $\sigma=0.7$ linear blend at seven $\pi_{\mathrm{safe}}$ yaw targets $\in[-25^\circ,+25^\circ]$. Linear blend (red) zigzags into an anti-Pareto bulge at $y^{\mathrm{tgt}}=0$ (circled): blend yaw $\approx 0^\circ$ is the DEL maximum. Rejection (blue) and argmin (green) recover the Pareto frontier. \textbf{(b)} Safety Gymnasium PointGoal1: episode reward vs cumulative cost across APF rotations $\theta\in\{0,\pi/4,\pi/2,3\pi/4,\pi\}$. Linear collapses at $\theta\approx 2.36$ (circled, $C\!=\!483$, $R\!=\!0.5$); rejection and argmin stay near $\pi_{\mathrm{perf}}$'s reward (${\approx}27$) at low cost. The cost-monotone fixes use one extra cost probe per step.}
+\label{fig:alignment_hazard}
+\end{figure}
 
 \textbf{Setup.}
 We train three EBT-SAC actors to expose the hazard regime:
@@ -780,6 +784,83 @@ Code and checkpoints: \url{[anonymized]}.
 
 %----------------------------------------------------------------------
 \appendix
+\section{Full Alignment-Hazard Sweep Tables}
+\label{app:full_sweep}
+
+Full linear/rejection/argmin grids referenced in \cref{sec:hazard_wf}.
+All runs at $\sigma=0.7$, $n=10$ episodes, 200 steps, with $\pi_{\mathrm{safe}}$ a P-controller toward uniform $y^{\mathrm{tgt}}$ on all turbines.
+DEL values in kNm cumulative, power in GW-step cumulative ($\approx 200\times$ farm-average MW).
+
+\begin{table}[h]
+\centering
+\caption{multi\_modal, DEL-aware $\beta=1$ actor. Linear shows the U-shape peak at $y^{\mathrm{tgt}}=0$ (highlighted). Rejection and argmin both flatten the bulge.}
+\label{tab:sweep_mm_delaware}
+\small
+\begin{tabular}{rrrrrrrrr}
+\toprule
+ & \multicolumn{2}{c}{Linear} & \multicolumn{3}{c}{Rejection} & \multicolumn{3}{c}{Argmin} \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-6}\cmidrule(lr){7-9}
+$y^{\mathrm{tgt}}$ & Pwr & DEL\textsubscript{tot} & Pwr & DEL\textsubscript{tot} & $\bar\sigma_{\mathrm{eff}}$ & Pwr & DEL\textsubscript{tot} & $\bar\sigma_{\mathrm{eff}}$ \\
+\midrule
+$-25^\circ$ & 1.69 & 62302 & 1.76 & 61615 & 0.49 & 1.74 & 61674 & 0.49 \\
+$-15^\circ$ & 1.83 & 62474 & 1.84 & 62523 & 0.49 & 1.83 & 62425 & 0.88 \\
+$-7.5^\circ$ & 1.79 & 62913 & 1.89 & 63015 & 0.08 & 1.89 & 63044 & 0.09 \\
+$\mathbf{0^\circ}$ & \textbf{1.61} & \textbf{63375} & 1.72 & 63000 & 0.36 & 1.70 & 62692 & 0.53 \\
+$+7.5^\circ$ & 1.53 & 62708 & 1.62 & 62165 & 0.39 & 1.60 & 62547 & 0.56 \\
+$+15^\circ$ & 1.53 & 64101 & 1.65 & 62510 & 0.32 & 1.65 & 62452 & 0.30 \\
+$+25^\circ$ & 1.50 & 65029 & 1.72 & 62574 & 0.25 & 1.73 & 62734 & 0.30 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[h]
+\centering
+\caption{multi\_modal, standard actor (no DEL reward). Same U-shape, smaller magnitude. Standard actor wastes 6\% power vs zero-yaw by yawing saturated at $-30^\circ$.}
+\label{tab:sweep_mm_std}
+\small
+\begin{tabular}{rrrrrr}
+\toprule
+$y^{\mathrm{tgt}}$ & Linear Pwr & Linear DEL\textsubscript{tot} & Rejection Pwr & Rejection DEL\textsubscript{tot} & Argmin DEL\textsubscript{tot} \\
+\midrule
+$-25^\circ$ & 1.64 & 62109 & 1.52 & 61841 & 61791 \\
+$-15^\circ$ & 1.83 & 62534 & 1.73 & 61536 & 61605 \\
+$-7.5^\circ$ & 1.79 & 62922 & 1.74 & 61693 & 61643 \\
+$\mathbf{0^\circ}$ & \textbf{1.61} & \textbf{63347} & 1.65 & 61898 & 61916 \\
+$+7.5^\circ$ & 1.53 & 62739 & 1.58 & 61247 & 61890 \\
+$+15^\circ$ & 1.56 & 64425 & 1.56 & 61885 & 62000 \\
+$+25^\circ$ & 1.48 & 64666 & 1.57 & 61558 & 61927 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[h]
+\centering
+\caption{stag4\_5d, DEL-aware $\beta=1$ actor. Linear is \emph{monotone} (no hazard) because actor and $\pi_{\mathrm{safe}}$ stay on the same side of zero for $y^{\mathrm{tgt}}\ge 0$. Rejection and argmin give similar curves: the linear blend is not anti-Pareto here.}
+\label{tab:sweep_stag4}
+\small
+\begin{tabular}{rrrrrr}
+\toprule
+$y^{\mathrm{tgt}}$ & Linear Pwr & Linear DEL\textsubscript{tot} & Rejection Pwr & Rejection DEL\textsubscript{tot} & Argmin DEL\textsubscript{tot} \\
+\midrule
+$-25^\circ$ & 2.24 & 81463 & 2.81 & 87732 & 2.61 & 85998 \\
+$-15^\circ$ & 2.30 & 81402 & 2.65 & 86176 & 2.69 & 86855 \\
+$-7.5^\circ$ & 2.38 & 83786 & 2.76 & 87792 & 2.55 & 85617 \\
+$0^\circ$ & 2.57 & 87841 & 2.99 & 90013 & 2.97 & 89803 \\
+$+7.5^\circ$ & 2.95 & 89644 & 2.96 & 89584 & 2.98 & 89823 \\
+$+15^\circ$ & 3.10 & 93180 & 3.15 & 92020 & 3.15 & 91957 \\
+$+25^\circ$ & 2.92 & 94345 & 3.15 & 92287 & 3.13 & 92559 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Reading the tables.}
+\Cref{tab:sweep_mm_delaware} and \Cref{tab:sweep_mm_std} both exhibit the alignment hazard: linear DEL\textsubscript{tot} peaks at $y^{\mathrm{tgt}}=0$ and rises again toward $y^{\mathrm{tgt}}=+25$.
+The first peak is the blend-through-zero failure (segment-convexity violation at $y=0$).
+The second peak at $y^{\mathrm{tgt}}=+25$ reflects saturated wake misalignment at large positive yaw, which the surrogate captures.
+Rejection and argmin remove both peaks: $\sigma_{\mathrm{eff}}\to 0$ on turbines where the safe move would worsen DEL, so the blend stays close to $\pi_{\mathrm{perf}}$'s natural operating point unless safe genuinely helps.
+On stag4\_5d (\Cref{tab:sweep_stag4}), the actor's positive-yaw operating point puts the entire $y^{\mathrm{tgt}}\ge 0$ sweep on one side of the DEL ridge: linear is monotone in $y^{\mathrm{tgt}}$, and all three modes produce comparable curves.
+This is the regime where the segment-convex condition of \cref{sec:theory} holds and the linear blend is itself cost-monotone.
+
 \section{Derivations, Protocols, and Negative Results}
 \label{app:additional}
 

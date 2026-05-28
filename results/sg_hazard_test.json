@@ -1,0 +1,129 @@
+{
+  "env_name": "SafetyPointGoal1-v0",
+  "horizon": 1000,
+  "n_episodes": 10,
+  "sigma": 0.7,
+  "checkpoint": "checkpoints/sac_safety_point_seed1.pt",
+  "results": [
+    {
+      "mode": "linear",
+      "theta": 0.0,
+      "reward_mean": 0.5727829410605904,
+      "reward_std": 0.009161324153875761,
+      "cost_mean": 0.0,
+      "cost_std": 0.0
+    },
+    {
+      "mode": "linear",
+      "theta": 0.785,
+      "reward_mean": 2.5237802623574512,
+      "reward_std": 1.8110129287167829,
+      "cost_mean": 6.5,
+      "cost_std": 12.823805987303457
+    },
+    {
+      "mode": "linear",
+      "theta": 1.571,
+      "reward_mean": -1.306087825900332,
+      "reward_std": 0.588954981948149,
+      "cost_mean": 23.4,
+      "cost_std": 14.122322755127783
+    },
+    {
+      "mode": "linear",
+      "theta": 2.356,
+      "reward_mean": 0.4950332534743954,
+      "reward_std": 2.746331917608856,
+      "cost_mean": 483.3,
+      "cost_std": 108.16103734709648
+    },
+    {
+      "mode": "linear",
+      "theta": 3.141,
+      "reward_mean": -12.96401593052371,
+      "reward_std": 0.24722090300646224,
+      "cost_mean": 19.4,
+      "cost_std": 26.096743091811284
+    },
+    {
+      "mode": "rejection",
+      "theta": 0.0,
+      "reward_mean": 27.00533897553796,
+      "reward_std": 0.9210449098460932,
+      "cost_mean": 45.4,
+      "cost_std": 19.21041384249699
+    },
+    {
+      "mode": "rejection",
+      "theta": 0.785,
+      "reward_mean": 27.755342427926696,
+      "reward_std": 0.9902512738329445,
+      "cost_mean": 6.8,
+      "cost_std": 7.372923436466704
+    },
+    {
+      "mode": "rejection",
+      "theta": 1.571,
+      "reward_mean": 26.06638214720855,
+      "reward_std": 0.5970403293707435,
+      "cost_mean": 69.5,
+      "cost_std": 38.273358880558156
+    },
+    {
+      "mode": "rejection",
+      "theta": 2.356,
+      "reward_mean": 27.07657613485635,
+      "reward_std": 1.3466805017592145,
+      "cost_mean": 50.3,
+      "cost_std": 16.18672295432278
+    },
+    {
+      "mode": "rejection",
+      "theta": 3.141,
+      "reward_mean": 27.32629606491934,
+      "reward_std": 1.2643582383034662,
+      "cost_mean": 39.7,
+      "cost_std": 17.86085104355333
+    },
+    {
+      "mode": "argmin",
+      "theta": 0.0,
+      "reward_mean": 26.464159911060932,
+      "reward_std": 0.930040173482768,
+      "cost_mean": 72.5,
+      "cost_std": 25.927784324928346
+    },
+    {
+      "mode": "argmin",
+      "theta": 0.785,
+      "reward_mean": 27.02357592088962,
+      "reward_std": 1.0333087054327217,
+      "cost_mean": 37.7,
+      "cost_std": 17.572990639046047
+    },
+    {
+      "mode": "argmin",
+      "theta": 1.571,
+      "reward_mean": 26.90575935821409,
+      "reward_std": 1.4355318239714374,
+      "cost_mean": 75.8,
+      "cost_std": 26.354506256046612
+    },
+    {
+      "mode": "argmin",
+      "theta": 2.356,
+      "reward_mean": 27.300291836752542,
+      "reward_std": 0.9271321393757322,
+      "cost_mean": 14.8,
+      "cost_std": 15.765785740013087
+    },
+    {
+      "mode": "argmin",
+      "theta": 3.141,
+      "reward_mean": 26.578446756235234,
+      "reward_std": 0.6267883790226587,
+      "cost_mean": 56.7,
+      "cost_std": 30.11992695874278
+    }
+  ]
+}
