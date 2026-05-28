@@ -312,6 +312,121 @@ Both are cheap relative to policy inference and step simulation.
 \label{sec:results}
 %----------------------------------------------------------------------
 
+\subsection{Alignment Hazard in Wind-Farm Yaw Control}
+\label{sec:hazard_wf}
+
+\textbf{Setup.}
+We train three EBT-SAC actors to expose the hazard regime:
+(i)~$\pi_{\mathrm{perf}}^{\mathrm{MM,DEL}}$ on the multi\_modal 3-turbine layout with a DEL-aware reward $r' = r - \beta \sum_i \mathrm{DEL}_i / \mathrm{DEL}_{\mathrm{ref}}$ at $\beta=1$;
+(ii)~$\pi_{\mathrm{perf}}^{\mathrm{MM,std}}$ on the same layout with the standard reward (no DEL penalty);
+(iii)~$\pi_{\mathrm{perf}}^{\mathrm{stag4,DEL}}$ on the stag4\_5d 4-turbine layout with DEL-aware reward at $\beta=1$.
+All actors trained 200k steps on WindGym with the PyWake backend.
+$\pi_{\mathrm{safe}}$ is a yaw setpoint controller: a P-controller driving each turbine toward a target $y^{\mathrm{tgt}}$ at the actuator rate.
+DEL is scored per-step by Teodor's DLC12 sector-averaged ANN load surrogate~\citep{guillore2024sectoravg} evaluated on the realised flow and yaw.
+Cumulative quantities are summed over 200-step rollouts; 10 episodes per configuration.
+
+\textbf{Three actors, three Pareto outcomes.}
+\Cref{tab:cross_layout_actor} shows the unblended actor vs zero-yaw baseline.
+Only the DEL-aware actor on multi\_modal Pareto-dominates zero on both axes; the standard actor wastes 6\% power on a small DEL gain; the DEL-aware actor on stag4 trades $+5$--$7\%$ DEL for $+22\%$ power.
+\emph{Direct reward shaping is not a universal substitute for inference-time pacing.}
+$\beta$ must be set per layout per budget; without retraining for each constraint, the operator needs a deployment-time pacing mechanism.
+
+\begin{table}[h]
+\centering
+\caption{Actor vs zero-yaw baseline across layouts ($n=10$ episodes, 200 steps).}
+\label{tab:cross_layout_actor}
+\small
+\begin{tabular}{llrrr}
+\toprule
+Layout & Actor & $\Delta$ Power & $\Delta$ DEL/turb & Pareto vs zero? \\
+\midrule
+multi\_modal & DEL-aware $\beta\!=\!1$ & $+14\%$ & $[-3.2\%, -5.1\%, -0.7\%]$ & both axes \\
+multi\_modal & Standard (no DEL) & $-6\%$ & $[-2.0\%, -2.4\%, -2.7\%]$ & DEL only \\
+stag4\_5d & DEL-aware $\beta\!=\!1$ & $+22\%$ & $[+7.0\%, +4.5\%, +5.0\%, +4.3\%]$ & power only \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Linear blend exhibits the alignment hazard on multi\_modal.}
+Fixing $\sigma=0.7$ and sweeping $\pi_{\mathrm{safe}}$ target across $\{-25^\circ, -15^\circ, -7.5^\circ, 0^\circ, +7.5^\circ, +15^\circ, +25^\circ\}$ (uniform across turbines), the DEL-aware MM actor (operating naturally at $\bar y\approx-15^\circ$) and a positive setpoint $\pi_{\mathrm{safe}}$ are on opposite sides of $0^\circ$.
+\Cref{tab:linear_hazard_mm} shows that linear blend at $y^{\mathrm{tgt}}=0$ drives mean yaw to $\approx 0^\circ$ where blade-flap DEL peaks: \emph{total DEL is strictly higher than at either endpoint}, and farm power collapses to 1.62~GW-steps (vs $\approx 1.89$ at the endpoints).
+
+\begin{table}[h]
+\centering
+\caption{Linear blend at $\sigma=0.7$ on multi\_modal (DEL-aware actor). The row at $y^{\mathrm{tgt}}=0$ is the alignment-hazard regime: blend yaw $\approx 0^\circ$ is the DEL maximum.}
+\label{tab:linear_hazard_mm}
+\small
+\begin{tabular}{rrrrrr}
+\toprule
+$y^{\mathrm{tgt}}$ & Power (GW-step) & DEL\textsubscript{T0} & DEL\textsubscript{T1} & DEL\textsubscript{T2} & DEL\textsubscript{tot} \\
+\midrule
+$-25^\circ$ & 1.69 & 20701 & 20748 & 20853 & 62302 \\
+$-15^\circ$ & 1.83 & 20888 & 20770 & 20816 & 62474 \\
+$-7.5^\circ$ & 1.79 & 20984 & 20973 & 20956 & 62913 \\
+$\mathbf{0^\circ}$ & \textbf{1.61} & \textbf{21132} & \textbf{21132} & \textbf{21111} & \textbf{63375} \\
+$+7.5^\circ$ & 1.53 & 20887 & 20934 & 20887 & 62708 \\
+$+15^\circ$ & 1.53 & 21366 & 21399 & 21336 & 64101 \\
+$+25^\circ$ & 1.50 & 21699 & 21690 & 21640 & 65029 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Hazard disappears when controllers agree on direction.}
+On stag4\_5d, the DEL-aware actor settles at positive yaws $\bar y \approx [+17, +10, +3, -5]$.
+Sweeping the same $\pi_{\mathrm{safe}}$ grid produces a \emph{monotone} power-vs-DEL trade-off, not a U-shape: $y^{\mathrm{tgt}}=-25$ (opposite to actor) gives lowest DEL (20300/turb) at lowest power (2.24~GW-step), and $y^{\mathrm{tgt}}=+25$ (same side, extended) gives highest power (2.92~GW-step) at higher DEL (23590/turb).
+\emph{The alignment hazard requires $\pi_{\mathrm{perf}}$ and $\pi_{\mathrm{safe}}$ to straddle the cost ridge.}
+When the segment $\pi_{\mathrm{perf}}\!\to\!\pi_{\mathrm{safe}}$ stays on one side of the DEL peak, cost is monotone in $\sigma$ (segment-convex condition of \cref{sec:theory} holds approximately).
+
+\textbf{Rejection and argmin recover Pareto.}
+At the worst-case linear blend regime ($y^{\mathrm{tgt}}=+25$ on MM DEL-aware), the proposed fixes give substantial reductions in cost \emph{and} substantial gains in reward (\cref{tab:fix_recovery}).
+Both fixes drive $\sigma_{\mathrm{eff}}$ to $\sim$0 on the hazardous turbines (the 1-step probe correctly rejects safe moves that increase DEL), and engage $\sigma$ only on turbines where safe actually helps.
+The argmin variant is slightly tighter (binary commitment) but qualitatively matches rejection.
+
+\begin{table}[h]
+\centering
+\caption{Worst-case alignment-hazard regime ($\sigma=0.7$, $y^{\mathrm{tgt}}=+25^\circ$, MM DEL-aware actor): linear blend vs cost-monotone fixes.}
+\label{tab:fix_recovery}
+\small
+\begin{tabular}{lrrr}
+\toprule
+Mode & Power (GW-step) & DEL\textsubscript{tot} & $\sigma_{\mathrm{eff}}$ mean (T0, T1, T2) \\
+\midrule
+Linear & 1.50 & 65029 & $(0.70, 0.70, 0.70)$ \\
+Rejection & 1.72 & 62574 & $(0.15, 0.34, 0.26)$ \\
+Argmin & 1.73 & 62734 & $(0.20, 0.33, 0.36)$ \\
+\midrule
+\multicolumn{2}{l}{\emph{Improvement vs linear:}} & $-3.8\%$ DEL & $+15.3\%$ power \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Generalisation across the hazard sweep.}
+Tables in App.~\ref{app:full_sweep} report the full linear/rejection/argmin × $y^{\mathrm{tgt}}$ grids for all three actor-layout combinations.
+On MM (both actors) the linear curve has a clear DEL bulge centred at $y^{\mathrm{tgt}}=0$ (where blend yaw crosses zero); rejection/argmin recover the linear curve's endpoint values and never produce intermediate-yaw bulges.
+On stag4\_5d (DEL-aware) all three modes are monotone (no hazard regime exists for this actor's operating point with the swept $\pi_{\mathrm{safe}}$).
+
+\textbf{Safety Gymnasium: hazard appears in 2D navigation too.}
+We repeat the $\pi_{\mathrm{safe}}$-direction sweep in Safety Gymnasium PointGoal1 with an APF (artificial-potential-field) safety controller rotated by $\theta \in \{0, \pi/4, \pi/2, 3\pi/4, \pi\}$ (the rotation breaks the safe-direction alignment without changing magnitudes).
+\Cref{tab:sg_hazard} shows the worst-case $\theta=3\pi/4$ regime: linear blend incurs $C=483$ (and $R\approx 0.5$, near-zero goal progress), while rejection cuts cost to $C=50$ and argmin to $C=15$, both retaining reward $R\approx 27$ matching $\pi_{\mathrm{perf}}$ alone.
+The hazard exists in directional action manifolds beyond yaw control.
+
+\begin{table}[h]
+\centering
+\caption{Safety-Gym worst-case alignment-hazard regime ($\sigma=0.7$, $\theta=3\pi/4$, PointGoal1, $n=10$ ep): linear blend vs fixes.}
+\label{tab:sg_hazard}
+\small
+\begin{tabular}{lrr}
+\toprule
+Mode & Reward & Cost \\
+\midrule
+Linear & $0.50 \pm 2.75$ & $483 \pm 108$ \\
+Rejection & $27.08 \pm 1.35$ & $50 \pm 16$ \\
+Argmin & $27.30 \pm 0.93$ & $15 \pm 16$ \\
+$\pi_{\mathrm{perf}}$ alone (reference) & $27$ & $45$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
 \subsection{Wind Farm: High Coupling, Two Working Variants}
 \label{sec:wf_results}
 
