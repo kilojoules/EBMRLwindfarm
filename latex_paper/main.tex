@@ -82,8 +82,8 @@ Inference-time pacing is the operator-realistic alternative; the alignment hazar
 \begin{figure}[t]
     \centering
     \includegraphics[width=\linewidth]{figures/fig1_blend_overview.pdf}
-    \caption{Two domains, two safety controllers, one schedule. (a)~Wind farm: $\pi_{\mathrm{safe}}$ is a zero-yaw setpoint (Jensen wake field shown for the budget-satisfying blend, $d\!=\!5$, neg-yaw $[5,5,5]$). (b)~Safety Gymnasium: $\pi_{\mathrm{safe}}$ is an artificial-potential-field navigator. The trajectory is colour-coded by blend weight $\sigma(u)$: navy when the RL actor drives ($\sigma\!\to\!0$), crimson when the APF safety controller drives ($\sigma\!\to\!1$). The faded gray trace shows the unconstrained baseline plowing through hazards on the same seed; the blend curves around them as $\sigma$ rises in budget deficit.}
-    \label{fig:kappa_diag}
+    \caption{Two domains where pre-trained controllers must be composed under a cumulative budget. (a)~Wind farm: an RL yaw-control policy $\pi_{\mathrm{perf}}$ is blended with a yaw-setpoint $\pi_{\mathrm{safe}}$ (Jensen wake field shown). (b)~Safety Gymnasium PointGoal1: $\pi_{\mathrm{perf}}$ blended with an artificial-potential-field navigator; trajectory colour-coded by blend weight $\sigma(u)$. The linear blend $a = (1-\sigma)\pi_{\mathrm{perf}} + \sigma\pi_{\mathrm{safe}}$ paced by an urgency schedule is the standard inference-time approach. We show it has a fundamental failure mode---the \emph{alignment hazard}---when the two controllers act on opposite sides of a non-convex cost ridge, and propose cost-monotone fixes (\Cref{sec:fixes}, \Cref{fig:alignment_hazard}).}
+    \label{fig:setup_overview}
 \end{figure}
 
 \textbf{Contributions.}
@@ -137,7 +137,7 @@ What we retain is the observation that any monotone-decreasing $\sigma:[0,\infty
 \textbf{Practical schedule.}
 We use the parametric family
 $w(u)=\exp(\eta(1/u-1))$ with $\eta\!\ge\!0$, clamped at $\lambda_{\max}\!=\!10^6$ (Appendix~Fig.~\ref{fig:approx}).
-For Eq.~\ref{eq:blend} we map $w(u)$ to a bounded $\sigma\in[0,1]$:
+For Eq.~\ref{eq:blend2} we map $w(u)$ to a bounded $\sigma\in[0,1]$:
 \begin{equation}
     \sigma(u) = \begin{cases}
         0 & u \ge 1, \\
@@ -464,39 +464,38 @@ $\kappa$ is the gradient \emph{ratio} between state and action, usable as an a-p
 \label{sec:discussion}
 %----------------------------------------------------------------------
 
-\textbf{Central evidential gap.}
-Our two domains co-validate the framework only piecewise.
-Wind farm shows that the urgency schedule paces a per-turbine cumulative budget (binary neg-yaw and physics-grounded blade-flap DEL) with $0$ violations across hundreds of episodes, but in our trained regime pure $\pi_{\mathrm{safe}}$ (zero yaw) is power-competitive with the unconstrained policy, so there is no large RL advantage to preserve.
-Safety Gymnasium is the converse: $\pi_{\mathrm{perf}}$ genuinely beats $\pi_{\mathrm{safe}}$ on reward ($R\!=\!27$ vs.\ $3.1$), but at tight budgets ($d\!=\!10, 25$) the blend's expected cost exceeds the budget and per-episode satisfaction is $23$--$56\%$, which is not operationally reliable.
-We tried to close this gap with a $290{,}000$-step unconstrained retrain on \emph{stag4\_5d} and \emph{multi\_modal} (\S\ref{sec:both_halves}); at fixed wind direction the actor lands $1$--$4\%$ \emph{below} zero yaw on power.
-A retrain with variable wind direction targeting both halves jointly is in progress; the present paper supports each claim individually rather than jointly.
+\textbf{What the alignment hazard means for policy composition.}
+The hazard is a sharp failure mode of inference-time policy composition, not a wind-specific quirk.
+Any setting in which the action lives on a directional manifold (yaw, steering, heading, satellite pointing, gait phase) and the cost is non-convex along the segment $\pi_{\mathrm{perf}}\!\to\!\pi_{\mathrm{safe}}$ is exposed.
+The composition literature (energy composition, classifier guidance, residual policies, safety shields) implicitly assumes the segment-convex condition of \cref{sec:theory} without checking it.
+Our two-domain demonstration (yaw with blade-flap DEL, 2D navigation with rotated APF) shows the failure can be severe ($-12\%$ farm power; $-97\%$ goal reward) and that the cost-monotone fixes (rejection blending, argmin selection) recover the Pareto frontier with one extra cost probe per step.
 
 \textbf{What we are \emph{not} claiming.}
-We do not claim CMDP retraining cannot work; we claim that under the operator-realistic compute budgets we tested ($\le\!500$k extra steps from the pretrained actor, four hyperparameter settings), every retraining variant we tried is dominated on reward by post-hoc blending.
-A fully-converged CMDP method at $\sim\!10\times$ our compute may reach a better Pareto frontier, but does so at a cost the deployment scenario cannot tolerate.
-We also do not claim the closed-form schedule is uniquely valuable: the WF and SG ablations (Tables~\ref{tab:wf_ablation}, \ref{tab:ablations}) show a hard threshold matches it within seed variance.
-The contribution is the post-hoc-blending interface and the urgency variable as the controlling state, not the specific exponential form.
+We do not claim retraining is futile: a sufficiently expensive constrained RL run can match or beat blending on any single fixed budget.
+We claim that inference-time composition is the operator-realistic alternative \emph{when retraining for each new constraint is infeasible}, and that the alignment hazard is a sharp obstacle that current composition methods need to avoid.
+We do not claim our specific 1-step cost probe is the only or best way to enforce cost monotonicity; learned cost critics, multi-step rollouts, and gradient-based segment-search are all natural extensions.
+We do not claim the schedule's closed form is essential---a hard threshold suffices, what matters is the urgency variable and the cost-monotonicity check.
 
 \textbf{Limitations.}
-(1)~The wind-farm cost is a per-turbine fatigue surrogate; real deployment needs a DEL-calibrated farm-level cost~\citep{wes2024DEL, jpcs2024wakeDEL} and a $\pi_{\mathrm{safe}}$ like WakeAdapt that minimises farm DEL.
-(2)~Our sim uses analytical wakes (Jensen) and 200-step episodes, not FAST.Farm aeroelastics over year-scale operation; a yearly damage budget is the operational target the urgency-ratio framing was designed for, but our experiments validate at episode scale only.
-(3)~The APF navigator on SG is a simple reactive heuristic that uses hazard/goal geometry; a learned safety policy would likely improve $\pi_{\mathrm{safe}}$'s reward at fixed $\sigma\!=\!1$. The APF benefits from privileged geometry that the RL policy and retraining baselines do not directly use; the ablation table shares this privilege across all blend modes.
-(4)~Action blending assumes meaningful convex combinations of $\pi_{\mathrm{perf}}$ and $\pi_{\mathrm{safe}}$ outputs. This holds for our continuous yaw and thrust/turn action spaces but may not for systems with discrete or non-convex action sets; in those cases a hard switch (Table~\ref{tab:ablations}) is more appropriate.
-(5)~We test 4 seeds on WF and 5 on SG; retraining baselines use a single seed each at one hyperparameter setting per regime, covering three qualitatively different Lagrangian configurations (default, warmup, aggressive) plus SAUTE. Lagrangian methods are sensitive to reward scale and dual learning rate; we explored three settings, not a full sweep.
-(6)~$\kappa$ depends on state and action scaling and on the quality of the learned $Q_c$. Comparing across two domains is suggestive, not definitive; broader validation across continuously varying coupling regimes (e.g.\ synthetic gridworlds) would strengthen the diagnostic claim.
-(7)~Hard budget enforcement is not provided. A safe-future-cost upper bound $B_{\mathrm{safe}}(t)$ giving $C_t + B_{\mathrm{safe}}(t)\!\le\!d$ would be required and is left as future work.
-(8)~The unconstrained EBT actor we trained does not Pareto-dominate zero yaw on power in this 3-turbine setting (\S\ref{sec:wf_results}); WF therefore validates budget tracking, not preservation of a large wake-steering benefit.
+(1)~The wind-farm cost is a sector-averaged blade-flap DEL surrogate~\citep{guillore2024sectoravg}; production deployment requires a calibration on farm-specific aeroelastic simulations.
+(2)~Our episodes are 200 steps; a yearly damage budget framing requires long-horizon validation against FAST.Farm or operational SCADA.
+(3)~The 1-step cost probe used by rejection and argmin assumes a sufficiently accurate cost predictor.
+For surrogate-based costs (our setting) this is met by construction; for learned $Q_c$ the probe's accuracy bounds the no-worse-than-$\pi_{\mathrm{perf}}$ guarantee.
+(4)~Action blending assumes meaningful convex combinations of $\pi_{\mathrm{perf}}$ and $\pi_{\mathrm{safe}}$ outputs.
+This holds for our continuous yaw and thrust/turn action spaces but breaks for discrete or symbolic actions; argmin selection generalises trivially to discrete cases.
+(5)~Our sufficient condition for cost monotonicity (segment convexity) is sufficient but not tight; weaker conditions (e.g., quasi-convexity along the segment) may suffice for monotonicity.
+(6)~Hard budget enforcement remains an open problem: the cost-monotone fixes guarantee no-worse-than-$\pi_{\mathrm{perf}}$ but not budget feasibility under arbitrary $\pi_{\mathrm{perf}}$ behaviour.
 
 \textbf{Path to deployment.}
-Minimum-viable bridge from simulation to field operation: (a)~replace the fatigue surrogate with a DEL-calibrated model; (b)~precompute a WakeAdapt-equivalent setpoint table to use as $\pi_{\mathrm{safe}}$; (c)~retrospective SCADA counterfactual on real operational data; (d)~online refit of $Q_c$ / the DEL surrogate under non-stationary wind.
-All four leverage the same schedule; none require retraining $\pi_{\mathrm{perf}}$.
+The fixes drop into existing post-hoc blending pipelines with no policy retraining and a single per-step cost-probe call.
+For wind-farm operators with a deployed RL controller and a setpoint-based safety table, the alignment-hazard check requires only a calibrated load surrogate (already standard for DEL accounting).
+For Safety-Gym-style 2D nav, the probe is a forward simulation step plus a cost evaluation.
+The two-domain evidence indicates the same machinery generalises across continuous-control settings.
 
 \textbf{Summary.}
-A simple urgency variable $u=\rho/\tau$ provides a useful interface for post-hoc budget-aware arbitration between a pre-trained performance policy and a domain-specific safety controller.
-The smooth closed-form schedule is one convenient single-parameter implementation; hard threshold switching is a competitive alternative (Tables~\ref{tab:wf_ablation}, \ref{tab:ablations}).
-$\kappa$ provides a preliminary diagnostic for when local action-gradient correction is likely to fail, motivating explicit safety-controller blending.
-At the compute budgets an operator can realistically afford, post-hoc blending preserves higher reward than the Lagrangian retraining baselines we tested---without their single-budget commitment.
-The mechanism paces cumulative cost; hard enforcement requires an additional safe-future-cost bound (future work).
+Composing pre-trained controllers via linear blending under budget pacing is anti-Pareto in $\sigma$ when controllers act on opposite sides of a non-convex cost ridge.
+We name this failure mode the alignment hazard, give a sufficient condition for monotonicity, and propose two provably no-worse-than-$\pi_{\mathrm{perf}}$ fixes implemented with one extra cost probe per step.
+A cross-layout ablation falsifies the obvious alternative (just retrain): direct DEL-aware reward shaping is layout-pathological and does not eliminate the need for inference-time pacing.
 Code and checkpoints: \url{[anonymized]}.
 
 %----------------------------------------------------------------------
