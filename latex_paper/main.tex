@@ -64,7 +64,7 @@ Yaw is a directional setpoint on a manifold, not a scalar utility.
 Blade-flap damage-equivalent load (DEL) peaks when the rotor is aligned with the wind, drops on either side of misalignment, and recovers at large magnitudes.
 When $\pi_{\mathrm{perf}}$ yaws negative and $\pi_{\mathrm{safe}}$ yaws positive, the linear midpoint $\sigma=0.5$ produces \emph{zero yaw}---the cost maximum.
 In our wind-farm experiment, sweeping $\pi_{\mathrm{safe}}$ direction at fixed $\sigma=0.7$ produces a clean U-shaped DEL bulge: linear blend incurs $+3.0\%$ DEL and $-12\%$ farm power relative to both endpoints (\Cref{fig:alignment_hazard}a, \Cref{tab:linear_hazard_mm}).
-We name this the \textbf{alignment hazard} and show in \Cref{sec:theory} that it arises whenever cost is non-convex along the segment $\pi_{\mathrm{perf}}\!\to\!\pi_{\mathrm{safe}}$.
+We name this the \textbf{alignment hazard} and show in \Cref{sec:monotone_theory} that it arises whenever cost is non-convex along the segment $\pi_{\mathrm{perf}}\!\to\!\pi_{\mathrm{safe}}$.
 On Safety Gymnasium PointGoal1 with a rotated artificial-potential-field controller (\Cref{fig:alignment_hazard}b), the same phenomenon shows up as a $10\times$ cost spike and near-zero reward at intermediate rotations.
 
 \textbf{The fix.}
@@ -88,7 +88,7 @@ Inference-time pacing is the operator-realistic alternative; the alignment hazar
 
 \textbf{Contributions.}
 (1)~We identify the \textbf{alignment hazard}: linear blending of pre-trained controllers under budget pacing is not cost-monotone in $\sigma$ when controllers act on opposite sides of a non-convex cost ridge (\Cref{sec:hazard}).
-(2)~A \emph{sufficient condition} for monotonicity (cost convex on the segment $\pi_{\mathrm{perf}}\!\to\!\pi_{\mathrm{safe}}$) with a clean minimal counterexample (\Cref{sec:theory}).
+(2)~A \emph{sufficient condition} for monotonicity (cost convex on the segment $\pi_{\mathrm{perf}}\!\to\!\pi_{\mathrm{safe}}$) with a clean minimal counterexample (\Cref{sec:monotone_theory}).
 (3)~Two cost-monotone fixes---\textbf{rejection blending} and \textbf{argmin selection}---built on a single per-step cost probe, both provably no-worse-than-$\pi_{\mathrm{perf}}$ (\Cref{sec:fixes}).
 (4)~Empirical demonstration in two domains: wind-farm yaw control with a physics-grounded blade-flap DEL surrogate, and Safety Gymnasium 2D navigation (\Cref{sec:hazard_wf}).
 (5)~A cross-layout ablation showing the obvious alternative (retrain with a DEL-aware reward) is not a universal substitute: $\beta=1$ direct reward shaping gives Pareto-improving behaviour on one layout and a load/power trade-off on another, so inference-time pacing remains required when retraining for every constraint is infeasible.
@@ -259,7 +259,7 @@ Wind-turbine blade-flap damage equivalent load (DEL) is exactly this case: aerod
 When $\pi_{\mathrm{perf}}$ yaws negative (e.g., $-15^\circ$) and $\pi_{\mathrm{safe}}$ yaws positive (e.g., $+7.5^\circ$), the linear blend at intermediate $\sigma$ crosses the neutral $0^\circ$ ridge.
 
 \subsection{Cost-Monotonicity: A Sufficient Condition}
-\label{sec:theory}
+\label{sec:monotone_theory}
 
 \textbf{Proposition (cost-convex segment is monotone).}
 Let $A(s,\sigma) = (1-\sigma)\pi_{\mathrm{perf}}(s) + \sigma\pi_{\mathrm{safe}}(s)$.
@@ -375,7 +375,7 @@ $+25^\circ$ & 1.50 & 21699 & 21690 & 21640 & 65029 \\
 On stag4\_5d, the DEL-aware actor settles at positive yaws $\bar y \approx [+17, +10, +3, -5]$.
 Sweeping the same $\pi_{\mathrm{safe}}$ grid produces a \emph{monotone} power-vs-DEL trade-off, not a U-shape: $y^{\mathrm{tgt}}=-25$ (opposite to actor) gives lowest DEL (20300/turb) at lowest power (2.24~GW-step), and $y^{\mathrm{tgt}}=+25$ (same side, extended) gives highest power (2.92~GW-step) at higher DEL (23590/turb).
 \emph{The alignment hazard requires $\pi_{\mathrm{perf}}$ and $\pi_{\mathrm{safe}}$ to straddle the cost ridge.}
-When the segment $\pi_{\mathrm{perf}}\!\to\!\pi_{\mathrm{safe}}$ stays on one side of the DEL peak, cost is monotone in $\sigma$ (segment-convex condition of \cref{sec:theory} holds approximately).
+When the segment $\pi_{\mathrm{perf}}\!\to\!\pi_{\mathrm{safe}}$ stays on one side of the DEL peak, cost is monotone in $\sigma$ (segment-convex condition of \Cref{sec:monotone_theory} holds approximately).
 
 \textbf{Rejection and argmin recover Pareto.}
 At the worst-case linear blend regime ($y^{\mathrm{tgt}}=+25$ on MM DEL-aware), the proposed fixes give substantial reductions in cost \emph{and} substantial gains in reward (\cref{tab:fix_recovery}).
@@ -467,7 +467,7 @@ $\kappa$ is the gradient \emph{ratio} between state and action, usable as an a-p
 \textbf{What the alignment hazard means for policy composition.}
 The hazard is a sharp failure mode of inference-time policy composition, not a wind-specific quirk.
 Any setting in which the action lives on a directional manifold (yaw, steering, heading, satellite pointing, gait phase) and the cost is non-convex along the segment $\pi_{\mathrm{perf}}\!\to\!\pi_{\mathrm{safe}}$ is exposed.
-The composition literature (energy composition, classifier guidance, residual policies, safety shields) implicitly assumes the segment-convex condition of \cref{sec:theory} without checking it.
+The composition literature (energy composition, classifier guidance, residual policies, safety shields) implicitly assumes the segment-convex condition of \Cref{sec:monotone_theory} without checking it.
 Our two-domain demonstration (yaw with blade-flap DEL, 2D navigation with rotated APF) shows the failure can be severe ($-12\%$ farm power; $-97\%$ goal reward) and that the cost-monotone fixes (rejection blending, argmin selection) recover the Pareto frontier with one extra cost probe per step.
 
 \textbf{What we are \emph{not} claiming.}
@@ -575,7 +575,7 @@ The first peak is the blend-through-zero failure (segment-convexity violation at
 The second peak at $y^{\mathrm{tgt}}=+25$ reflects saturated wake misalignment at large positive yaw, which the surrogate captures.
 Rejection and argmin remove both peaks: $\sigma_{\mathrm{eff}}\to 0$ on turbines where the safe move would worsen DEL, so the blend stays close to $\pi_{\mathrm{perf}}$'s natural operating point unless safe genuinely helps.
 On stag4\_5d (\Cref{tab:sweep_stag4}), the actor's positive-yaw operating point puts the entire $y^{\mathrm{tgt}}\ge 0$ sweep on one side of the DEL ridge: linear is monotone in $y^{\mathrm{tgt}}$, and all three modes produce comparable curves.
-This is the regime where the segment-convex condition of \cref{sec:theory} holds and the linear blend is itself cost-monotone.
+This is the regime where the segment-convex condition of \Cref{sec:monotone_theory} holds and the linear blend is itself cost-monotone.
 
 \section{Auxiliary Linear-Blend Validation (Pre-Hazard-Discovery)}
 \label{app:auxiliary}
@@ -725,7 +725,7 @@ urgency $\eta\!=\!3$                    & $96.9\!\pm\!4.7\%$  & 73.9 & 76.4 & 3/
 \label{app:deployment}
 
 \begin{enumerate}[leftmargin=*]
-    \item \textbf{DEL-calibrated cost}: replace per-turbine surrogate with a control-oriented DEL model~\citep{wes2024DEL, jpcs2024wakeDEL}.
+    \item \textbf{DEL-calibrated cost}: replace per-turbine surrogate with a control-oriented DEL model~\citep{wes2024DEL, guillore2024sectoravg}.
     \item \textbf{WakeAdapt-equivalent $\pi_{\mathrm{safe}}$}: precompute $T(\bar v, \bar\phi)\to\{y_i\}$ minimising farm DEL.
     \item \textbf{SCADA counterfactual}: retrospective evaluation on real operational data.
     \item \textbf{Non-stationary wind}: online refit of $Q_c$ / DEL surrogate; concept-drift detection.
