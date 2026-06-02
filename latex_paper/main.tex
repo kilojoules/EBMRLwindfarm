@@ -26,7 +26,7 @@
 \newcommand{\cf}{\textit{cf.}}
 \newcommand{\etal}{\textit{et al.}}
 
-\title{The Alignment Hazard: Why Linear Blending of Pre-Trained Policies Can Be Anti-Pareto, and a Cost-Monotone Fix}
+\title{The Alignment Hazard: Anti-Pareto Failure of Inference-Time Policy Composition on Directional Action Manifolds}
 
 \author{Julian Quick\thanks{\texttt{juqu@dtu.dk}} \\ Marcus Binder Nilsen \\
 DTU Wind Energy, Technical University of Denmark}
@@ -36,14 +36,15 @@ DTU Wind Energy, Technical University of Denmark}
 \maketitle
 
 \begin{abstract}
-Composing pre-trained controllers at inference is an attractive alternative to retraining under new safety constraints: blend a performance policy $\pi_{\mathrm{perf}}$ with a safety controller $\pi_{\mathrm{safe}}$ via $a=(1-\sigma)\pi_{\mathrm{perf}} + \sigma\pi_{\mathrm{safe}}$, where $\sigma\in[0,1]$ is paced by a budget urgency ratio in the style of optimal execution~\citep{almgren2001optimal}.
-We identify a \textbf{fundamental failure mode} of this scheme on directional action manifolds: when the controllers act on opposite sides of a non-convex cost ridge, the linear midpoint can have cost \emph{strictly higher than either endpoint}---the schedule is \emph{anti-Pareto in $\sigma$}.
+Long-horizon load and lifetime-fatigue budgets are most accurately modelled as \emph{anytime constraints}~\citep{mcmahan2024anytime}---budgets that must not be exceeded at any time, almost surely---and are typically slack within any single episode.
+A natural inference-time approach to such budgets composes a pre-trained performance policy $\pi_{\mathrm{perf}}$ with a safety controller $\pi_{\mathrm{safe}}$ via $a=(1-\sigma)\pi_{\mathrm{perf}} + \sigma\pi_{\mathrm{safe}}$, where $\sigma\in[0,1]$ is paced by a budget urgency ratio in the style of optimal execution~\citep{almgren2001optimal} or reservoir water-value control~\citep{tilmant2008water, you2008hedging}.
+We identify a sharp, previously-unreported failure mode of this scheme on \emph{directional action manifolds}: when the controllers act on opposite sides of a non-convex cost ridge, the linear midpoint can have cost \emph{strictly higher than either endpoint}---the schedule is \emph{anti-Pareto in $\sigma$}.
 We call this the \textbf{alignment hazard}, give a sufficient condition for cost-monotonicity (cost convex along the segment $\pi_{\mathrm{perf}}\to\pi_{\mathrm{safe}}$), and demonstrate the phenomenon empirically in two domains.
-On wind-farm yaw control with a physics-grounded blade-flap DEL surrogate~\citep{guillore2024sectoravg}, sweeping $\pi_{\mathrm{safe}}$ direction at fixed $\sigma=0.7$ produces a clean U-shaped DEL bulge peaking where the blend yaw crosses zero: linear blend incurs $+3.0\%$ DEL and $-12\%$ farm power relative to both endpoints.
+On wind-farm yaw control with a physics-grounded blade-flap DEL surrogate~\citep{guillore2024sectoravg}, sweeping $\pi_{\mathrm{safe}}$ direction at fixed $\sigma=0.7$ produces a clean U-shaped DEL bulge peaking where the blend yaw crosses zero: linear blend at the zero-crossing regime incurs $+1.1\%$ DEL and $-15\%$ farm power relative to its better endpoint (Table~\ref{tab:linear_hazard_mm}).
 On Safety Gymnasium PointGoal1, rotating the safety controller's direction by $3\pi/4$ exposes the same failure: linear blend cost $C=483$, near-zero goal reward $R=0.5$.
 We propose two cost-monotone fixes implemented with one extra cost probe per step: \textbf{rejection blending} (engage $\sigma$ only if the probe confirms $\pi_{\mathrm{safe}}$ helps) and \textbf{argmin selection} (binary commitment).
 Both are provably no-worse-than-$\pi_{\mathrm{perf}}$.
-Empirically they recover the Pareto frontier the linear blend misses: $-3.8\%$ DEL and $+15.3\%$ power on the worst-case wind-farm sweep, $-97\%$ cost and $54\!\times$ reward on Safety Gymnasium.
+Empirically they recover the Pareto frontier the linear blend misses: at the zero-crossing hazard regime on multi\_modal, rejection blending gains $+6.8\%$ farm power and $-0.6\%$ DEL versus linear (Table~\ref{tab:fix_recovery_zero}); on Safety Gymnasium at the worst-case rotation, $-97\%$ cost and $55\!\times$ reward (Table~\ref{tab:sg_hazard}).
 A cross-layout ablation rules out the obvious objection ``just retrain with a DEL-aware reward'': $\beta\!=\!1$ DEL-aware training gives Pareto-improving behaviour on one layout and a $+5$--$7\%$ DEL trade-off on another, so deployment-time pacing remains required when retraining for every constraint is infeasible.
 \end{abstract}
 
@@ -56,14 +57,19 @@ A cross-layout ablation rules out the obvious objection ``just retrain with a DE
 A wind-farm operator deploys an RL controller for coordinated yaw wake steering; it was trained unconstrained and works well.
 A new constraint arrives: per-turbine blade-flap fatigue must stay within a yearly budget tied to bearing-replacement schedules.
 Retraining the controller for each new budget target is expensive; the operator already has a conservative yaw setpoint table.
-A natural fix is to \emph{blend the two at inference}, $a_t = (1-\sigma_t)\pi_{\mathrm{perf}} + \sigma_t\pi_{\mathrm{safe}}$, pacing $\sigma_t$ against the budget using the urgency intuition from optimal execution~\citep{almgren2001optimal}.
-This paper shows that this natural fix has a \emph{fundamental failure mode}, and proposes a cheap, provably cost-monotone replacement.
+
+\textbf{An instance of an old problem class.}
+Long-horizon lifetime budgets are formalised as \emph{anytime constraints}~\citep{mcmahan2024anytime}: cumulative cost may not exceed the budget at any time, almost surely.
+The same structure has been studied for decades in reservoir and hydropower operation~\citep{tilmant2008water, you2008hedging}, where the dual price on stored water (``water value'') is computed via stochastic programming and determines release decisions.
+This paper does not introduce that problem class; it studies one inference-time approach to it, and a sharp failure mode of that approach.
+A natural fix to deploy is to \emph{blend the two existing controllers at inference}, $a_t = (1-\sigma_t)\pi_{\mathrm{perf}} + \sigma_t\pi_{\mathrm{safe}}$, pacing $\sigma_t$ against the budget using the urgency intuition from optimal execution~\citep{almgren2001optimal}.
+We show this natural fix has a sharp failure mode on directional action manifolds, and propose a cheap, provably cost-monotone replacement.
 
 \textbf{The alignment hazard.}
 Yaw is a directional setpoint on a manifold, not a scalar utility.
 Blade-flap damage-equivalent load (DEL) peaks when the rotor is aligned with the wind, drops on either side of misalignment, and recovers at large magnitudes.
 When $\pi_{\mathrm{perf}}$ yaws negative and $\pi_{\mathrm{safe}}$ yaws positive, the linear midpoint $\sigma=0.5$ produces \emph{zero yaw}---the cost maximum.
-In our wind-farm experiment, sweeping $\pi_{\mathrm{safe}}$ direction at fixed $\sigma=0.7$ produces a clean U-shaped DEL bulge: linear blend incurs $+3.0\%$ DEL and $-12\%$ farm power relative to both endpoints (\Cref{fig:alignment_hazard}a, \Cref{tab:linear_hazard_mm}).
+In our wind-farm experiment, sweeping $\pi_{\mathrm{safe}}$ direction at fixed $\sigma=0.7$ produces a clean U-shaped DEL bulge centred at the zero-crossing regime: at $y^{\mathrm{tgt}}=0$ the linear blend incurs $+1.1\%$ DEL above its better endpoint and $-15\%$ farm power (\Cref{fig:alignment_hazard}a, \Cref{tab:linear_hazard_mm}).
 We name this the \textbf{alignment hazard} and show in \Cref{sec:monotone_theory} that it arises whenever cost is non-convex along the segment $\pi_{\mathrm{perf}}\!\to\!\pi_{\mathrm{safe}}$.
 On Safety Gymnasium PointGoal1 with a rotated artificial-potential-field controller (\Cref{fig:alignment_hazard}b), the same phenomenon shows up as a $10\times$ cost spike and near-zero reward at intermediate rotations.
 
@@ -71,7 +77,7 @@ On Safety Gymnasium PointGoal1 with a rotated artificial-potential-field control
 We propose two cost-monotone replacements for the linear blend.
 \textbf{Rejection blending} engages $\sigma$ only when a per-step cost probe confirms $\pi_{\mathrm{safe}}$ helps; \textbf{argmin selection} commits to whichever of $\{\pi_{\mathrm{perf}}, \pi_{\mathrm{safe}}\}$ has lower 1-step probe cost.
 Both require one extra cost evaluation per step (a surrogate forward pass or critic call) and are provably no-worse-than-$\pi_{\mathrm{perf}}$.
-Empirically they recover the Pareto frontier the linear blend collapses: $-3.8\%$ DEL and $+15.3\%$ power on the worst-case wind-farm sweep; $C=15$ vs $C=483$ and $R=27$ vs $R=0.5$ on Safety Gymnasium.
+Empirically they recover the Pareto frontier the linear blend collapses: at the zero-crossing hazard ($y^{\mathrm{tgt}}=0$) on multi\_modal, rejection blending gains $+6.8\%$ power and $-0.6\%$ DEL versus linear; on Safety Gymnasium at the worst-case rotation, $C\!=\!15$ vs $C\!=\!483$ and $R\!=\!27$ vs $R\!=\!0.5$.
 
 \textbf{What about ``just retrain''?}
 The natural objection is that direct reward shaping (e.g., DEL-aware $r' = r - \beta\sum_i\mathrm{DEL}_i$) makes inference-time pacing unnecessary.
@@ -96,7 +102,7 @@ Inference-time pacing is the operator-realistic alternative; the alignment hazar
 \textbf{Deployment claim.}
 The method drops into systems that already have an RL performance policy, a domain-specific safety controller, and a damage estimator---none of which are retrained.
 The schedule decides when to pace toward the safety controller as budget pressure builds.
-We \emph{do not} claim hard budget enforcement: APF on Safety Gym is reactive and can still incur cost (\S\ref{sec:sg_results}); true enforcement requires a backup invariant such as $C_t + B_{\mathrm{safe}}(t)\!\le\!d$ where $B_{\mathrm{safe}}$ upper-bounds future $\pi_{\mathrm{safe}}$ cost, which we leave to future work.
+We \emph{do not} claim hard budget enforcement: APF on Safety Gym is reactive and can still incur cost (App.~\ref{app:auxiliary}); true enforcement requires a backup invariant such as $C_t + B_{\mathrm{safe}}(t)\!\le\!d$ where $B_{\mathrm{safe}}$ upper-bounds future $\pi_{\mathrm{safe}}$ cost, which we leave to future work.
 
 \textbf{Constraint type.}
 We adopt the \emph{expected-cost CMDP} formulation: $\mathbb{E}_\pi[\sum_t c_t]\!\le\!d$.
@@ -107,17 +113,26 @@ Expected-cost feasibility is what tables score; per-episode satisfaction rate is
 \label{sec:background}
 %----------------------------------------------------------------------
 
+\textbf{Constraint type.}
+Long-horizon load and lifetime-fatigue budgets are most accurately modelled as \emph{anytime constraints}~\citep{mcmahan2024anytime}: the cumulative cost may not exceed the budget at any time, almost surely.
+\citet{mcmahan2024anytime} show that anytime-feasible Markovian policies are insufficient in general; the state must be augmented with the accumulated cost.
+This is also the augmentation SAUTE~\citep{sootla2022saute} uses ($\rho_t$ = remaining budget fraction) for retraining-time pacing.
+We adopt the expected-cost CMDP relaxation~\citep{altman1999constrained, ray2019safetygym} as a tractable surrogate, because tractable post-hoc methods are mainly available for the relaxation; the gated fixes we propose (\S\ref{sec:fixes}) guarantee no-worse-than-$\pi_{\mathrm{perf}}$ cost monotonicity, not anytime feasibility.
+Closing this gap (e.g., via a backup invariant $C_t + B_{\mathrm{safe}}(t)\!\le\!d$ where $B_{\mathrm{safe}}$ upper-bounds future $\pi_{\mathrm{safe}}$ cost) is future work.
+
 \textbf{Constrained MDPs and Lagrangian methods.}
 A CMDP~\citep{altman1999constrained} adds cost-return constraints to the MDP objective: $\max_\pi \mathbb{E}_\pi[\sum_t r_t]$ subject to $\mathbb{E}_\pi[\sum_t c_t] \leq d$~\citep{ray2019safetygym, achiam2017cpo}.
 SAC-Lagrangian~\citep{stooke2020responsive} learns a dual variable $\mu$ during training; PID-Lag and CPO~\citep{achiam2017cpo} add stability tweaks.
 None of these are post-hoc: changing $d$ requires a new policy.
 
-\textbf{SAUTE} \citep{sootla2022saute} augments the state with $\rho_t$---the very urgency variable our schedule uses---and trains SAC on the augmented MDP with a budget-violation penalty.
-This is the closest CMDP method to ours conceptually, and we run it as a baseline (\S\ref{sec:sg_results}).
+\textbf{Marginal value of stored resource.}
+The urgency-ratio schedule we use is a heuristic stand-in for the dual price on a cumulative constraint.
+The same structure appears in reservoir/hydropower operation~\citep{tilmant2008water, you2008hedging} under names like ``water value'' or ``marginal value of stored resource'': release water until the current marginal return equals the marginal expected future loss from depletion; the constraint binds rarely because storage capacity is typically slack, and the dual price is the controlling state.
+We make no optimality claim; the schedule is one monotone candidate among many (\S\ref{sec:theory}).
 
 \textbf{Post-hoc composition.}
 Energy composition~\citep{urain2023composable, gladstone2025ebt}, classifier guidance~\citep{zhang2025constrained}, control-barrier functions~\citep{xiao2023safediffuser}, and input-convex corrections~\citep{durkin2025picnn} modify pre-trained policies at inference for \emph{instantaneous} constraints.
-We extend this tradition to \emph{cumulative} budgets via a time-varying weight.
+We extend this tradition to \emph{cumulative} budgets via a time-varying weight, and show the natural linear-blend extension has a sharp failure mode (\S\ref{sec:hazard}).
 
 \textbf{Multi-objective scalarisation.}
 A fixed $\alpha P - (1-\alpha)D$ trade-off is memoryless.
@@ -253,8 +268,14 @@ modelling a load whose peak is at the neutral action.
 Then $a(\sigma) = -1 + 2\sigma$, so $C[a(0)] = C[a(1)] = e^{-1} \approx 0.37$, while $C[a(0.5)] = c(0) = 1$.
 The linear blend at $\sigma=0.5$ has $\sim2.7\times$ the cost of either endpoint.
 
+\textbf{This is not just Jensen's inequality.}
+That a non-convex function's midpoint can exceed its endpoints is elementary in the abstract.
+Our contribution is twofold.
+First, we identify that the \emph{composition literature}---energy composition~\citep{urain2023composable}, classifier guidance~\citep{zhang2025constrained}, control-barrier-function shields~\citep{xiao2023safediffuser}, input-convex corrections~\citep{durkin2025picnn}, and the budget-paced blends we just defined---implicitly assumes the segment-convexity condition without checking it.
+Second, we show the failure is generic on directional action manifolds.
+
 \textbf{Where this happens in practice.}
-Any action that is a \emph{direction} or \emph{angle} (yaw setpoint, attack heading, steering angle, satellite pointing) and any cost shaped like a ``ridge'' at the neutral direction expose this hazard.
+Any action that is a \emph{direction} or \emph{angle} (yaw setpoint, attack heading, steering angle, satellite pointing, gait phase) and any cost shaped like a ``ridge'' at the neutral direction expose this hazard.
 Wind-turbine blade-flap damage equivalent load (DEL) is exactly this case: aerodynamic loading is maximised when the rotor is fully aligned with the wind and drops on either side of misalignment.
 When $\pi_{\mathrm{perf}}$ yaws negative (e.g., $-15^\circ$) and $\pi_{\mathrm{safe}}$ yaws positive (e.g., $+7.5^\circ$), the linear blend at intermediate $\sigma$ crosses the neutral $0^\circ$ ridge.
 
@@ -377,15 +398,42 @@ Sweeping the same $\pi_{\mathrm{safe}}$ grid produces a \emph{monotone} power-vs
 \emph{The alignment hazard requires $\pi_{\mathrm{perf}}$ and $\pi_{\mathrm{safe}}$ to straddle the cost ridge.}
 When the segment $\pi_{\mathrm{perf}}\!\to\!\pi_{\mathrm{safe}}$ stays on one side of the DEL peak, cost is monotone in $\sigma$ (segment-convex condition of \Cref{sec:monotone_theory} holds approximately).
 
-\textbf{Rejection and argmin recover Pareto.}
-At the worst-case linear blend regime ($y^{\mathrm{tgt}}=+25$ on MM DEL-aware), the proposed fixes give substantial reductions in cost \emph{and} substantial gains in reward (\cref{tab:fix_recovery}).
-Both fixes drive $\sigma_{\mathrm{eff}}$ to $\sim$0 on the hazardous turbines (the 1-step probe correctly rejects safe moves that increase DEL), and engage $\sigma$ only on turbines where safe actually helps.
-The argmin variant is slightly tighter (binary commitment) but qualitatively matches rejection.
+\textbf{Rejection and argmin recover Pareto at the zero-crossing hazard.}
+The named hazard regime is $y^{\mathrm{tgt}}=0$: the blend forces yaw through the neutral DEL ridge.
+At this regime (\cref{tab:fix_recovery_zero}), rejection and argmin both drive $\sigma_{\mathrm{eff}}$ away from $0.7$ on turbines where the 1-step probe says the safe move would worsen DEL, and the recovered farm power is $+6.8\%$ (rejection) and $+5.6\%$ (argmin) above the linear blend, with DEL slightly reduced.
+The recovery is modest in this regime because the linear DEL excess is itself modest ($\approx 1\%$ above the lower endpoint).
+% TODO(revision): author verify the y_tgt=0 row is the right canonical regime
+% to lead with; +25 numbers (Table 4 below) are an order of magnitude bigger
+% but a different mechanism (large-yaw wake saturation, not zero-crossing).
 
 \begin{table}[h]
 \centering
-\caption{Worst-case alignment-hazard regime ($\sigma=0.7$, $y^{\mathrm{tgt}}=+25^\circ$, MM DEL-aware actor): linear blend vs cost-monotone fixes.}
-\label{tab:fix_recovery}
+\caption{Alignment-hazard regime at the zero crossing ($\sigma=0.7$, $y^{\mathrm{tgt}}=0^\circ$, MM DEL-aware actor): linear blend through the DEL ridge vs cost-monotone fixes. Numbers from \cref{tab:sweep_mm_delaware} ($y^{\mathrm{tgt}}=0$ row).}
+\label{tab:fix_recovery_zero}
+\small
+\begin{tabular}{lrr}
+\toprule
+Mode & Power (GW-step) & DEL\textsubscript{tot} \\
+\midrule
+Linear & 1.61 & 63375 \\
+Rejection & 1.72 & 63000 \\
+Argmin & 1.70 & 62692 \\
+\midrule
+\multicolumn{1}{l}{\emph{$\Delta$ rejection vs linear:}} & $+6.8\%$ pwr & $-0.6\%$ DEL \\
+\multicolumn{1}{l}{\emph{$\Delta$ argmin vs linear:}} & $+5.6\%$ pwr & $-1.1\%$ DEL \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{A separate large-yaw effect.}
+A second, distinct anti-Pareto regime appears at $y^{\mathrm{tgt}}=+25^\circ$, where the blend pushes yaw deep into the saturated-wake-misalignment region of the DEL surrogate.
+This is a different mechanism from the zero-crossing alignment hazard---wake saturation, not segment-convexity violation at the neutral ridge---but it is also a regime where linear blending hurts and the gated fixes recover (\cref{tab:fix_recovery_sat}).
+We report it here for completeness; it is not the hazard the paper is named for.
+
+\begin{table}[h]
+\centering
+\caption{Saturated-wake regime ($\sigma=0.7$, $y^{\mathrm{tgt}}=+25^\circ$, MM DEL-aware actor): a separate large-yaw effect, not the zero-crossing alignment hazard. From \cref{tab:sweep_mm_delaware} ($y^{\mathrm{tgt}}=+25$ row).}
+\label{tab:fix_recovery_sat}
 \small
 \begin{tabular}{lrrr}
 \toprule
@@ -395,7 +443,8 @@ Linear & 1.50 & 65029 & $(0.70, 0.70, 0.70)$ \\
 Rejection & 1.72 & 62574 & $(0.15, 0.34, 0.26)$ \\
 Argmin & 1.73 & 62734 & $(0.20, 0.33, 0.36)$ \\
 \midrule
-\multicolumn{2}{l}{\emph{Improvement vs linear:}} & $-3.8\%$ DEL & $+15.3\%$ power \\
+\multicolumn{1}{l}{\emph{$\Delta$ rejection vs linear:}} & $+14.7\%$ pwr & $-3.8\%$ DEL \\
+\multicolumn{1}{l}{\emph{$\Delta$ argmin vs linear:}} & $+15.3\%$ pwr & $-3.5\%$ DEL \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -437,23 +486,36 @@ Full tables, including retraining-baseline comparisons, are reported in \Cref{ap
 \label{sec:related}
 %----------------------------------------------------------------------
 
+\textbf{Anytime-constrained RL.}
+\citet{mcmahan2024anytime} formalise constraints that must hold at every step almost surely (not just in expectation); they prove Markovian policies are insufficient and propose augmenting state with cumulative cost.
+The urgency-ratio variable $\rho_t = (d-C_t)/d$ is exactly such an augmentation.
+We adopt the expected-cost relaxation as a tractable surrogate; our gated fixes provide cost-monotonicity, not anytime feasibility.
+
 \textbf{Constrained MDPs.}
 Lagrangian methods~\citep{altman1999constrained, achiam2017cpo, stooke2020responsive, chen2025predictive} learn dual variables during training.
-SAUTE~\citep{sootla2022saute} augments state with $\rho_t$ but retrains per budget; we run it as a baseline (\S\ref{sec:sg_results}).
+SAUTE~\citep{sootla2022saute} augments state with $\rho_t$ but retrains per budget; we run it as a baseline (App.~\ref{app:auxiliary}).
 TREBI~\citep{lin2023trebi} handles real-time budget changes via diffusion-specific training.
-We freeze both controllers and use a closed-form $\sigma(u)$ at inference.
+We freeze both controllers and use a closed-form $\sigma(u)$ at inference, with a gated composition that survives the alignment hazard.
+
+\textbf{Marginal value of stored resource.}
+Reservoir and hydropower operation~\citep{tilmant2008water, you2008hedging} computes the marginal value of remaining storage via stochastic dynamic programming (``water value'').
+The urgency-ratio schedule is a closed-form heuristic in the same spirit.
+The decades-old structure---slack most of the time, binding rarely---is exactly the long-horizon DEL-budget setting.
 
 \textbf{Post-hoc composition.}
 Energy composition~\citep{urain2023composable}, classifier guidance~\citep{zhang2025constrained}, CBFs~\citep{xiao2023safediffuser}, and input-convex corrections~\citep{durkin2025picnn} handle instantaneous constraints.
-Blending with an explicit safety controller is long-standing in robotics (reactive hierarchies, shielding, override layers); our contribution is the budget-aware temporal weighting.
+Blending with an explicit safety controller is long-standing in robotics (reactive hierarchies, shielding, override layers).
+\emph{All of these implicitly assume the segment-convexity condition of \Cref{sec:monotone_theory}}; our finding is that this assumption can fail sharply on directional action manifolds, and that gated composition is a cheap fix.
 
 \textbf{Budget pacing.}
 Budget allocation in advertising~\citep{balseiro2023budget} and bandits with knapsacks~\citep{agrawal2014bandits} share the allocation-across-time structure.
 We adopt the urgency-ratio framework from optimal execution~\citep{almgren2001optimal}.
 
-\textbf{Wind-farm wake steering.}
-WakeAdapt~\citep{siemensWakeAdapt} and related load-aware controllers compute calibrated yaw setpoints minimising farm-level damage.
-Our framework sits above such controllers: $\pi_{\mathrm{perf}}$ squeezes more power when the budget allows; $\pi_{\mathrm{safe}}$ is the certified fallback.
+\textbf{Load-constrained wake steering with RL.}
+\citet{multiobj2026loadwake} train independent SAC actors with sector-averaged DEL surrogates on WindGym and shaped reward $r' = r - \beta\,\mathbf{1}[\Delta\mathrm{DEL} > \tau]$; FALCON~\citep{falcon2021} treats wake steering as a power-vs-lifetime Pareto problem via multi-agent DRL; WFCRL~\citep{wfcrl2025} provides a MARL benchmark with fatigue cost.
+These works adopt \emph{expected-cost / reward-shaping} formulations.
+Our contribution is orthogonal: we argue the constraint is more naturally anytime, and we expose a composition hazard that none of these works note.
+WakeAdapt~\citep{siemensWakeAdapt} is the closest industrial $\pi_{\mathrm{safe}}$ analogue.
 
 \textbf{Coupling-strength scope.}
 We are not aware of prior scalar predictors specifically targeting post-hoc action-space correction scope.
@@ -467,8 +529,15 @@ $\kappa$ is the gradient \emph{ratio} between state and action, usable as an a-p
 \textbf{What the alignment hazard means for policy composition.}
 The hazard is a sharp failure mode of inference-time policy composition, not a wind-specific quirk.
 Any setting in which the action lives on a directional manifold (yaw, steering, heading, satellite pointing, gait phase) and the cost is non-convex along the segment $\pi_{\mathrm{perf}}\!\to\!\pi_{\mathrm{safe}}$ is exposed.
-The composition literature (energy composition, classifier guidance, residual policies, safety shields) implicitly assumes the segment-convex condition of \Cref{sec:monotone_theory} without checking it.
-Our two-domain demonstration (yaw with blade-flap DEL, 2D navigation with rotated APF) shows the failure can be severe ($-12\%$ farm power; $-97\%$ goal reward) and that the cost-monotone fixes (rejection blending, argmin selection) recover the Pareto frontier with one extra cost probe per step.
+The composition literature implicitly assumes the segment-convex condition of \Cref{sec:monotone_theory} without checking it.
+Our two-domain demonstration (yaw with blade-flap DEL, 2D navigation with rotated APF) shows the failure can be severe ($-15\%$ farm power at the zero-crossing regime; $-97\%$ goal reward on Safety Gymnasium) and that the cost-monotone fixes recover the Pareto frontier with one extra cost probe per step.
+
+\textbf{Two flavours of long-horizon budget.}
+The two domains expose complementary regimes.
+On the wind farm at fixed wind direction, the DEL budget is slack on any single episode---zero yaw alone is power-competitive with the unconstrained actor, so the only task is avoiding the hazard, not preserving a large RL advantage.
+On Safety Gymnasium, the budget is genuinely binding---$\pi_{\mathrm{perf}}$ has a clear reward advantage ($R\!\approx\!27$ vs $R\!\approx\!3$ for APF alone), but tight expected-cost feasibility costs reward.
+\emph{No single domain in this paper demonstrates both a preserved valuable policy AND tight budget satisfaction simultaneously.}
+We treat this as an honest characterisation of the data, not a flaw in the framework: the cost-monotonicity guarantees (\Cref{sec:fixes}) hold regardless of which regime the operator is in, but the operational benefit of the framework depends on which one applies in deployment.
 
 \textbf{What we are \emph{not} claiming.}
 We do not claim retraining is futile: a sufficiently expensive constrained RL run can match or beat blending on any single fixed budget.
