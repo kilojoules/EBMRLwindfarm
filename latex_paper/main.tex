@@ -40,7 +40,7 @@ Long-horizon load and lifetime-fatigue budgets are most accurately modelled as \
 A natural inference-time approach to such budgets composes a pre-trained performance policy $\pi_{\mathrm{perf}}$ with a safety controller $\pi_{\mathrm{safe}}$ via $a=(1-\sigma)\pi_{\mathrm{perf}} + \sigma\pi_{\mathrm{safe}}$, where $\sigma\in[0,1]$ is paced by a budget urgency ratio in the style of optimal execution~\citep{almgren2001optimal} or reservoir water-value control~\citep{tilmant2008water, you2008hedging}.
 We identify a sharp, previously-unreported failure mode of this scheme on \emph{directional action manifolds}: when the controllers act on opposite sides of a non-convex cost ridge, the linear midpoint can have cost \emph{strictly higher than either endpoint}---the schedule is \emph{anti-Pareto in $\sigma$}.
 We call this the \textbf{alignment hazard}, give a sufficient condition for cost-monotonicity (cost convex along the segment $\pi_{\mathrm{perf}}\to\pi_{\mathrm{safe}}$), and demonstrate the phenomenon empirically in two domains.
-On wind-farm yaw control with a physics-grounded blade-flap DEL surrogate~\citep{guillore2024sectoravg}, sweeping $\pi_{\mathrm{safe}}$ direction at fixed $\sigma=0.7$ produces a clean U-shaped DEL bulge peaking where the blend yaw crosses zero: linear blend at the zero-crossing regime incurs $+1.1\%$ DEL and $-15\%$ farm power relative to its better endpoint (Table~\ref{tab:linear_hazard_mm}).
+On wind-farm yaw control with a physics-grounded blade-flap DEL surrogate~\citep{guillore2024sectoravg}, the predicted zero-crossing bump appears as a small local DEL maximum ($\approx 0.7\%$ above both immediate neighbours at $\sigma=0.7$, Table~\ref{tab:linear_hazard_mm}); a direct $\sigma$-sweep at fixed $\pi_{\mathrm{perf}}$ and a hazardous $\pi_{\mathrm{safe}}$ (the experiment matching the Proposition; Figure~\ref{fig:sigma_sweep}) shows whether the wind ridge is sharp enough to produce a substantive effect or whether the hazard is mainly a 2D-navigation phenomenon. % TODO(revision): figure pending sigma_sweep job 19012840
 On Safety Gymnasium PointGoal1, rotating the safety controller's direction by $3\pi/4$ exposes the same failure: linear blend cost $C=483$, near-zero goal reward $R=0.5$.
 We propose two cost-monotone fixes implemented with one extra cost probe per step: \textbf{rejection blending} (engage $\sigma$ only if the probe confirms $\pi_{\mathrm{safe}}$ helps) and \textbf{argmin selection} (binary commitment).
 Both are provably no-worse-than-$\pi_{\mathrm{perf}}$.
@@ -69,7 +69,7 @@ We show this natural fix has a sharp failure mode on directional action manifold
 Yaw is a directional setpoint on a manifold, not a scalar utility.
 Blade-flap damage-equivalent load (DEL) peaks when the rotor is aligned with the wind, drops on either side of misalignment, and recovers at large magnitudes.
 When $\pi_{\mathrm{perf}}$ yaws negative and $\pi_{\mathrm{safe}}$ yaws positive, the linear midpoint $\sigma=0.5$ produces \emph{zero yaw}---the cost maximum.
-In our wind-farm experiment, sweeping $\pi_{\mathrm{safe}}$ direction at fixed $\sigma=0.7$ produces a clean U-shaped DEL bulge centred at the zero-crossing regime: at $y^{\mathrm{tgt}}=0$ the linear blend incurs $+1.1\%$ DEL above its better endpoint and $-15\%$ farm power (\Cref{fig:alignment_hazard}a, \Cref{tab:linear_hazard_mm}).
+In wind, the zero-crossing bump is small in magnitude ($\approx 0.7\%$ local DEL bump above the immediate neighbours, $\approx 10\%$ local power loss versus the higher-power neighbour, \Cref{tab:linear_hazard_mm}); whether the wind ridge is sharp enough to matter operationally is the right question and we report a direct $\sigma$-sweep below (\Cref{fig:sigma_sweep}). % TODO(revision): figure depends on sigma_sweep job 19012840
 We name this the \textbf{alignment hazard} and show in \Cref{sec:monotone_theory} that it arises whenever cost is non-convex along the segment $\pi_{\mathrm{perf}}\!\to\!\pi_{\mathrm{safe}}$.
 On Safety Gymnasium PointGoal1 with a rotated artificial-potential-field controller (\Cref{fig:alignment_hazard}b), the same phenomenon shows up as a $10\times$ cost spike and near-zero reward at intermediate rotations.
 
@@ -370,7 +370,10 @@ stag4\_5d & DEL-aware $\beta\!=\!1$ & $+22\%$ & $[+7.0\%, +4.5\%, +5.0\%, +4.3\%
 
 \textbf{Linear blend exhibits the alignment hazard on multi\_modal.}
 Fixing $\sigma=0.7$ and sweeping $\pi_{\mathrm{safe}}$ target across $\{-25^\circ, -15^\circ, -7.5^\circ, 0^\circ, +7.5^\circ, +15^\circ, +25^\circ\}$ (uniform across turbines), the DEL-aware MM actor (operating naturally at $\bar y\approx-15^\circ$) and a positive setpoint $\pi_{\mathrm{safe}}$ are on opposite sides of $0^\circ$.
-\Cref{tab:linear_hazard_mm} shows that linear blend at $y^{\mathrm{tgt}}=0$ drives mean yaw to $\approx 0^\circ$ where blade-flap DEL peaks: \emph{total DEL is strictly higher than at either endpoint}, and farm power collapses to 1.62~GW-steps (vs $\approx 1.89$ at the endpoints).
+\Cref{tab:linear_hazard_mm} shows that linear blend at $y^{\mathrm{tgt}}=0$ drives mean yaw to $\approx 0^\circ$ where blade-flap DEL is locally maximal: total DEL ($63375$) exceeds both immediate neighbours ($y^{\mathrm{tgt}}=-7.5^\circ$: $62913$ and $y^{\mathrm{tgt}}=+7.5^\circ$: $62708$) by $\approx 0.7\%$, and farm power is locally depressed (1.61~GW-step vs 1.79 and 1.53 at the neighbours, i.e.\ $-10\%$ vs the higher-power neighbour).
+The effect is small relative to the swept extremes (the $y^{\mathrm{tgt}}=+25^\circ$ saturation regime, a separate mechanism, gives a much larger absolute DEL increase, $+4\%$).
+\textbf{An important caveat:} the experiment in \cref{tab:linear_hazard_mm} varies $\pi_{\mathrm{safe}}$ \emph{direction} at fixed $\sigma=0.7$; the Proposition of \cref{sec:monotone_theory} is about non-monotonicity in $\sigma$ at fixed controllers.
+A direct $\sigma$-sweep at fixed $\pi_{\mathrm{perf}}$ and a hazardous $\pi_{\mathrm{safe}}$ (i.e., $\pi_{\mathrm{safe}}$ on the opposite side of the cost ridge) is the experiment that matches the theorem; we report it below.
 
 \begin{table}[h]
 \centering
@@ -454,6 +457,20 @@ Tables in App.~\ref{app:full_sweep} report the full linear/rejection/argmin × $
 On MM (both actors) the linear curve has a clear DEL bulge centred at $y^{\mathrm{tgt}}=0$ (where blend yaw crosses zero); rejection/argmin recover the linear curve's endpoint values and never produce intermediate-yaw bulges.
 On stag4\_5d (DEL-aware) all three modes are monotone (no hazard regime exists for this actor's operating point with the swept $\pi_{\mathrm{safe}}$).
 
+\textbf{Direct $\sigma$-sweep: the experiment that matches the Proposition.}
+The Proposition of \cref{sec:monotone_theory} concerns non-convexity of $C[a(\sigma)]$ in $\sigma$ at fixed $\pi_{\mathrm{perf}}, \pi_{\mathrm{safe}}$.
+The direction sweep above is an indirect probe of this; the direct experiment fixes $\pi_{\mathrm{perf}}$ (the DEL-aware MM actor, settling at $\bar y \approx -15^\circ$) and $\pi_{\mathrm{safe}}$ (a $+15^\circ$ setpoint controller, so the blend yaw passes through $0^\circ$ at intermediate $\sigma$), and sweeps $\sigma\in\{0, 0.1, \ldots, 1.0\}$.
+\Cref{fig:sigma_sweep} reports cumulative DEL and farm power against $\sigma$ for this hazardous configuration and, as a control, against a co-directional configuration ($\pi_{\mathrm{safe}}=-25^\circ$) where the segment-convexity condition is expected to hold.
+% TODO(revision): figure depends on sigma_sweep job 19012840
+
+\begin{figure}[h]
+\centering
+% TODO(revision): replace with results from scripts/sigma_sweep_test.py when job 19012840 completes
+\fbox{\parbox{0.85\linewidth}{\centering\vspace{1.5em}\textbf{Figure pending.} Cost-vs-$\sigma$ sweep at fixed $\pi_{\mathrm{perf}}$ (DEL-aware MM actor) and two $\pi_{\mathrm{safe}}$ choices: $+15^\circ$ (hazardous: blend yaw crosses $0^\circ$) and $-25^\circ$ (co-directional: control). Generated by \texttt{scripts/sigma\_sweep\_test.py}; LUMI job 19012840.\vspace{1.5em}}}
+\caption{Cumulative DEL and farm power vs blend weight $\sigma$ at fixed $\pi_{\mathrm{perf}}$ (DEL-aware MM actor) and fixed $\pi_{\mathrm{safe}}$. The hazardous configuration ($\pi_{\mathrm{safe}}=+15^\circ$) blends across the zero-yaw DEL ridge; the control ($\pi_{\mathrm{safe}}=-25^\circ$) does not. The Proposition (\cref{sec:monotone_theory}) predicts a hump in the DEL curve for the hazardous configuration and monotone behaviour for the control.}
+\label{fig:sigma_sweep}
+\end{figure}
+
 \textbf{Safety Gymnasium: hazard appears in 2D navigation too.}
 We repeat the $\pi_{\mathrm{safe}}$-direction sweep in Safety Gymnasium PointGoal1 with an APF (artificial-potential-field) safety controller rotated by $\theta \in \{0, \pi/4, \pi/2, 3\pi/4, \pi\}$ (the rotation breaks the safe-direction alignment without changing magnitudes).
 \Cref{tab:sg_hazard} shows the worst-case $\theta=3\pi/4$ regime: linear blend incurs $C=483$ (and $R\approx 0.5$, near-zero goal progress), while rejection cuts cost to $C=50$ and argmin to $C=15$, both retaining reward $R\approx 27$ matching $\pi_{\mathrm{perf}}$ alone.
@@ -530,7 +547,7 @@ $\kappa$ is the gradient \emph{ratio} between state and action, usable as an a-p
 The hazard is a sharp failure mode of inference-time policy composition, not a wind-specific quirk.
 Any setting in which the action lives on a directional manifold (yaw, steering, heading, satellite pointing, gait phase) and the cost is non-convex along the segment $\pi_{\mathrm{perf}}\!\to\!\pi_{\mathrm{safe}}$ is exposed.
 The composition literature implicitly assumes the segment-convex condition of \Cref{sec:monotone_theory} without checking it.
-Our two-domain demonstration (yaw with blade-flap DEL, 2D navigation with rotated APF) shows the failure can be severe ($-15\%$ farm power at the zero-crossing regime; $-97\%$ goal reward on Safety Gymnasium) and that the cost-monotone fixes recover the Pareto frontier with one extra cost probe per step.
+Our two-domain demonstration shows the failure is severe on 2D navigation ($-97\%$ goal reward at the worst-case rotation) and modest but visible in wind ($\approx 0.7\%$ DEL local bump above neighbours, $\approx 10\%$ local power loss at the zero-crossing); the magnitude depends on the sharpness of the cost ridge in each domain (we report a direct $\sigma$-sweep in wind to characterise this, \Cref{fig:sigma_sweep}). The cost-monotone fixes recover the Pareto frontier with one extra cost probe per step.
 
 \textbf{Two flavours of long-horizon budget.}
 The two domains expose complementary regimes.

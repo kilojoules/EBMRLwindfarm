@@ -97,6 +97,28 @@ Marked `% [VERIFY]` in references.bib. Author confirm before submission.
 - All retraining-baseline tables stay in App B (auxiliary_legacy.tex).
 - DEL additivity is NOT critiqued anywhere (per §0 rule).
 
+## Theory-experiment gap (REQUIRED)
+
+User pointed out the formal Proposition is about non-convexity in σ at fixed
+controllers, but the existing wind experiment only sweeps π_safe direction at
+fixed σ=0.7. The σ-claim is not directly demonstrated in wind. Submitted
+σ-sweep on LUMI (job 19012840, `scripts/sigma_sweep_test.py`,
+`lumi/sigma_sweep.sbatch`):
+- Configuration A: π_safe=+15° (hazardous; blend yaw crosses 0)
+- Configuration B: π_safe=-25° (co-directional control; monotone expected)
+- σ ∈ {0, 0.1, ..., 1.0}, n=10 episodes
+
+Three possible outcomes:
+1. **Hump in A, monotone in B** → wind hazard demonstrated directly, σ-claim
+   rescued. Generate matching figure, update Fig 3 placeholder.
+2. **Flat in A** → wind DEL ridge too gentle. Honest paper becomes
+   "hazard sharp in 2D nav (Safety Gym), marginal in wind; segment-convexity
+   condition predicts when". Reduce wind claims accordingly.
+3. **Hump in both** → controller direction not the main driver. Rethink.
+
+Currently `Figure~\ref{fig:sigma_sweep}` referenced from abstract, intro, and
+§6, all with placeholder. Replace once job 19012840 returns.
+
 ## Compile state
 
 After revision, paper should compile clean with `pdflatex; bibtex; pdflatex; pdflatex`.
