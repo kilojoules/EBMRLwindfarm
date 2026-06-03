@@ -97,7 +97,33 @@ Marked `% [VERIFY]` in references.bib. Author confirm before submission.
 - All retraining-baseline tables stay in App B (auxiliary_legacy.tex).
 - DEL additivity is NOT critiqued anywhere (per §0 rule).
 
-## Theory-experiment gap (REQUIRED)
+## σ-sweep result (RESOLVED, 2026-06-02)
+
+Both sweep jobs returned:
+- Job 19012840 (π_safe=+15° + π_safe=−25° control)
+- Job 19013277 (π_safe=+7.5° low-DEL endpoint)
+
+**Verdict: between outcomes 1 and 2.** The DEL ridge at yaw≈0 is REAL and
+the predicted local non-monotonicity IS visible (e.g., DEL@σ=0.5=63935
+versus DEL@σ=0.4=63220 in the +15 config, +715 kNm spike at exactly
+where yaw crosses 0), but its absolute magnitude is small enough that
+no wind configuration we tried gives a midpoint DEL strictly and
+significantly above both endpoints on n=10 episodes.
+
+Paper now positions wind as "present-but-marginal" and Safety Gym as
+"sharp"; the Proposition's strict-above-both prediction is fully
+demonstrated in 2D nav, while the wind ridge is operationally marginal.
+This is the honest paper consistent with the data.
+
+Updated:
+- Abstract: dropped "strictly higher than either endpoint" claim; replaced
+  with split positioning ("sharp in 2D nav, marginal in wind").
+- Intro: same split positioning.
+- §5.1 (counterexample): "fail strictly" → "fail".
+- §6 (sigma_sweep paragraph): caption explains all 3 curves; honest reading.
+- §8 Discussion: aligned with split positioning.
+
+## Theory-experiment gap (HISTORICAL, addressed by σ-sweep)
 
 User pointed out the formal Proposition is about non-convexity in σ at fixed
 controllers, but the existing wind experiment only sweeps π_safe direction at
