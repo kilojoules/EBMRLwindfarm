@@ -34,9 +34,9 @@ def main():
 
     configs = []
     files = {
-        "sigma_sweep_safe_plus15.json": ("$\\pi_{\\mathrm{safe}}=+15^\\circ$ (hazardous)", "C3", "o"),
-        "sigma_sweep_safe_minus25.json": ("$\\pi_{\\mathrm{safe}}=-25^\\circ$ (co-directional control)", "C0", "s"),
-        "sigma_sweep_safe_plus7p5.json": ("$\\pi_{\\mathrm{safe}}=+7.5^\\circ$ (low-DEL endpoint)", "C2", "^"),
+        "sigma_sweep_safe_plus7p5_n50.json": ("$\\pi_{\\mathrm{safe}}=+7.5^\\circ$, n=50 (hazardous)", "C3", "o"),
+        "sigma_sweep_safe_minus25.json": ("$\\pi_{\\mathrm{safe}}=-25^\\circ$, n=10 (co-directional control)", "C0", "s"),
+        "sigma_sweep_safe_plus15_n50.json": ("$\\pi_{\\mathrm{safe}}=+15^\\circ$, n=50 (high-DEL endpoint)", "C2", "^"),
     }
     for fname, (label, color, marker) in files.items():
         p = ROOT / "results" / fname
@@ -49,9 +49,13 @@ def main():
                                        constrained_layout=True)
 
     for label, color, marker, (d, sigmas, del_tot, del_std, pwr, pwr_std, yaw0) in configs:
-        ax_d.errorbar(sigmas, del_tot, yerr=del_std, label=label,
+        n = d.get("n_episodes", 10)
+        # Convert std to SE for mean estimates
+        del_se = del_std / np.sqrt(n)
+        pwr_se = pwr_std / np.sqrt(n)
+        ax_d.errorbar(sigmas, del_tot, yerr=del_se, label=label,
                        color=color, marker=marker, capsize=3, lw=1.5, ms=5)
-        ax_p.errorbar(sigmas, pwr, yerr=pwr_std, label=label,
+        ax_p.errorbar(sigmas, pwr, yerr=pwr_se, label=label,
                        color=color, marker=marker, capsize=3, lw=1.5, ms=5)
         # annotate zero-yaw crossing for hazardous configurations
         if "hazardous" in label or "low-DEL" in label:

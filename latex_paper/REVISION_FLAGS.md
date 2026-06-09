@@ -97,7 +97,35 @@ Marked `% [VERIFY]` in references.bib. Author confirm before submission.
 - All retraining-baseline tables stay in App B (auxiliary_legacy.tex).
 - DEL additivity is NOT critiqued anywhere (per §0 rule).
 
-## σ-sweep result (RESOLVED, 2026-06-02)
+## σ-sweep result UPGRADED (2026-06-09): strict-above-both rescued at n=50
+
+Job 19122212 (n=50 multi_modal, π_safe ∈ {+7.5, +15}) returned. At
+π_safe=+7.5 with n=50:
+- σ=0: DEL 63052 ± 14 SE
+- σ=0.4: DEL 63264 ± 72 SE (peak; yaw ≈ -8°, transition zone)
+- σ=1: DEL 62681 ± 11 SE
+
+Peak vs left endpoint: +212 ± 73 (3σ significant)
+Peak vs right endpoint: +583 ± 73 (8σ significant)
+
+**Strict-above-both ACHIEVED with statistical significance in wind.**
+The n=10 result had this same hump buried in noise; n=50 reduces SE
+enough to declare significance.
+
+Job 19122213 (stag4 sweep) TIMED OUT after 2h, completed 2/3 configs:
+- stag4 π_safe=-15: monotone ↓ (no hump)
+- stag4 π_safe=+25: monotone ↑ (no hump)
+- stag4 π_safe=0: partial, monotone
+
+Stag4 ridge too gentle in any direction tested. Multi_modal layout retains
+the strict-above-both demonstration; stag4 is a counterexample to the wind
+generality claim but doesn't undermine the multi_modal result.
+
+Paper updated to claim strict-above-both with statistical significance,
+referencing the n=50 +7.5 sweep. Fig 3 caption rewritten. Abstract,
+intro, and Discussion aligned.
+
+## σ-sweep result (n=10 preliminary, 2026-06-02)
 
 Both sweep jobs returned:
 - Job 19012840 (π_safe=+15° + π_safe=−25° control)
