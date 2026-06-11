@@ -182,12 +182,12 @@ Target: 9-page main body, appendix unrestricted.
 
 | Item | Status | Action |
 |---|---|---|
-| M1 rejection guarantee false | **FIXED (text) / experiment queued** | Eq. rejection now probes blended action; `blend_modes_compare.py` rejection mode rewritten; old variant kept as `rejection_endpoint`. Empirical re-verification in `lumi/referee_fixes.sbatch` (blocked on submit limit). |
+| M1 rejection guarantee false | **RESOLVED + empirically confirmed** | v2 probes blended action. Gbar job 28628187: at y_tgt=0, endpoint-probe DEL=63416 ≈ linear 63420 (fails exactly as theory predicts); v2 DEL=62847 (-570). Table fix_recovery_zero updated with 4 modes; §5.3 verification sentence added. |
 | M2 peak-location mismatch | **RESOLVED — strengthened the paper** | `scripts/probe_del_ridge.py`: measured ridge at −9..−14° (not 0°). σ-sweep peak at yaw≈−8 sits ON the measured ridge. New Fig del_ridge_probe. §5.1 prose corrected. |
 | M3 post-hoc selection | **FIXED** | §6.1: peak location independently predicted by measured ridge; Bonferroni ×11 leaves σ=0 separation at p≈0.03, σ=1 untouched. |
 | M4 SG strawman | **SOFTENED** | §6.4: rotation framed as synthetic misalignment probe standing in for stale-goal / wrong-layout / frame-error sources. |
 | M5 generality overreach | OPEN | "generic on directional manifolds" survives in §5.1. Author call: soften to "can occur; segment-convexity is the checkable predictor". |
-| M6 β never swept | **EXPERIMENTS QUEUED** | `referee_fixes.sbatch` evals b0p5/b2p0 on MM; `train_b2p0_stag4.sbatch` trains β=2 on stag4 (8h). Both blocked on submit limit. |
+| M6 β never swept | **RESOLVED (MM); stag4 β=2 training in flight** | β∈{0.5,1,2} on MM: only β=1 Pareto-dominates (β=0.5: T2 DEL +1046; β=2: T2 +204). §6.5 updated — sensitivity holds even within one layout. Gbar job 28628188 training β=2 stag4 (~18h, SPS=3 CPU). |
 | M7 anytime metric decorative | OPEN | Needs per-episode violation rates vs a declared budget. Existing JSONs store aggregates only; would need re-eval with per-episode dumps. Author decide if worth compute. |
 | m1 "previously-unreported" | **SOFTENED** | Now "failure mode ... the inference-time composition literature does not address". |
 | m2 vestigial κ/Alg.1/schedule | OPEN | Author call: move §3/§4.2-4.3/Alg.1 to appendix or keep as supporting. |

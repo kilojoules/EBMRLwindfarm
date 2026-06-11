@@ -314,7 +314,8 @@ At each step, form the candidate blended action $a_{\mathrm{blend}} = (1-\sigma(
 \end{equation}
 The probe is computed per state (per turbine in the multi-agent setting).
 \emph{Probing the blended action, not the endpoints, is essential}: an endpoint comparison ($\hat c_{\mathrm{safe}}$ vs $\hat c_{\mathrm{perf}}$) can certify a cheap safe endpoint while the executed intermediate action sits on the cost ridge---the very failure this paper analyses.
-We verify this distinction empirically by also evaluating the endpoint-probing variant (App.~\ref{app:full_sweep}).
+We verify this distinction empirically: at the zero-crossing hazard regime, the endpoint-probing variant produces cumulative DEL statistically indistinguishable from the unguarded linear blend ($63416$ vs $63420$), while the blended-action probe avoids the ridge ($62847$; \cref{tab:fix_recovery_zero}).
+The theoretical gap is not hypothetical---it costs exactly the hazard the gate was meant to prevent.
 
 \paragraph{Argmin selection (B1).}
 A harder variant collapses to a binary choice between the endpoints: execute $\pi_{\mathrm{safe}}$ if $\hat c_{\mathrm{safe}} < \hat c_{\mathrm{perf}}$, else $\pi_{\mathrm{perf}}$.
@@ -411,24 +412,25 @@ $+25^\circ$ & 1.50 & 21699 & 21690 & 21640 & 65029 \\
 \subsection{Gated Fixes Recover the Frontier}
 \label{sec:fix_exp}
 
-\textbf{At the zero-crossing regime} ($y^{\mathrm{tgt}}=0$, \cref{tab:fix_recovery_zero}), rejection and argmin drive $\sigma_{\mathrm{eff}}$ away from $0.7$ on turbines where the 1-step probe says the safe move would worsen DEL: recovered farm power is $+6.8\%$ (rejection) and $+5.6\%$ (argmin) above the linear blend, with DEL slightly reduced.
-The recovery is modest here because the linear DEL excess is itself modest.
+\textbf{At the zero-crossing regime} ($y^{\mathrm{tgt}}=0$, \cref{tab:fix_recovery_zero}), rejection and argmin drive $\sigma_{\mathrm{eff}}$ away from $0.7$ on turbines where the 1-step probe says blending would worsen DEL: recovered farm power is $+6.2\%$ (rejection) and $+6.2\%$ (argmin) above the linear blend, with DEL reduced.
+The same table carries the empirical confirmation of the probe-placement argument from \cref{sec:fixes}: the endpoint-probing variant---which certifies the safe \emph{endpoint} but executes the \emph{intermediate} action---lands on the ridge anyway, with DEL essentially equal to the unguarded linear blend.
 
 \begin{table}[h]
 \centering
-\caption{Alignment-hazard regime at the zero crossing ($\sigma=0.7$, $y^{\mathrm{tgt}}=0^\circ$, MM DEL-aware actor): linear blend through the DEL ridge vs cost-monotone fixes. Numbers from \cref{tab:sweep_mm_delaware} ($y^{\mathrm{tgt}}=0$ row).}
+\caption{Alignment-hazard regime at the zero crossing ($\sigma=0.7$, $y^{\mathrm{tgt}}=0^\circ$, MM DEL-aware actor, $n=10$): linear blend through the DEL ridge vs gated fixes. The endpoint-probing variant fails to avoid the ridge (DEL $\approx$ linear), confirming that the probe must evaluate the executed (blended) action.}
 \label{tab:fix_recovery_zero}
 \small
 \begin{tabular}{lrr}
 \toprule
 Mode & Power (GW-step) & DEL\textsubscript{tot} \\
 \midrule
-Linear & 1.61 & 63375 \\
-Rejection & 1.72 & 63000 \\
-Argmin & 1.70 & 62692 \\
+Linear & 1.62 & 63420 \\
+Rejection (blended-action probe) & 1.72 & 62847 \\
+Rejection (endpoint probe; flawed) & 1.77 & 63416 \\
+Argmin & 1.72 & 62971 \\
 \midrule
-\multicolumn{1}{l}{\emph{$\Delta$ rejection vs linear:}} & $+6.8\%$ pwr & $-0.6\%$ DEL \\
-\multicolumn{1}{l}{\emph{$\Delta$ argmin vs linear:}} & $+5.6\%$ pwr & $-1.1\%$ DEL \\
+\multicolumn{1}{l}{\emph{$\Delta$ rejection vs linear:}} & $+6.2\%$ pwr & $-0.9\%$ DEL \\
+\multicolumn{1}{l}{\emph{$\Delta$ argmin vs linear:}} & $+6.2\%$ pwr & $-0.7\%$ DEL \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -439,24 +441,25 @@ We label it separately; it is not the hazard the paper is named for.
 
 \begin{table}[h]
 \centering
-\caption{Saturated-wake regime ($\sigma=0.7$, $y^{\mathrm{tgt}}=+25^\circ$, MM DEL-aware actor): a separate large-yaw effect, not the zero-crossing alignment hazard. From \cref{tab:sweep_mm_delaware} ($y^{\mathrm{tgt}}=+25$ row).}
+\caption{Saturated-wake regime ($\sigma=0.7$, $y^{\mathrm{tgt}}=+25^\circ$, MM DEL-aware actor, $n=10$): a separate large-yaw effect, not the zero-crossing alignment hazard. Rejection uses the corrected blended-action probe.}
 \label{tab:fix_recovery_sat}
 \small
 \begin{tabular}{lrrr}
 \toprule
 Mode & Power (GW-step) & DEL\textsubscript{tot} & $\sigma_{\mathrm{eff}}$ mean (T0, T1, T2) \\
 \midrule
-Linear & 1.50 & 65029 & $(0.70, 0.70, 0.70)$ \\
-Rejection & 1.72 & 62574 & $(0.15, 0.34, 0.26)$ \\
-Argmin & 1.73 & 62734 & $(0.20, 0.33, 0.36)$ \\
+Linear & 1.52 & 64703 & $(0.70, 0.70, 0.70)$ \\
+Rejection (blended-action probe) & 1.66 & 62344 & $(0.32, 0.45, 0.40)$ \\
+Argmin & 1.65 & 62740 & $(0.25, 0.41, 0.35)$ \\
 \midrule
-\multicolumn{1}{l}{\emph{$\Delta$ rejection vs linear:}} & $+14.7\%$ pwr & $-3.8\%$ DEL \\
-\multicolumn{1}{l}{\emph{$\Delta$ argmin vs linear:}} & $+15.3\%$ pwr & $-3.5\%$ DEL \\
+\multicolumn{1}{l}{\emph{$\Delta$ rejection vs linear:}} & $+9.2\%$ pwr & $-3.6\%$ DEL \\
+\multicolumn{1}{l}{\emph{$\Delta$ argmin vs linear:}} & $+8.6\%$ pwr & $-3.0\%$ DEL \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-Full linear/rejection/argmin × $y^{\mathrm{tgt}}$ grids for all three actor-layout combinations appear in App.~\ref{app:full_sweep}; on MM (both actors) the linear curve has a clear DEL bulge centred at $y^{\mathrm{tgt}}=0$, and rejection/argmin never produce intermediate-yaw bulges.
+Full linear/rejection/argmin × $y^{\mathrm{tgt}}$ grids for all three actor-layout combinations appear in App.~\ref{app:full_sweep}; on MM (both actors) the linear curve has a clear DEL bulge centred at $y^{\mathrm{tgt}}=0$, and the blended-probe fixes never produce intermediate-yaw bulges.
+(Earlier grids in App.~\ref{app:full_sweep} report the endpoint-probing variant under the label ``rejection''; the main-text tables use the corrected blended-action probe.)
 
 \subsection{Second Domain: 2D Navigation}
 \label{sec:sg_exp}
@@ -494,7 +497,8 @@ Likewise the direction sweep at fixed $\sigma$ produces a monotone power-vs-DEL 
 \textbf{Retraining is not a universal substitute.}
 The natural objection to inference-time composition is direct reward shaping: train with $r' = r - \beta\sum_i \mathrm{DEL}_i$ and skip blending.
 \Cref{tab:cross_layout_actor} shows this is layout-pathological at fixed $\beta$: the DEL-aware actor Pareto-dominates zero-yaw on multi\_modal ($+14\%$ power, $-3\%$ DEL) but trades $+5$--$7\%$ DEL for $+22\%$ power on stag4\_5d, and the standard actor wastes $6\%$ power on multi\_modal.
-$\beta$ must be chosen per layout per budget; without retraining for every constraint, the operator needs deployment-time composition---and then must avoid the hazard.
+The sensitivity holds even \emph{within} a single layout: sweeping $\beta\in\{0.5, 1, 2\}$ on multi\_modal, only $\beta=1$ Pareto-dominates zero-yaw---at $\beta=0.5$ the downstream turbine's DEL exceeds the zero-yaw baseline by $+5.0\%$ ($+1046$ kNm), and at $\beta=2$ by $+1.0\%$ ($+204$ kNm), despite both retaining a $16$--$18\%$ power advantage ($n=10$ episodes each).
+$\beta$ must be chosen per layout \emph{and per value}; without retraining for every constraint, the operator needs deployment-time composition---and then must avoid the hazard.
 
 \begin{table}[h]
 \centering
