@@ -1,0 +1,35 @@
+#!/bin/bash
+#BSUB -q gpua10
+#BSUB -gpu "num=1:mode=exclusive_process"
+#BSUB -n 4
+#BSUB -R "rusage[mem=16GB]"
+#BSUB -W 12:00
+#BSUB -J b2stag4
+#BSUB -o /zhome/5c/f/180689/projects/ebmrl/logs/b2stag4_%J.out
+#BSUB -e /zhome/5c/f/180689/projects/ebmrl/logs/b2stag4_%J.err
+#BSUB -u /dev/null
+
+# Referee M6: train beta=2 DEL-aware actor on stag4_5d. Ported from LUMI.
+# 200k steps; LUMI took ~5.5h on MI250x, allow 12h on A10.
+
+set -uo pipefail
+PROJECT=/zhome/5c/f/180689/projects/ebmrl
+VENV=/zhome/5c/f/180689/projects/ebmrl_env
+cd "$PROJECT"
+mkdir -p logs runs
+
+export PATH="$VENV/bin:$PATH"
+
+set -e
+python -u ebt_sac_windfarm.py \
+    --layouts stag4_5d --config default \
+    --total_timesteps 200000 --num_envs 1 --utd_ratio 2 \
+    --ebt_opt_steps_train 5 --ebt_opt_steps_eval 20 --ebt_num_candidates 16 \
+    --ebt_langevin_noise 0.05 --ebt_energy_reg 0.05 \
+    --learning_starts 2000 --history_length 1 --max_episode_steps 1000 \
+    --load_surrogate_type t1_positive_only \
+    --del_aware_reward --del_reward_beta 2.0 \
+    --flap_del_bundle checkpoints/teodor_dlc12_torch.pt \
+    --flap_del_ref 648.6 \
+    --viz_every_n_evals 1 \
+    --seed 1 --exp_name "del_aware_b2p0_stag4_5d" --no-track
