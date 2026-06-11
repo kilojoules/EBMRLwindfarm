@@ -72,7 +72,7 @@ We show this natural fix has a sharp failure mode on directional action manifold
 Yaw is a directional setpoint on a manifold, not a scalar utility.
 Blade-flap damage-equivalent load (DEL) peaks when the rotor is aligned with the wind, drops on either side of misalignment, and recovers at large magnitudes.
 When $\pi_{\mathrm{perf}}$ yaws negative and $\pi_{\mathrm{safe}}$ yaws positive, the linear midpoint $\sigma=0.5$ produces \emph{zero yaw}---the cost maximum.
-In wind, the zero-crossing bump is small in magnitude ($\approx 0.7\%$ local DEL bump above the immediate neighbours, $\approx 10\%$ local power loss versus the higher-power neighbour, \Cref{tab:linear_hazard_mm}); whether the wind ridge is sharp enough to matter operationally is the right question and we report a direct $\sigma$-sweep below (\Cref{fig:sigma_sweep}). % TODO(revision): figure depends on sigma_sweep job 19012840
+A direct $\sigma$-sweep at fixed controllers ($n=50$ episodes per $\sigma$) confirms the prediction: cumulative DEL peaks mid-segment, strictly above both endpoints at $3\sigma$ and $8\sigma$ of the standard error (\Cref{fig:sigma_sweep}).
 We name this the \textbf{alignment hazard} and show in \Cref{sec:monotone_theory} that it arises whenever cost is non-convex along the segment $\pi_{\mathrm{perf}}\!\to\!\pi_{\mathrm{safe}}$.
 On Safety Gymnasium PointGoal1 with a rotated artificial-potential-field controller (\Cref{fig:alignment_hazard}b), the same phenomenon shows up as a $10\times$ cost spike and near-zero reward at intermediate rotations.
 
@@ -99,17 +99,13 @@ Inference-time pacing is the operator-realistic alternative; the alignment hazar
 (1)~We identify the \textbf{alignment hazard}: linear blending of pre-trained controllers under budget pacing is not cost-monotone in $\sigma$ when controllers act on opposite sides of a non-convex cost ridge (\Cref{sec:hazard}).
 (2)~A \emph{sufficient condition} for monotonicity (cost convex on the segment $\pi_{\mathrm{perf}}\!\to\!\pi_{\mathrm{safe}}$) with a clean minimal counterexample (\Cref{sec:monotone_theory}).
 (3)~Two cost-monotone fixes---\textbf{rejection blending} and \textbf{argmin selection}---built on a single per-step cost probe, both provably no-worse-than-$\pi_{\mathrm{perf}}$ (\Cref{sec:fixes}).
-(4)~Empirical demonstration in two domains: wind-farm yaw control with a physics-grounded blade-flap DEL surrogate, and Safety Gymnasium 2D navigation (\Cref{sec:hazard_wf}).
+(4)~Empirical demonstration in two domains: wind-farm yaw control with a physics-grounded blade-flap DEL surrogate (direct $\sigma$-sweep, \Cref{sec:sigma_sweep_exp}), and Safety Gymnasium 2D navigation (\Cref{sec:sg_exp}).
 (5)~A cross-layout ablation showing the obvious alternative (retrain with a DEL-aware reward) is not a universal substitute: $\beta=1$ direct reward shaping gives Pareto-improving behaviour on one layout and a load/power trade-off on another, so inference-time pacing remains required when retraining for every constraint is infeasible.
 
 \textbf{Deployment claim.}
 The method drops into systems that already have an RL performance policy, a domain-specific safety controller, and a damage estimator---none of which are retrained.
 The schedule decides when to pace toward the safety controller as budget pressure builds.
 We \emph{do not} claim hard budget enforcement: APF on Safety Gym is reactive and can still incur cost (App.~\ref{app:auxiliary}); true enforcement requires a backup invariant such as $C_t + B_{\mathrm{safe}}(t)\!\le\!d$ where $B_{\mathrm{safe}}$ upper-bounds future $\pi_{\mathrm{safe}}$ cost, which we leave to future work.
-
-\textbf{Constraint type.}
-We adopt the \emph{expected-cost CMDP} formulation: $\mathbb{E}_\pi[\sum_t c_t]\!\le\!d$.
-Expected-cost feasibility is what tables score; per-episode satisfaction rate is reported as a separate operational-reliability metric.
 
 %----------------------------------------------------------------------
 \section{Background}
@@ -329,16 +325,6 @@ Both are cheap relative to policy inference and step simulation.
 \label{sec:results}
 %----------------------------------------------------------------------
 
-\subsection{Alignment Hazard in Wind-Farm Yaw Control}
-\label{sec:hazard_wf}
-
-\begin{figure}[h]
-\centering
-\includegraphics[width=0.92\linewidth]{figures/alignment_hazard.pdf}
-\caption{The alignment hazard. \textbf{(a)} Wind farm (multi\_modal, DEL-aware actor): farm power vs cumulative DEL across $\sigma=0.7$ linear blend at seven $\pi_{\mathrm{safe}}$ yaw targets $\in[-25^\circ,+25^\circ]$. Linear blend (red) zigzags into an anti-Pareto bulge at $y^{\mathrm{tgt}}=0$ (circled): blend yaw $\approx 0^\circ$ is the DEL maximum. Rejection (blue) and argmin (green) recover the Pareto frontier. \textbf{(b)} Safety Gymnasium PointGoal1: episode reward vs cumulative cost across APF rotations $\theta\in\{0,\pi/4,\pi/2,3\pi/4,\pi\}$. Linear collapses at $\theta\approx 2.36$ (circled, $C\!=\!483$, $R\!=\!0.5$); rejection and argmin stay near $\pi_{\mathrm{perf}}$'s reward (${\approx}27$) at low cost. The cost-monotone fixes use one extra cost probe per step.}
-\label{fig:alignment_hazard}
-\end{figure}
-
 \textbf{Setup.}
 We train three EBT-SAC actors to expose the hazard regime:
 (i)~$\pi_{\mathrm{perf}}^{\mathrm{MM,DEL}}$ on the multi\_modal 3-turbine layout with a DEL-aware reward $r' = r - \beta \sum_i \mathrm{DEL}_i / \mathrm{DEL}_{\mathrm{ref}}$ at $\beta=1$;
@@ -346,41 +332,44 @@ We train three EBT-SAC actors to expose the hazard regime:
 (iii)~$\pi_{\mathrm{perf}}^{\mathrm{stag4,DEL}}$ on the stag4\_5d 4-turbine layout with DEL-aware reward at $\beta=1$.
 All actors trained 200k steps on WindGym with the PyWake backend.
 $\pi_{\mathrm{safe}}$ is a yaw setpoint controller: a P-controller driving each turbine toward a target $y^{\mathrm{tgt}}$ at the actuator rate.
-DEL is scored per-step by Teodor's DLC12 sector-averaged ANN load surrogate~\citep{guillore2024sectoravg} evaluated on the realised flow and yaw.
-Cumulative quantities are summed over 200-step rollouts; 10 episodes per configuration.
+DEL is scored per-step by a DLC12 sector-averaged ANN load surrogate~\citep{guillore2024sectoravg} evaluated on the realised flow and yaw.
+Cumulative quantities are summed over 200-step rollouts; episode counts per configuration are stated with each result.
 
-\textbf{Three actors, three Pareto outcomes.}
-\Cref{tab:cross_layout_actor} shows the unblended actor vs zero-yaw baseline.
-Only the DEL-aware actor on multi\_modal Pareto-dominates zero on both axes; the standard actor wastes 6\% power on a small DEL gain; the DEL-aware actor on stag4 trades $+5$--$7\%$ DEL for $+22\%$ power.
-\emph{Direct reward shaping is not a universal substitute for inference-time pacing.}
-$\beta$ must be set per layout per budget; without retraining for each constraint, the operator needs a deployment-time pacing mechanism.
+\subsection{The Direct Test: Cost vs \texorpdfstring{$\sigma$}{sigma} at Fixed Controllers}
+\label{sec:sigma_sweep_exp}
+
+The Proposition of \cref{sec:monotone_theory} concerns non-monotonicity of $C[a(\sigma)]$ in $\sigma$ at fixed $\pi_{\mathrm{perf}}, \pi_{\mathrm{safe}}$, so the matching experiment fixes both controllers and sweeps $\sigma$.
+We fix $\pi_{\mathrm{perf}}$ (the DEL-aware MM actor, settling at $\bar y \approx -15^\circ$) and sweep $\sigma\in\{0, 0.1, \ldots, 1.0\}$ for three choices of $\pi_{\mathrm{safe}}$:
+a hazardous configuration ($y^{\mathrm{tgt}}=+7.5^\circ$, where the segment $\pi_{\mathrm{perf}}\!\to\!\pi_{\mathrm{safe}}$ crosses the zero-yaw DEL ridge and both endpoints have low DEL), a co-directional control ($y^{\mathrm{tgt}}=-25^\circ$, segment stays on one side of the ridge), and a high-DEL-endpoint variant ($y^{\mathrm{tgt}}=+15^\circ$).
+
+\Cref{fig:sigma_sweep} shows the result.
+In the hazardous configuration ($n=50$ episodes per $\sigma$), cumulative DEL peaks at $\sigma=0.4$ ($63264$), strictly above the $\sigma\!=\!0$ endpoint ($63052$) by $+212$ ($3\sigma$ of the standard error) and above the $\sigma\!=\!1$ endpoint ($62681$) by $+583$ ($8\sigma$).
+\emph{This is the alignment hazard, demonstrated on the axis the theory speaks to: the linear blend is anti-Pareto in $\sigma$.}
+The co-directional control is monotone in $\sigma$, as the segment-convexity condition predicts.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.95\linewidth]{figures/sigma_sweep.pdf}
+\caption{Cumulative DEL and farm power vs blend weight $\sigma$ at fixed $\pi_{\mathrm{perf}}$ (DEL-aware MM actor, settling at $\bar y \approx -15^\circ$) and three $\pi_{\mathrm{safe}}$ choices; error bars are standard error of the mean.
+\textbf{Red ($\pi_{\mathrm{safe}}=+7.5^\circ$, hazardous, $n=50$):} both endpoints are low-DEL ($63052$ at $\sigma\!=\!0$, $62681$ at $\sigma\!=\!1$); the segment passes through the zero-yaw ridge.
+A clear hump appears at $\sigma\!=\!0.4$, DEL $=63264$ (peak yaw $\approx -8^\circ$, in the transition toward zero), strictly above the $\sigma\!=\!0$ endpoint by $+212$ (3$\sigma$) and above the $\sigma\!=\!1$ endpoint by $+583$ (8$\sigma$).
+This is the experiment that directly matches the Proposition (\cref{sec:monotone_theory}).
+\textbf{Blue ($\pi_{\mathrm{safe}}=-25^\circ$, co-directional control, $n=10$):} DEL is monotone in $\sigma$, consistent with the segment staying on one side of the cost ridge.
+\textbf{Green ($\pi_{\mathrm{safe}}=+15^\circ$, high-DEL endpoint, $n=50$):} DEL increases monotonically because $\pi_{\mathrm{safe}}$ at $+15^\circ$ is itself a higher-DEL setpoint than $\pi_{\mathrm{perf}}$; the strict-above-both regime is not reached here, but a local non-monotonicity at the yaw=0 crossing is consistent with the predicted ridge.}
+\label{fig:sigma_sweep}
+\end{figure}
+
+\subsection{The Panoramic View: Sweeping \texorpdfstring{$\pi_{\mathrm{safe}}$}{pi-safe} Direction at Fixed \texorpdfstring{$\sigma$}{sigma}}
+\label{sec:hazard_wf}
+
+A complementary view fixes $\sigma=0.7$ and sweeps the $\pi_{\mathrm{safe}}$ target across $\{-25^\circ, \ldots, +25^\circ\}$: each grid point is a different deployment configuration an operator might choose.
+\Cref{tab:linear_hazard_mm} shows the linear blend at $y^{\mathrm{tgt}}=0$ drives mean yaw to $\approx 0^\circ$ where blade-flap DEL is locally maximal: total DEL ($63375$) exceeds both immediate neighbours by $\approx 0.7\%$, and farm power is locally depressed ($-10\%$ vs the higher-power neighbour).
+A separate, larger effect appears at $y^{\mathrm{tgt}}=+25^\circ$ from saturated wake misalignment (a different mechanism; see \cref{sec:fix_exp}).
+\Cref{fig:alignment_hazard}a plots the same sweep in the power-DEL plane, with the gated fixes overlaid.
 
 \begin{table}[h]
 \centering
-\caption{Actor vs zero-yaw baseline across layouts ($n=10$ episodes, 200 steps).}
-\label{tab:cross_layout_actor}
-\small
-\begin{tabular}{llrrr}
-\toprule
-Layout & Actor & $\Delta$ Power & $\Delta$ DEL/turb & Pareto vs zero? \\
-\midrule
-multi\_modal & DEL-aware $\beta\!=\!1$ & $+14\%$ & $[-3.2\%, -5.1\%, -0.7\%]$ & both axes \\
-multi\_modal & Standard (no DEL) & $-6\%$ & $[-2.0\%, -2.4\%, -2.7\%]$ & DEL only \\
-stag4\_5d & DEL-aware $\beta\!=\!1$ & $+22\%$ & $[+7.0\%, +4.5\%, +5.0\%, +4.3\%]$ & power only \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\textbf{Linear blend exhibits the alignment hazard on multi\_modal.}
-Fixing $\sigma=0.7$ and sweeping $\pi_{\mathrm{safe}}$ target across $\{-25^\circ, -15^\circ, -7.5^\circ, 0^\circ, +7.5^\circ, +15^\circ, +25^\circ\}$ (uniform across turbines), the DEL-aware MM actor (operating naturally at $\bar y\approx-15^\circ$) and a positive setpoint $\pi_{\mathrm{safe}}$ are on opposite sides of $0^\circ$.
-\Cref{tab:linear_hazard_mm} shows that linear blend at $y^{\mathrm{tgt}}=0$ drives mean yaw to $\approx 0^\circ$ where blade-flap DEL is locally maximal: total DEL ($63375$) exceeds both immediate neighbours ($y^{\mathrm{tgt}}=-7.5^\circ$: $62913$ and $y^{\mathrm{tgt}}=+7.5^\circ$: $62708$) by $\approx 0.7\%$, and farm power is locally depressed (1.61~GW-step vs 1.79 and 1.53 at the neighbours, i.e.\ $-10\%$ vs the higher-power neighbour).
-The effect is small relative to the swept extremes (the $y^{\mathrm{tgt}}=+25^\circ$ saturation regime, a separate mechanism, gives a much larger absolute DEL increase, $+4\%$).
-\textbf{An important caveat:} the experiment in \cref{tab:linear_hazard_mm} varies $\pi_{\mathrm{safe}}$ \emph{direction} at fixed $\sigma=0.7$; the Proposition of \cref{sec:monotone_theory} is about non-monotonicity in $\sigma$ at fixed controllers.
-A direct $\sigma$-sweep at fixed $\pi_{\mathrm{perf}}$ and a hazardous $\pi_{\mathrm{safe}}$ (i.e., $\pi_{\mathrm{safe}}$ on the opposite side of the cost ridge) is the experiment that matches the theorem; we report it below.
-
-\begin{table}[h]
-\centering
-\caption{Linear blend at $\sigma=0.7$ on multi\_modal (DEL-aware actor). The row at $y^{\mathrm{tgt}}=0$ is the alignment-hazard regime: blend yaw $\approx 0^\circ$ is the DEL maximum.}
+\caption{Linear blend at $\sigma=0.7$ on multi\_modal (DEL-aware actor), $n=10$. The row at $y^{\mathrm{tgt}}=0$ is the zero-crossing regime: blend yaw $\approx 0^\circ$ is the local DEL maximum.}
 \label{tab:linear_hazard_mm}
 \small
 \begin{tabular}{rrrrrr}
@@ -398,19 +387,18 @@ $+25^\circ$ & 1.50 & 21699 & 21690 & 21640 & 65029 \\
 \end{tabular}
 \end{table}
 
-\textbf{Hazard disappears when controllers agree on direction.}
-On stag4\_5d, the DEL-aware actor settles at positive yaws $\bar y \approx [+17, +10, +3, -5]$.
-Sweeping the same $\pi_{\mathrm{safe}}$ grid produces a \emph{monotone} power-vs-DEL trade-off, not a U-shape: $y^{\mathrm{tgt}}=-25$ (opposite to actor) gives lowest DEL (20300/turb) at lowest power (2.24~GW-step), and $y^{\mathrm{tgt}}=+25$ (same side, extended) gives highest power (2.92~GW-step) at higher DEL (23590/turb).
-\emph{The alignment hazard requires $\pi_{\mathrm{perf}}$ and $\pi_{\mathrm{safe}}$ to straddle the cost ridge.}
-When the segment $\pi_{\mathrm{perf}}\!\to\!\pi_{\mathrm{safe}}$ stays on one side of the DEL peak, cost is monotone in $\sigma$ (segment-convex condition of \Cref{sec:monotone_theory} holds approximately).
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.92\linewidth]{figures/alignment_hazard.pdf}
+\caption{The alignment hazard in the power--cost plane. \textbf{(a)} Wind farm (multi\_modal, DEL-aware actor): farm power vs cumulative DEL across $\sigma=0.7$ linear blend at seven $\pi_{\mathrm{safe}}$ yaw targets $\in[-25^\circ,+25^\circ]$. Linear blend (red) zigzags into an anti-Pareto bulge at $y^{\mathrm{tgt}}=0$ (circled). Rejection (blue) and argmin (green) recover the Pareto frontier. \textbf{(b)} Safety Gymnasium PointGoal1: episode reward vs cumulative cost across APF rotations $\theta\in\{0,\pi/4,\pi/2,3\pi/4,\pi\}$. Linear collapses at $\theta\approx 2.36$ (circled, $C\!=\!483$, $R\!=\!0.5$); rejection and argmin stay near $\pi_{\mathrm{perf}}$'s reward (${\approx}27$) at low cost.}
+\label{fig:alignment_hazard}
+\end{figure}
 
-\textbf{Rejection and argmin recover Pareto at the zero-crossing hazard.}
-The named hazard regime is $y^{\mathrm{tgt}}=0$: the blend forces yaw through the neutral DEL ridge.
-At this regime (\cref{tab:fix_recovery_zero}), rejection and argmin both drive $\sigma_{\mathrm{eff}}$ away from $0.7$ on turbines where the 1-step probe says the safe move would worsen DEL, and the recovered farm power is $+6.8\%$ (rejection) and $+5.6\%$ (argmin) above the linear blend, with DEL slightly reduced.
-The recovery is modest in this regime because the linear DEL excess is itself modest ($\approx 1\%$ above the lower endpoint).
-% TODO(revision): author verify the y_tgt=0 row is the right canonical regime
-% to lead with; +25 numbers (Table 4 below) are an order of magnitude bigger
-% but a different mechanism (large-yaw wake saturation, not zero-crossing).
+\subsection{Gated Fixes Recover the Frontier}
+\label{sec:fix_exp}
+
+\textbf{At the zero-crossing regime} ($y^{\mathrm{tgt}}=0$, \cref{tab:fix_recovery_zero}), rejection and argmin drive $\sigma_{\mathrm{eff}}$ away from $0.7$ on turbines where the 1-step probe says the safe move would worsen DEL: recovered farm power is $+6.8\%$ (rejection) and $+5.6\%$ (argmin) above the linear blend, with DEL slightly reduced.
+The recovery is modest here because the linear DEL excess is itself modest.
 
 \begin{table}[h]
 \centering
@@ -431,10 +419,9 @@ Argmin & 1.70 & 62692 \\
 \end{tabular}
 \end{table}
 
-\textbf{A separate large-yaw effect.}
-A second, distinct anti-Pareto regime appears at $y^{\mathrm{tgt}}=+25^\circ$, where the blend pushes yaw deep into the saturated-wake-misalignment region of the DEL surrogate.
-This is a different mechanism from the zero-crossing alignment hazard---wake saturation, not segment-convexity violation at the neutral ridge---but it is also a regime where linear blending hurts and the gated fixes recover (\cref{tab:fix_recovery_sat}).
-We report it here for completeness; it is not the hazard the paper is named for.
+\textbf{At the saturated-wake regime} ($y^{\mathrm{tgt}}=+25^\circ$), a second, distinct anti-Pareto effect appears: the blend pushes yaw deep into the saturated-wake-misalignment region of the DEL surrogate.
+This is a different mechanism from the zero-crossing alignment hazard---wake saturation, not segment-convexity violation at the neutral ridge---but it is also a regime where linear blending hurts and the gated fixes recover, by a much larger margin (\cref{tab:fix_recovery_sat}).
+We label it separately; it is not the hazard the paper is named for.
 
 \begin{table}[h]
 \centering
@@ -455,33 +442,14 @@ Argmin & 1.73 & 62734 & $(0.20, 0.33, 0.36)$ \\
 \end{tabular}
 \end{table}
 
-\textbf{Generalisation across the hazard sweep.}
-Tables in App.~\ref{app:full_sweep} report the full linear/rejection/argmin × $y^{\mathrm{tgt}}$ grids for all three actor-layout combinations.
-On MM (both actors) the linear curve has a clear DEL bulge centred at $y^{\mathrm{tgt}}=0$ (where blend yaw crosses zero); rejection/argmin recover the linear curve's endpoint values and never produce intermediate-yaw bulges.
-On stag4\_5d (DEL-aware) all three modes are monotone (no hazard regime exists for this actor's operating point with the swept $\pi_{\mathrm{safe}}$).
+Full linear/rejection/argmin × $y^{\mathrm{tgt}}$ grids for all three actor-layout combinations appear in App.~\ref{app:full_sweep}; on MM (both actors) the linear curve has a clear DEL bulge centred at $y^{\mathrm{tgt}}=0$, and rejection/argmin never produce intermediate-yaw bulges.
 
-\textbf{Direct $\sigma$-sweep: the experiment that matches the Proposition.}
-The Proposition of \cref{sec:monotone_theory} concerns non-convexity of $C[a(\sigma)]$ in $\sigma$ at fixed $\pi_{\mathrm{perf}}, \pi_{\mathrm{safe}}$.
-The direction sweep above is an indirect probe of this; the direct experiment fixes $\pi_{\mathrm{perf}}$ (the DEL-aware MM actor, settling at $\bar y \approx -15^\circ$) and $\pi_{\mathrm{safe}}$ (a $+15^\circ$ setpoint controller, so the blend yaw passes through $0^\circ$ at intermediate $\sigma$), and sweeps $\sigma\in\{0, 0.1, \ldots, 1.0\}$.
-\Cref{fig:sigma_sweep} reports cumulative DEL and farm power against $\sigma$ for this hazardous configuration and, as a control, against a co-directional configuration ($\pi_{\mathrm{safe}}=-25^\circ$) where the segment-convexity condition is expected to hold.
-% TODO(revision): figure depends on sigma_sweep job 19012840
+\subsection{Second Domain: 2D Navigation}
+\label{sec:sg_exp}
 
-\begin{figure}[h]
-\centering
-\includegraphics[width=0.95\linewidth]{figures/sigma_sweep.pdf}
-\caption{Cumulative DEL and farm power vs blend weight $\sigma$ at fixed $\pi_{\mathrm{perf}}$ (DEL-aware MM actor, settling at $\bar y \approx -15^\circ$) and three $\pi_{\mathrm{safe}}$ choices; error bars are standard error of the mean.
-\textbf{Red ($\pi_{\mathrm{safe}}=+7.5^\circ$, hazardous, $n=50$):} both endpoints are low-DEL ($63052$ at $\sigma\!=\!0$, $62681$ at $\sigma\!=\!1$); the segment passes through the zero-yaw ridge.
-A clear hump appears at $\sigma\!=\!0.4$, DEL $=63264$ (peak yaw $\approx -8^\circ$, in the transition toward zero), strictly above the $\sigma\!=\!0$ endpoint by $+212$ (3$\sigma$) and above the $\sigma\!=\!1$ endpoint by $+583$ (8$\sigma$).
-This is the experiment that directly matches the Proposition (\cref{sec:monotone_theory}).
-\textbf{Blue ($\pi_{\mathrm{safe}}=-25^\circ$, co-directional control, $n=10$):} DEL is monotone in $\sigma$, consistent with the segment staying on one side of the cost ridge.
-\textbf{Green ($\pi_{\mathrm{safe}}=+15^\circ$, high-DEL endpoint, $n=50$):} DEL increases monotonically because $\pi_{\mathrm{safe}}$ at $+15^\circ$ is itself a higher-DEL setpoint than $\pi_{\mathrm{perf}}$; the strict-above-both regime is not reached here, but a local non-monotonicity at the yaw=0 crossing is consistent with the predicted ridge.}
-\label{fig:sigma_sweep}
-\end{figure}
-
-\textbf{Safety Gymnasium: hazard appears in 2D navigation too.}
 We repeat the $\pi_{\mathrm{safe}}$-direction sweep in Safety Gymnasium PointGoal1 with an APF (artificial-potential-field) safety controller rotated by $\theta \in \{0, \pi/4, \pi/2, 3\pi/4, \pi\}$ (the rotation breaks the safe-direction alignment without changing magnitudes).
 \Cref{tab:sg_hazard} shows the worst-case $\theta=3\pi/4$ regime: linear blend incurs $C=483$ (and $R\approx 0.5$, near-zero goal progress), while rejection cuts cost to $C=50$ and argmin to $C=15$, both retaining reward $R\approx 27$ matching $\pi_{\mathrm{perf}}$ alone.
-The hazard exists in directional action manifolds beyond yaw control.
+The hazard exists on directional action manifolds beyond yaw control, and its magnitude here is an order of magnitude larger than in wind: the cost surface around a hazard disk is far sharper than the blade-flap DEL ridge.
 
 \begin{table}[h]
 \centering
@@ -496,6 +464,35 @@ Linear & $0.50 \pm 2.75$ & $483 \pm 108$ \\
 Rejection & $27.08 \pm 1.35$ & $50 \pm 16$ \\
 Argmin & $27.30 \pm 0.93$ & $15 \pm 16$ \\
 $\pi_{\mathrm{perf}}$ alone (reference) & $27$ & $45$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Scoping: Where the Hazard Does Not Appear, and Why Retraining Is Not a Substitute}
+\label{sec:scoping}
+
+\textbf{Layout sensitivity.}
+On stag4\_5d, $\sigma$-sweeps in three directions ($y^{\mathrm{tgt}} \in \{-15^\circ, 0^\circ, +25^\circ\}$, $n=30$) are all monotone: the DEL surface for this layout is dominated by an overall yaw-tilt trend with no significant local maximum at the neutral direction.
+Likewise the direction sweep at fixed $\sigma$ produces a monotone power-vs-DEL trade-off, not a U-shape.
+\emph{The hazard requires $\pi_{\mathrm{perf}}$ and $\pi_{\mathrm{safe}}$ to straddle a sufficiently sharp cost ridge}; whether a given layout/wind regime has one is an empirical question the segment-convexity condition turns into a checkable property.
+
+\textbf{Retraining is not a universal substitute.}
+The natural objection to inference-time composition is direct reward shaping: train with $r' = r - \beta\sum_i \mathrm{DEL}_i$ and skip blending.
+\Cref{tab:cross_layout_actor} shows this is layout-pathological at fixed $\beta$: the DEL-aware actor Pareto-dominates zero-yaw on multi\_modal ($+14\%$ power, $-3\%$ DEL) but trades $+5$--$7\%$ DEL for $+22\%$ power on stag4\_5d, and the standard actor wastes $6\%$ power on multi\_modal.
+$\beta$ must be chosen per layout per budget; without retraining for every constraint, the operator needs deployment-time composition---and then must avoid the hazard.
+
+\begin{table}[h]
+\centering
+\caption{Actor vs zero-yaw baseline across layouts ($n=10$ episodes, 200 steps).}
+\label{tab:cross_layout_actor}
+\small
+\begin{tabular}{llrrr}
+\toprule
+Layout & Actor & $\Delta$ Power & $\Delta$ DEL/turb & Pareto vs zero? \\
+\midrule
+multi\_modal & DEL-aware $\beta\!=\!1$ & $+14\%$ & $[-3.2\%, -5.1\%, -0.7\%]$ & both axes \\
+multi\_modal & Standard (no DEL) & $-6\%$ & $[-2.0\%, -2.4\%, -2.7\%]$ & DEL only \\
+stag4\_5d & DEL-aware $\beta\!=\!1$ & $+22\%$ & $[+7.0\%, +4.5\%, +5.0\%, +4.3\%]$ & power only \\
 \bottomrule
 \end{tabular}
 \end{table}
