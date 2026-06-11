@@ -177,3 +177,22 @@ Currently `Figure~\ref{fig:sigma_sweep}` referenced from abstract, intro, and
 
 After revision, paper should compile clean with `pdflatex; bibtex; pdflatex; pdflatex`.
 Target: 9-page main body, appendix unrestricted.
+
+## Adversarial referee response ledger (2026-06-11)
+
+| Item | Status | Action |
+|---|---|---|
+| M1 rejection guarantee false | **FIXED (text) / experiment queued** | Eq. rejection now probes blended action; `blend_modes_compare.py` rejection mode rewritten; old variant kept as `rejection_endpoint`. Empirical re-verification in `lumi/referee_fixes.sbatch` (blocked on submit limit). |
+| M2 peak-location mismatch | **RESOLVED — strengthened the paper** | `scripts/probe_del_ridge.py`: measured ridge at −9..−14° (not 0°). σ-sweep peak at yaw≈−8 sits ON the measured ridge. New Fig del_ridge_probe. §5.1 prose corrected. |
+| M3 post-hoc selection | **FIXED** | §6.1: peak location independently predicted by measured ridge; Bonferroni ×11 leaves σ=0 separation at p≈0.03, σ=1 untouched. |
+| M4 SG strawman | **SOFTENED** | §6.4: rotation framed as synthetic misalignment probe standing in for stale-goal / wrong-layout / frame-error sources. |
+| M5 generality overreach | OPEN | "generic on directional manifolds" survives in §5.1. Author call: soften to "can occur; segment-convexity is the checkable predictor". |
+| M6 β never swept | **EXPERIMENTS QUEUED** | `referee_fixes.sbatch` evals b0p5/b2p0 on MM; `train_b2p0_stag4.sbatch` trains β=2 on stag4 (8h). Both blocked on submit limit. |
+| M7 anytime metric decorative | OPEN | Needs per-episode violation rates vs a declared budget. Existing JSONs store aggregates only; would need re-eval with per-episode dumps. Author decide if worth compute. |
+| m1 "previously-unreported" | **SOFTENED** | Now "failure mode ... the inference-time composition literature does not address". |
+| m2 vestigial κ/Alg.1/schedule | OPEN | Author call: move §3/§4.2-4.3/Alg.1 to appendix or keep as supporting. |
+| m3 proprietary surrogate | OPEN | Add reproducibility paragraph; consider releasing surrogate I/O on published grid. |
+| m4 App B contradictions | PARTIAL | Preamble note exists; full reframing pass not done. |
+| m5 forward ref eq:blend2 | **FIXED** | §3 now names §4.1 explicitly. |
+| m6 green-curve overclaim | OPEN | Caption still says "local non-monotonicity ... consistent with predicted ridge" — quantify or drop. |
+| m7 GW-step units | **FIXED** | Defined at first use in §6 setup. |

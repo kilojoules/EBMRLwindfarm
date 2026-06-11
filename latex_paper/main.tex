@@ -38,7 +38,7 @@ DTU Wind Energy, Technical University of Denmark}
 \begin{abstract}
 Long-horizon load and lifetime-fatigue budgets are most accurately modelled as \emph{anytime constraints}~\citep{mcmahan2024anytime}---budgets that must not be exceeded at any time, almost surely---and are typically slack within any single episode.
 A natural inference-time approach to such budgets composes a pre-trained performance policy $\pi_{\mathrm{perf}}$ with a safety controller $\pi_{\mathrm{safe}}$ via $a=(1-\sigma)\pi_{\mathrm{perf}} + \sigma\pi_{\mathrm{safe}}$, where $\sigma\in[0,1]$ is paced by a budget urgency ratio in the style of optimal execution~\citep{almgren2001optimal} or reservoir water-value control~\citep{tilmant2008water, you2008hedging}.
-We identify a previously-unreported failure mode of this scheme on \emph{directional action manifolds}: when the controllers act on opposite sides of a non-convex cost ridge, the linear midpoint can have cost strictly higher than either endpoint---the schedule is \emph{anti-Pareto in $\sigma$}.
+We identify a failure mode of this scheme on \emph{directional action manifolds} that the inference-time composition literature does not address: when the controllers act on opposite sides of a non-convex cost ridge, the linear midpoint can have cost strictly higher than either endpoint---the schedule is \emph{anti-Pareto in $\sigma$}.
 We demonstrate this directly in two domains.
 In wind-farm yaw control with a blade-flap DEL surrogate~\citep{guillore2024sectoravg}, a direct $\sigma$-sweep at fixed $\pi_{\mathrm{perf}}$ (DEL-aware actor, yaw $\approx -15^\circ$) and $\pi_{\mathrm{safe}}$ (a $+7.5^\circ$ setpoint where DEL is low) shows a DEL peak at $\sigma=0.4$ that is $+212$ (3$\sigma$) and $+583$ (8$\sigma$) above the $\sigma\!=\!0$ and $\sigma\!=\!1$ endpoints respectively (\cref{fig:sigma_sweep}, $n=50$ episodes).
 On Safety Gymnasium PointGoal1 the effect is much larger ($C\!=\!483$ at the worst-case rotation vs endpoints $C\!\le\!45$, \cref{tab:sg_hazard}).
@@ -151,7 +151,7 @@ What we retain is the observation that any monotone-decreasing $\sigma:[0,\infty
 \textbf{Practical schedule.}
 We use the parametric family
 $w(u)=\exp(\eta(1/u-1))$ with $\eta\!\ge\!0$, clamped at $\lambda_{\max}\!=\!10^6$ (Appendix~Fig.~\ref{fig:approx}).
-For Eq.~\ref{eq:blend2} we map $w(u)$ to a bounded $\sigma\in[0,1]$:
+For the two-controller blend (defined in \cref{sec:blend}, Eq.~\ref{eq:blend2}) we map $w(u)$ to a bounded $\sigma\in[0,1]$:
 \begin{equation}
     \sigma(u) = \begin{cases}
         0 & u \ge 1, \\
@@ -344,6 +344,7 @@ All actors trained 200k steps on WindGym with the PyWake backend.
 $\pi_{\mathrm{safe}}$ is a yaw setpoint controller: a P-controller driving each turbine toward a target $y^{\mathrm{tgt}}$ at the actuator rate.
 DEL is scored per-step by a DLC12 sector-averaged ANN load surrogate~\citep{guillore2024sectoravg} evaluated on the realised flow and yaw.
 Cumulative quantities are summed over 200-step rollouts; episode counts per configuration are stated with each result.
+Power is reported in GW-step (the sum of farm power over the 200 steps; divide by 200 for the farm-average in GW), and DEL in kNm cumulative.
 
 \subsection{The Direct Test: Cost vs \texorpdfstring{$\sigma$}{sigma} at Fixed Controllers}
 \label{sec:sigma_sweep_exp}
@@ -354,6 +355,9 @@ a hazardous configuration ($y^{\mathrm{tgt}}=+7.5^\circ$, where the segment $\pi
 
 \Cref{fig:sigma_sweep} shows the result.
 In the hazardous configuration ($n=50$ episodes per $\sigma$), cumulative DEL peaks at $\sigma=0.4$ ($63264$), strictly above the $\sigma\!=\!0$ endpoint ($63052$) by $+212$ ($3\sigma$ of the standard error) and above the $\sigma\!=\!1$ endpoint ($62681$) by $+583$ ($8\sigma$).
+Two points guard the statistics.
+First, the peak location is not post-hoc: the blend trajectory's mean yaw at $\sigma=0.4$ is $\approx-8^\circ$, which coincides with the surrogate's independently measured DEL ridge at $-9^\circ$ for waked inflow (\cref{fig:del_ridge})---the peak is where the mechanism puts it.
+Second, even treating the peak as selected from the 11 sweep points, a Bonferroni correction leaves the $\sigma\!=\!0$ separation significant ($p \approx 0.003 \times 11 \approx 0.03$) and the $\sigma\!=\!1$ separation untouched.
 \emph{This is the alignment hazard, demonstrated on the axis the theory speaks to: the linear blend is anti-Pareto in $\sigma$.}
 The co-directional control is monotone in $\sigma$, as the segment-convexity condition predicts.
 
@@ -457,7 +461,8 @@ Full linear/rejection/argmin × $y^{\mathrm{tgt}}$ grids for all three actor-lay
 \subsection{Second Domain: 2D Navigation}
 \label{sec:sg_exp}
 
-We repeat the $\pi_{\mathrm{safe}}$-direction sweep in Safety Gymnasium PointGoal1 with an APF (artificial-potential-field) safety controller rotated by $\theta \in \{0, \pi/4, \pi/2, 3\pi/4, \pi\}$ (the rotation breaks the safe-direction alignment without changing magnitudes).
+We repeat the $\pi_{\mathrm{safe}}$-direction sweep in Safety Gymnasium PointGoal1 with an APF (artificial-potential-field) safety controller rotated by $\theta \in \{0, \pi/4, \pi/2, 3\pi/4, \pi\}$.
+\emph{The rotation is a synthetic misalignment probe, not a plausible deployed controller}: it parameterises how far $\pi_{\mathrm{safe}}$'s direction deviates from its design intent, standing in for realistic misalignment sources (a stale goal position, an APF tuned for a different hazard layout, a miscalibrated frame transform) whose direction error we cannot sweep cleanly.
 \Cref{tab:sg_hazard} shows the worst-case $\theta=3\pi/4$ regime: linear blend incurs $C=483$ (and $R\approx 0.5$, near-zero goal progress), while rejection cuts cost to $C=50$ and argmin to $C=15$, both retaining reward $R\approx 27$ matching $\pi_{\mathrm{perf}}$ alone.
 The hazard exists on directional action manifolds beyond yaw control, and its magnitude here is an order of magnitude larger than in wind: the cost surface around a hazard disk is far sharper than the blade-flap DEL ridge.
 
