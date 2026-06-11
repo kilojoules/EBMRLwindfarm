@@ -274,9 +274,16 @@ First, we identify that the \emph{composition literature}---energy composition~\
 Second, we show the failure is generic on directional action manifolds.
 
 \textbf{Where this happens in practice.}
-Any action that is a \emph{direction} or \emph{angle} (yaw setpoint, attack heading, steering angle, satellite pointing, gait phase) and any cost shaped like a ``ridge'' at the neutral direction expose this hazard.
-Wind-turbine blade-flap damage equivalent load (DEL) is exactly this case: aerodynamic loading is maximised when the rotor is fully aligned with the wind and drops on either side of misalignment.
-When $\pi_{\mathrm{perf}}$ yaws negative (e.g., $-15^\circ$) and $\pi_{\mathrm{safe}}$ yaws positive (e.g., $+7.5^\circ$), the linear blend at intermediate $\sigma$ crosses the neutral $0^\circ$ ridge.
+Any action that is a \emph{direction} or \emph{angle} (yaw setpoint, attack heading, steering angle, satellite pointing, gait phase) and any cost with a ``ridge'' interior to the operating range exposes this hazard.
+Wind-turbine blade-flap damage equivalent load (DEL) is exactly this case, with a detail that matters: probing our DLC12 surrogate directly (\cref{fig:del_ridge}) shows the flap-DEL ridge is \emph{not} at $0^\circ$ but at $-9^\circ$ to $-14^\circ$ for freestream and moderately waked inflow---consistent with the known yaw-asymmetry of flap loads that motivates positive-yaw wake steering in practice.
+When $\pi_{\mathrm{perf}}$ yaws negative of the ridge (e.g., $-15^\circ$) and $\pi_{\mathrm{safe}}$ yaws positive (e.g., $+7.5^\circ$), the linear blend at intermediate $\sigma$ crosses the ridge.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.7\linewidth]{figures/del_ridge_probe.pdf}
+\caption{The cost ridge, measured. DLC12 surrogate flap DEL vs yaw at four fixed inflow conditions. The ridge peaks at $-14^\circ$ (freestream), $-9^\circ$ (waked), $0^\circ$ (strongly waked), $-10^\circ$ (asymmetric partial wake)---\emph{not} at the neutral direction except under strong waking. This measured ridge location explains the $\sigma$-sweep peak position in \cref{fig:sigma_sweep} (peak at $\sigma=0.4$, mean yaw $\approx-8^\circ$): the blend's DEL maximum occurs where the trajectory crosses the actual ridge, exactly as the segment-convexity analysis predicts.}
+\label{fig:del_ridge}
+\end{figure}
 
 \subsection{Cost-Monotonicity: A Sufficient Condition}
 \label{sec:monotone_theory}
@@ -296,24 +303,27 @@ The hazard arises precisely when the segment-convexity assumption \emph{fails}, 
 We propose two replacements for the linear blend, both relying on a single per-step cost probe and \emph{provably no-worse-than}-$\pi_{\mathrm{perf}}$.
 
 \paragraph{Rejection blend (B3).}
-At each step, evaluate $\hat c_{\mathrm{perf}} = c(s, \pi_{\mathrm{perf}}(s))$ and $\hat c_{\mathrm{safe}} = c(s, \pi_{\mathrm{safe}}(s))$ via a one-step cost surrogate, then
+At each step, form the candidate blended action $a_{\mathrm{blend}} = (1-\sigma(u))\pi_{\mathrm{perf}}(s) + \sigma(u)\pi_{\mathrm{safe}}(s)$ and probe \emph{the blended action itself}: evaluate $\hat c_{\mathrm{blend}} = c(s, a_{\mathrm{blend}})$ and $\hat c_{\mathrm{perf}} = c(s, \pi_{\mathrm{perf}}(s))$ via a one-step cost surrogate, then
 \begin{equation}
-    \sigma_{\mathrm{eff}}(s,u) =
+    a_{\mathrm{eff}}(s,u) =
     \begin{cases}
-        \sigma(u) & \hat c_{\mathrm{safe}} \le \hat c_{\mathrm{perf}}, \\
-        0 & \text{otherwise.}
+        a_{\mathrm{blend}} & \hat c_{\mathrm{blend}} \le \hat c_{\mathrm{perf}}, \\
+        \pi_{\mathrm{perf}}(s) & \text{otherwise.}
     \end{cases}
 \label{eq:rejection}
 \end{equation}
-$\sigma_{\mathrm{eff}}$ is computed per state (per turbine in the multi-agent setting) so the safe direction is engaged only when the cost probe confirms it helps.
+The probe is computed per state (per turbine in the multi-agent setting).
+\emph{Probing the blended action, not the endpoints, is essential}: an endpoint comparison ($\hat c_{\mathrm{safe}}$ vs $\hat c_{\mathrm{perf}}$) can certify a cheap safe endpoint while the executed intermediate action sits on the cost ridge---the very failure this paper analyses.
+We verify this distinction empirically by also evaluating the endpoint-probing variant (App.~\ref{app:full_sweep}).
 
 \paragraph{Argmin selection (B1).}
-A harder variant collapses $\sigma$ to a binary decision: $\sigma_{\mathrm{eff}} = \mathbf{1}[\hat c_{\mathrm{safe}} < \hat c_{\mathrm{perf}}]$.
-This sacrifices the smooth schedule but commits fully to whichever endpoint the probe favours, eliminating intermediate yaws entirely.
+A harder variant collapses to a binary choice between the endpoints: execute $\pi_{\mathrm{safe}}$ if $\hat c_{\mathrm{safe}} < \hat c_{\mathrm{perf}}$, else $\pi_{\mathrm{perf}}$.
+This sacrifices the smooth schedule but never executes an intermediate action, eliminating ridge crossings entirely.
 
 \textbf{Cost monotonicity.}
-For both fixes, $c(a_{\mathrm{eff}}) \le c(\pi_{\mathrm{perf}})$ per state (rejection: by construction; argmin: by minimisation), so the cumulative cost satisfies $C[a_{\mathrm{eff}}] \le C[\pi_{\mathrm{perf}}]$ under fixed state distribution.
-Linear blend has no such guarantee.
+For both fixes, $c(s, a_{\mathrm{eff}}) \le c(s, \pi_{\mathrm{perf}}(s))$ per state---rejection by the explicit probe of the executed action, argmin by minimisation over the two endpoints---so the cumulative cost satisfies $C[a_{\mathrm{eff}}] \le C[\pi_{\mathrm{perf}}]$ under a fixed visited-state distribution and an accurate probe.
+Both caveats are real: in closed loop the state distribution shifts with the executed actions, and probe error transfers linearly into the guarantee.
+Linear blend has no guarantee of any kind.
 
 \textbf{Cost of the probe.}
 For surrogate-based costs (e.g., our load surrogate), the probe is one extra surrogate forward pass per candidate per step.
