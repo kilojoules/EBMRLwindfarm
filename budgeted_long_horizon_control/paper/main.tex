@@ -1,0 +1,253 @@
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{microtype}
+\usepackage{xcolor}
+
+\title{Budgeted Long-Horizon Risk Control via Cost-to-Go Guided Policy Improvement}
+\author{Julian Quick}
+\date{\today}
+
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\Qr}{Q_{\mathrm r}}
+\newcommand{\Qc}{Q_{\mathrm c}}
+\newcommand{\Ct}{C_t}
+\newcommand{\Bt}{B_t}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Many real control constraints are neither instantaneous nor fixed at training time.
+Safety contacts in navigation and fatigue loads in wind farms are accumulated over a deployment horizon, and the effect of a risky action may appear only after the state evolves.
+For wind farms this delay is physical: wakes convect downstream, so a yaw decision can change future loading on other turbines after a wind-speed-dependent delay.
+This draft proposes a stronger alternative to post-hoc instantaneous penalty scheduling: learn long-horizon reward and cost-to-go critics, then perform test-time constrained policy improvement under an explicit remaining budget.
+The central object is $\Qc(s,h,a)$, the expected future budget consumption after action $a$ from physical state $s$ and history $h$.
+At deployment, a frozen policy proposes actions, while a planner or energy optimizer selects actions that maximize $\Qr$ subject to remaining budget feasibility under $\Qc$.
+The method targets unsafe-budget Safety Gym and long-horizon wind-farm load constraints with the same mechanism.
+\end{abstract}
+
+\section{Motivation}
+
+The previous post-hoc budget-scheduling paradigm is too weak for the real wind-farm problem.
+It modulates an inference-time penalty as the remaining budget changes, but it does not by itself reason about delayed state-mediated cost.
+This distinction is decisive.
+In Safety Gym, action changes position and velocity; future position determines hazard exposure; hazard exposure consumes safety budget.
+In wind-farm control, yaw changes wake structure; wakes convect; downstream turbines experience delayed changes in loading and power.
+In both domains, the relevant question is not ``is this action locally unsafe?'' but:
+\begin{quote}
+If I take this action now, how much scarce future risk or load budget will I consume, and is the reward worth it?
+\end{quote}
+
+The correct control object is therefore a cost-to-go model, not a one-step cost surrogate.
+
+\section{Problem Formulation}
+
+We consider an episodic control problem with horizon $T$.
+The agent observes a physical state $s_t$, a history summary $h_t$, remaining time $T-t$, and cumulative budget consumption $\Ct$.
+It selects a continuous action $a_t \in \mathcal A$.
+The environment returns reward $r_t$ and cost $c_t \ge 0$.
+The deployment objective is
+\begin{align}
+  \max_\pi \quad & \E_\pi \left[\sum_{t=0}^{T-1} r_t \right] \\
+  \text{s.t.} \quad & \sum_{t=0}^{T-1} c_t \le B
+  \quad \text{per episode, or per controlled asset.}
+\end{align}
+
+The important setting is state-mediated cost:
+\begin{equation}
+  c_{t+k} = f(s_{t+k}, h_{t+k}, a_{t+k}),
+  \qquad
+  s_{t+k} \sim p(\cdot \mid s_t, h_t, a_t, \ldots).
+\end{equation}
+Thus the consequence of $a_t$ may not be visible in $c_t$.
+
+\paragraph{Wind-farm instance.}
+The action is turbine yaw.
+The cost is fatigue or load budget consumption.
+The history $h_t$ must summarize yaw history, wind speed, wind direction, turbulence, and pending wake arrivals.
+The delayed effect is approximately governed by convective travel time
+\begin{equation}
+  \tau_{ij}(t) \approx \frac{d_{ij}^{\parallel}(t)}{u_t},
+\end{equation}
+where $d_{ij}^{\parallel}$ is downstream spacing in the wind-aligned frame and $u_t$ is wind speed.
+
+\paragraph{Safety Gym instance.}
+The action changes robot motion.
+The cost is unsafe contact or hazard exposure.
+The history may be short because the simulator state is nearly Markov, but the action-cost link is still mediated by dynamics.
+
+\section{Method}
+
+\subsection{Learn long-horizon critics}
+
+Given trajectories from an unconstrained or weakly constrained policy, fit
+\begin{align}
+  \Qr(s_t,h_t,a_t) &\approx \E\left[\sum_{k=0}^{T-t-1} \gamma_r^k r_{t+k}\mid s_t,h_t,a_t\right],\\
+  \Qc(s_t,h_t,a_t) &\approx \E\left[\sum_{k=0}^{T-t-1} \gamma_c^k c_{t+k}\mid s_t,h_t,a_t\right].
+\end{align}
+
+For safety, $\Qc$ should be conservative.
+Practical variants include twin critics with max aggregation, ensembles with mean-plus-variance pessimism, and distributional critics estimating a high quantile of future cost.
+
+\subsection{Test-time constrained policy improvement}
+
+At deployment, a frozen actor supplies candidate actions.
+The controller improves those candidates using the learned critics.
+The hard form is
+\begin{equation}
+  a_t^\star =
+  \arg\max_{a \in \mathcal A}
+  \Qr(s_t,h_t,a)
+  \quad
+  \text{s.t.}
+  \quad
+  \Ct + \Qc(s_t,h_t,a) \le B.
+\end{equation}
+
+The soft form is
+\begin{equation}
+  a_t^\star =
+  \arg\max_{a \in \mathcal A}
+  \Qr(s_t,h_t,a)
+  - \lambda_t \Qc(s_t,h_t,a)
+  - \beta \sigma_{\Qc}(s_t,h_t,a),
+\end{equation}
+where $\lambda_t$ is a budget shadow price and $\sigma_{\Qc}$ is epistemic uncertainty.
+The old urgency schedule can initialize $\lambda_t$, but it is no longer the main contribution.
+
+\subsection{Candidate selection and energy optimization}
+
+There are two implementation paths.
+For Gaussian SAC actors, sample $K$ candidate actions around the frozen actor and select the best feasible action.
+For energy-based actors, add $\lambda_t \Qc$ to the action energy and optimize actions by gradient descent.
+Both instantiate the same constrained policy-improvement step.
+
+\section{Why this is stronger than instantaneous penalties}
+
+Instantaneous penalties can only discourage actions that look unsafe now.
+They fail when the risk is delayed.
+Cost-to-go guidance can rank an action as expensive because it creates future hazard exposure or future wake-induced load.
+This is exactly the structural issue shared by Safety Gym and wind-farm control.
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lll}
+\toprule
+Domain & Delayed mechanism & Required critic input \\
+\midrule
+Safety Gym & action $\rightarrow$ motion $\rightarrow$ hazard exposure & simulator state, velocity, action \\
+Wind farm & yaw $\rightarrow$ wake convection $\rightarrow$ downstream load & wind, geometry, yaw history, pending wakes \\
+\bottomrule
+\end{tabular}
+\caption{Both target domains require future-cost reasoning rather than local action penalties.}
+\end{table}
+
+\section{Research Bet and Kill Tests}
+
+This project should be pursued only in a narrow form.
+The contribution is not ``learn a safety critic for constrained RL,'' which is already close to existing work on constrained policy optimization, budgeted RL, Lyapunov methods, and distributional safety critics.
+The contribution must be sharper:
+\begin{quote}
+Test-time constrained improvement over a frozen policy can solve delayed budget spending better than instantaneous penalties, static schedules, or retraining baselines, especially when the cost is state-mediated by dynamics such as hazard exposure or wake convection.
+\end{quote}
+
+\paragraph{Nugget.}
+Delayed constraints should be controlled as scarce future-budget allocation problems, not as instantaneous penalty problems.
+
+\paragraph{Main technical risk.}
+The learned cost-to-go critic may rank actions correctly under the data-collection policy but become miscalibrated under the improved closed-loop controller.
+This is the core distribution-shift risk.
+The project should therefore test ranking and calibration before investing in paper-scale baselines.
+
+\paragraph{First question to resolve.}
+Can $\Qc$ rank candidate actions by true future cost under the closed-loop improved controller, not merely under the behavior policy used to collect training data?
+
+\subsection{Critical experiment sequence}
+
+\paragraph{Experiment 1: oracle delayed-cost sanity check.}
+In the wake-convection proxy, compare oracle future-cost candidate selection against one-step penalties and the closed-form urgency schedule.
+The oracle estimates the future load consequence of a candidate by rolling out the proxy dynamics.
+This isolates whether future-cost information is actually useful.
+\emph{Kill criterion:} if oracle future-cost selection does not improve the reward--budget Pareto frontier, the core premise is weak.
+
+\paragraph{Experiment 2: learned critic ranking and calibration.}
+Train $\Qc$ on frozen-policy trajectories, then evaluate whether it ranks candidate actions by true rollout cost.
+Report rank correlation, calibration curves, and closed-loop budget satisfaction.
+\emph{Kill or park criterion:} if $\Qc$ cannot rank actions in the cheap wake proxy with adequate data, the method is not ready for Safety Gym or wind farms.
+
+\paragraph{Experiment 3: unsafe-budget Safety Gym.}
+Compare frozen actor, one-step penalty, urgency schedule, SAC-Lagrangian or CPO-style retraining, and $\Qc$ test-time improvement across budgets.
+The target is not zero cost; the target is high reward with high budget satisfaction and meaningful budget utilization.
+\emph{Kill criterion:} if $\Qc$ only wins by becoming conservative and underusing the unsafe budget, the Safety Gym claim should be dropped or reframed.
+
+\section{Experimental Plan}
+
+\subsection{Testbed 1: Wake-convection proxy}
+
+Before the real loading surrogate is available, use a deliberately cheap proxy with:
+\begin{itemize}
+  \item wind-speed-dependent wake delays between turbine pairs,
+  \item action history buffers representing pending wake arrivals,
+  \item immediate yaw-rate/self-load costs,
+  \item delayed downstream load costs caused by upstream yaw,
+  \item time-varying reward opportunities so spending budget can be worthwhile.
+\end{itemize}
+
+This proxy is not intended to be physically publishable.
+Its job is to test whether the algorithm solves the delayed-budget structure.
+
+\subsection{Testbed 2: Safety Gym unsafe budget}
+
+Safety Gym should be treated as a hard surrogate, not a weak side experiment.
+The target metric is not zero cost.
+The target is strategic use of a limited unsafe budget:
+\begin{equation}
+  \text{high reward}, \qquad \sum_t c_t \le B, \qquad \text{high budget utilization when risk is valuable.}
+\end{equation}
+
+\subsection{Baselines}
+
+\begin{enumerate}
+  \item Unconstrained frozen actor.
+  \item Hard safety filter or action clipping.
+  \item One-step cost penalty.
+  \item Closed-form urgency schedule without $\Qc$.
+  \item SAC-Lagrangian retraining for each budget.
+  \item Model-predictive control with learned dynamics and learned cost.
+\end{enumerate}
+
+\subsection{Metrics}
+
+Report per-episode budget satisfaction, mean and lower-tail reward, budget utilization, violation severity, critic calibration, critic ranking accuracy, and generalization across budgets.
+For wind farms, additionally report power retention, per-turbine load budget satisfaction, and zero-shot layout transfer.
+
+\section{Expected Failure Modes}
+
+\paragraph{Cost critic miscalibration.}
+The controller may satisfy the learned budget but violate the true budget.
+This motivates conservative aggregation, calibration curves, and online correction.
+
+\paragraph{Distribution shift.}
+The improved controller may choose actions outside the offline data support.
+This motivates ensemble pessimism, behavior-closeness penalties, and candidate generation from the frozen actor rather than arbitrary random search.
+
+\paragraph{Overconservatism.}
+A pessimistic $\Qc$ can avoid all risk and underuse budget.
+Budget utilization should be a primary metric, not an afterthought.
+
+\section{Positioning}
+
+The contribution is not a new penalty schedule.
+The contribution is a deployment-time constrained policy-improvement layer for state-mediated, long-horizon budget constraints.
+Safety Gym and wind-farm loads are two instances of the same problem.
+The closed-form schedule remains useful only as a budget shadow-price initializer.
+
+\bibliographystyle{plain}
+\bibliography{references}
+
+\end{document}

@@ -208,3 +208,27 @@ The domain-specific part is only the `cost_fn`:
 - [ ] Ad auction budget pacing experiment
 - [ ] Retrained CMDP baselines
 - [ ] Paper writing
+
+---
+
+## Graveyard (dead experiment lines, 2026-04 → 2026-06)
+
+Each line below was pursued honestly and killed by data. Kept for the record;
+scripts/sbatches/results remain in-repo as evidence.
+
+| Line | Artifacts | Verdict |
+|---|---|---|
+| **Budget-pacing "both halves"** (single experiment showing policy advantage + budget tracking) | `lumi/train_pi_perf_del_reward.sbatch`, `scripts/eval_pi_perf_vs_safe.py` | Never materialised. Wind: budget slack, zero-yaw power-competitive. SG: advantage real, tight feasibility costs reward. Documented as "two flavours" in paper §8. |
+| **Q_r + Q_c explicit Lagrangian deployment** | `scripts/animate_qr_qc_lagrangian.py`, `results/qrqc_*.mp4` | Worked mechanically; superseded by alignment-hazard framing. The argmin fix in the paper is its direct descendant. |
+| **Budgeted long-horizon control (replacement paper)** | `budgeted_long_horizon_control/` | Q_r/Q_c cost-to-go critic direction. Archived; the gated-composition fixes carry the surviving idea. |
+| **CBF shields (kinematic + SG)** | `scripts/cbf_shield_*.py`, `lumi/cbf_*.sbatch`, `results/cbf_*.json` | Instantaneous-constraint machinery; didn't address cumulative budget. Baseline material only. |
+| **MPC correction / true-env MPC** | `scripts/mpc_*.py`, `lumi/mpc_*.sbatch`, `results/mpc_*.json` | Planning baseline; never beat blend on reward at matched cost. |
+| **MBRL post-hoc** | `scripts/mbrl_posthoc_sg.py`, `results/mbrl_posthoc_sg.json` | Model bias dominated; dropped. |
+| **AC blend with zero-yaw π_safe** (original framework) | `scripts/animate_flap_del_blend.py` + App B of paper | Worked where hazard absent; the alignment hazard discovery reframed the whole paper. |
+| **DEL-aware reward as universal fix** | `lumi/train_pi_perf_*.sbatch`, `results/cmp_*.json` | Layout-pathological: Pareto-improving on multi_modal, DEL/power trade on stag4_5d. Kept in paper as cross-layout ablation. |
+| **stag4_5d σ-sweep hazard** | `results/sigma_sweep_stag4_*.json` | No hump in any direction; stag4 ridge too gentle. Documented as layout sensitivity. |
+
+**Surviving claim (paper as of 2026-06-10):** the alignment hazard (linear
+blend anti-Pareto on directional manifolds, demonstrated at 3σ/8σ in wind
+n=50 and 10× in SG), the segment-convexity condition, and the two gated
+fixes (rejection, argmin) that transfer across both domains.

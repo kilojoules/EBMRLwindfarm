@@ -39,3 +39,4 @@ checkpoints/*.pt
 checkpoints/teodor_dlc12_torch.pt
 Teodor_surrogates/
 **/Teodor_surrogates/
+results/*.mp4

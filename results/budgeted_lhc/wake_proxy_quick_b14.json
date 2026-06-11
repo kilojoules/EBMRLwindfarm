@@ -1,0 +1,87 @@
+{
+  "config": {
+    "batch_size": 256,
+    "budget": 14.0,
+    "collect_episodes": 12,
+    "eta": 3.0,
+    "eval_episodes": 4,
+    "exploration_scale": 0.28,
+    "gamma_cost": 0.995,
+    "gamma_reward": 0.995,
+    "hidden_dim": 192,
+    "horizon": 160,
+    "learning_rate": 0.0003,
+    "n_candidates": 48,
+    "out": "results/budgeted_lhc/wake_proxy_quick_b14.json",
+    "quick": true,
+    "seed": 1,
+    "train_steps": 120
+  },
+  "dataset": {
+    "cost_return_mean": 11.694449424743652,
+    "reward_return_mean": 208.36373901367188,
+    "transitions": 1920
+  },
+  "eval": {
+    "budgeted_qc": {
+      "cost_mean": 14.207487790623963,
+      "cost_std": 0.42078664909222446,
+      "episodes": 4.0,
+      "feasible_fraction_mean": 0.023893229197710752,
+      "feasible_fraction_std": 0.0008260791911112341,
+      "reward_mean": 460.14374206409815,
+      "reward_std": 3.203584860731531,
+      "satisfied_mean": 0.25,
+      "satisfied_std": 0.4330127018922193,
+      "utilization_mean": 1.0148205564731403,
+      "utilization_std": 0.03005618922087312
+    },
+    "instant_penalty": {
+      "cost_mean": 16.620736244111733,
+      "cost_std": 0.7556814953584546,
+      "episodes": 4.0,
+      "feasible_fraction_mean": 0.0,
+      "feasible_fraction_std": 0.0,
+      "reward_mean": 533.5013733679557,
+      "reward_std": 2.1174260857627623,
+      "satisfied_mean": 0.0,
+      "satisfied_std": 0.0,
+      "utilization_mean": 1.187195446007981,
+      "utilization_std": 0.05397724966846104
+    },
+    "reward_only_qr": {
+      "cost_mean": 145.90319208090983,
+      "cost_std": 6.59740070324255,
+      "episodes": 4.0,
+      "feasible_fraction_mean": 0.0,
+      "feasible_fraction_std": 0.0,
+      "reward_mean": 592.3128366947293,
+      "reward_std": 5.3617702923123405,
+      "satisfied_mean": 0.0,
+      "satisfied_std": 0.0,
+      "utilization_mean": 10.421656577207845,
+      "utilization_std": 0.47124290737446767
+    },
+    "zero_yaw": {
+      "cost_mean": 0.0,
+      "cost_std": 0.0,
+      "episodes": 4.0,
+      "feasible_fraction_mean": 0.0,
+      "feasible_fraction_std": 0.0,
+      "reward_mean": 515.4830168844127,
+      "reward_std": 0.0,
+      "satisfied_mean": 1.0,
+      "satisfied_std": 0.0,
+      "utilization_mean": 0.0,
+      "utilization_std": 0.0
+    }
+  },
+  "train": {
+    "cost_critic": {
+      "final_loss": 76.001220703125
+    },
+    "reward_critic": {
+      "final_loss": 23767.03515625
+    }
+  }
+}
