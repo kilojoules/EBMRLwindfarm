@@ -73,7 +73,19 @@ def rollout(envs, agent, surr, n_turb, horizon, sensor,
         if mode == "linear":
             sigma_eff = np.full(n_turb, sigma_fixed)
         elif mode == "rejection":
-            # Probe 1-step DEL under each candidate; engage sigma only if safe helps
+            # v2 (referee M1 fix): probe the BLENDED action, not the endpoints.
+            # Execute blend only if the probe says the blended action's DEL is
+            # no worse than pi_perf's. This restores the per-step no-worse-than
+            # guarantee that endpoint-probing lacked (intermediate action can sit
+            # on the ridge even when the safe endpoint is cheaper).
+            a_blend_1d = (1.0 - sigma_fixed) * a_perf_1d + sigma_fixed * a_safe_1d
+            next_yaw_blend = cur_yaw + a_blend_1d * YAW_STEP
+            del_perf = predict_del(surr, sensor, per, pset, next_yaw_perf)
+            del_blend = predict_del(surr, sensor, per, pset, next_yaw_blend)
+            engage = (del_blend <= del_perf).astype(np.float32)
+            sigma_eff = sigma_fixed * engage
+        elif mode == "rejection_endpoint":
+            # Original (flawed) endpoint-probing variant, kept for comparison.
             del_perf = predict_del(surr, sensor, per, pset, next_yaw_perf)
             del_safe = predict_del(surr, sensor, per, pset, next_yaw_safe)
             engage = (del_safe < del_perf).astype(np.float32)
