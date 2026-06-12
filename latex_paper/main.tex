@@ -498,6 +498,8 @@ Likewise the direction sweep at fixed $\sigma$ produces a monotone power-vs-DEL 
 The natural objection to inference-time composition is direct reward shaping: train with $r' = r - \beta\sum_i \mathrm{DEL}_i$ and skip blending.
 \Cref{tab:cross_layout_actor} shows this is layout-pathological at fixed $\beta$: the DEL-aware actor Pareto-dominates zero-yaw on multi\_modal ($+14\%$ power, $-3\%$ DEL) but trades $+5$--$7\%$ DEL for $+22\%$ power on stag4\_5d, and the standard actor wastes $6\%$ power on multi\_modal.
 The sensitivity holds even \emph{within} a single layout: sweeping $\beta\in\{0.5, 1, 2\}$ on multi\_modal, only $\beta=1$ Pareto-dominates zero-yaw---at $\beta=0.5$ the downstream turbine's DEL exceeds the zero-yaw baseline by $+5.0\%$ ($+1046$ kNm), and at $\beta=2$ by $+1.0\%$ ($+204$ kNm), despite both retaining a $16$--$18\%$ power advantage ($n=10$ episodes each).
+Nor does raising $\beta$ rescue the failing layout: a $\beta=2$ actor trained on stag4\_5d (90k steps, evaluation metrics converged) still exceeds the zero-yaw DEL baseline on the two upstream turbines ($+1.7\%$ each) while gaining $+8.4\%$ power---an improvement over $\beta=1$ (which exceeded baseline on all four turbines) but not Pareto dominance.
+\emph{No tested $\beta$ achieves Pareto dominance on stag4\_5d.}
 $\beta$ must be chosen per layout \emph{and per value}; without retraining for every constraint, the operator needs deployment-time composition---and then must avoid the hazard.
 
 \begin{table}[h]

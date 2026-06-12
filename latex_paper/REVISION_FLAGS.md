@@ -187,7 +187,7 @@ Target: 9-page main body, appendix unrestricted.
 | M3 post-hoc selection | **FIXED** | §6.1: peak location independently predicted by measured ridge; Bonferroni ×11 leaves σ=0 separation at p≈0.03, σ=1 untouched. |
 | M4 SG strawman | **SOFTENED** | §6.4: rotation framed as synthetic misalignment probe standing in for stale-goal / wrong-layout / frame-error sources. |
 | M5 generality overreach | OPEN | "generic on directional manifolds" survives in §5.1. Author call: soften to "can occur; segment-convexity is the checkable predictor". |
-| M6 β never swept | **RESOLVED (MM); stag4 β=2 training in flight** | β∈{0.5,1,2} on MM: only β=1 Pareto-dominates (β=0.5: T2 DEL +1046; β=2: T2 +204). §6.5 updated — sensitivity holds even within one layout. Gbar job 28628188 training β=2 stag4 (~18h, SPS=3 CPU). |
+| M6 β never swept | **FULLY RESOLVED** | MM: only β=1 Pareto-dominates (β=0.5: T2 +1046; β=2: T2 +204). stag4 β=2 (90k ckpt, gbar 28632449): +8.4% pwr but T0/T1 DEL +1.7% above zero — improves on β=1 (4/4 violating) but still not Pareto. No tested β dominates on stag4. §6.5 final text in place. |
 | M7 anytime metric decorative | OPEN | Needs per-episode violation rates vs a declared budget. Existing JSONs store aggregates only; would need re-eval with per-episode dumps. Author decide if worth compute. |
 | m1 "previously-unreported" | **SOFTENED** | Now "failure mode ... the inference-time composition literature does not address". |
 | m2 vestigial κ/Alg.1/schedule | OPEN | Author call: move §3/§4.2-4.3/Alg.1 to appendix or keep as supporting. |
