@@ -1,0 +1,14 @@
+{
+  "horizon_steps": 200,
+  "n_episodes": 3,
+  "per_turbine_budgets": [
+    155046.2021077474,
+    139912.2739766439
+  ],
+  "per_turbine_std": [
+    5.3531995458336965,
+    21425.890220498626
+  ],
+  "csv": "155046.2,139912.3",
+  "sensor": "wrot_Bl1Rad0FlpMnt"
+}
